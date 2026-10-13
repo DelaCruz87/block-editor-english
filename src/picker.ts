@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Notice, SuggestModal } from 'obsidian';
 import type { App, TFile } from 'obsidian';
 
@@ -66,7 +67,7 @@ class BlockSuggest extends SuggestModal<BlockItem> {
     private onPick: (id: string) => void
   ) {
     super(app);
-    this.setPlaceholder('选择块');
+    this.setPlaceholder(TEXT.message0261);
   }
 
   getSuggestions(query: string): BlockItem[] {
@@ -81,7 +82,7 @@ class BlockSuggest extends SuggestModal<BlockItem> {
 
   renderSuggestion(item: BlockItem, el: HTMLElement): void {
     el.createDiv({ text: `^${item.id}` });
-    el.createDiv({ cls: 'block-editor-picker-path', text: item.preview || '(空)' });
+    el.createDiv({ cls: 'block-editor-picker-path', text: item.preview || TEXT.message0262 });
   }
 
   onChooseSuggestion(item: BlockItem): void {
@@ -112,7 +113,7 @@ export function pickFile(
 
 /** 选择笔记（扩展名 md） */
 export function pickNote(app: App, onPick: (file: TFile) => void): void {
-  pickFile(app, ['md'], '选择笔记', onPick);
+  pickFile(app, ['md'], TEXT.message0263, onPick);
 }
 
 /** 扫描文本中的块 ID：独立行 `^\s*\^id\s*$` 与行尾 `\s\^id\s*$` 两种形态 */
@@ -136,11 +137,11 @@ export function pickBlock(app: App, file: TFile, onPick: (blockId: string) => vo
   app.vault.cachedRead(file).then((text) => {
     const items = scanBlockIds(text);
     if (!items.length) {
-      new Notice('该笔记没有块 ID');
+      new Notice(TEXT.message0264);
       return;
     }
     new BlockSuggest(app, items, onPick).open();
-  }).catch(() => new Notice('读取笔记失败'));
+  }).catch(() => new Notice(TEXT.message0265));
 }
 
 /** 「含块 ID 的笔记」路径缓存：null 表示尚未扫描过 */
@@ -157,10 +158,10 @@ function openNoteSuggest(app: App, paths: string[], onPick: (file: TFile) => voi
   // 不引入 TFile 值导入：用路径集合过滤（vault.getFiles 为内存操作，开销可忽略）
   const files = app.vault.getFiles().filter((f) => f.extension === 'md' && set.has(f.path));
   if (!files.length) {
-    new Notice('没有找到含块 ID 的笔记');
+    new Notice(TEXT.message0266);
     return;
   }
-  new FileSuggest(app, files, '选择含块 ID 的笔记', onPick).open();
+  new FileSuggest(app, files, TEXT.message0267, onPick).open();
 }
 
 /** 只列出「含块 ID」的笔记；命中集合做会话级缓存 */
@@ -178,10 +179,10 @@ export function pickNoteWithBlocks(app: App, onPick: (file: TFile) => void): voi
   ).then((results) => {
     const paths = results.filter((r) => r.hit).map((r) => r.path);
     if (!paths.length) {
-      new Notice('没有找到含块 ID 的笔记');
+      new Notice(TEXT.message0268);
       return;
     }
     notesWithBlocks = paths;
     openNoteSuggest(app, paths, onPick);
-  }).catch(() => new Notice('扫描块 ID 笔记失败'));
+  }).catch(() => new Notice(TEXT.message0269));
 }

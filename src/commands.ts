@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Notice, MarkdownView, Modal } from 'obsidian';
 import type { App, Editor } from 'obsidian';
 import type { BlockContext } from './types';
@@ -14,7 +15,7 @@ class ColumnsDiagModal extends Modal {
     private json: string
   ) {
     super(app);
-    this.titleEl.setText('分栏诊断');
+    this.titleEl.setText(TEXT.message0123);
   }
 
   onOpen(): void {
@@ -30,42 +31,42 @@ class ColumnsDiagModal extends Modal {
 export function registerCommands(plugin: BlockEditorPlugin): void {
   plugin.addCommand({
     id: 'move-block-up',
-    name: '上移当前块',
+    name: TEXT.message0124,
     editorCallback: (editor) => plugin.ops.moveCurrentBlock(editor, -1),
   });
   plugin.addCommand({
     id: 'move-block-down',
-    name: '下移当前块',
+    name: TEXT.message0125,
     editorCallback: (editor) => plugin.ops.moveCurrentBlock(editor, 1),
   });
   plugin.addCommand({
     id: 'open-block-menu',
-    name: '打开块菜单',
+    name: TEXT.message0126,
     editorCallback: (editor) => plugin.menu.openMenuAtCursor(editor),
   });
   plugin.addCommand({
     id: 'indent-block',
-    name: '当前块缩进一级',
+    name: TEXT.message0127,
     editorCallback: (editor) => plugin.ops.indentCurrentBlock(editor, 1),
   });
   plugin.addCommand({
     id: 'outdent-block',
-    name: '当前块减少一级缩进',
+    name: TEXT.message0128,
     editorCallback: (editor) => plugin.ops.indentCurrentBlock(editor, -1),
   });
   plugin.addCommand({
     id: 'copy-block-link',
-    name: '生成块 ID',
+    name: TEXT.message0129,
     editorCallback: (editor) => plugin.ids.copyCurrentBlockLink(editor),
   });
   plugin.addCommand({
     id: 'reference-block',
-    name: '引用其他块…',
+    name: TEXT.message0130,
     editorCallback: (editor) => {
       const cursor = editor.getCursor();
       const block = plugin.detector.getBlockAtLine(editor, cursor.line);
       if (!block) {
-        new Notice('这一行没有可操作的块');
+        new Notice(TEXT.message0131);
         return;
       }
       plugin.ids.referenceOtherBlock({
@@ -79,22 +80,22 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
   });
   plugin.addCommand({
     id: 'duplicate-block',
-    name: '重复当前块',
+    name: TEXT.message0132,
     editorCallback: (editor) => plugin.ops.duplicateCurrentBlock(editor),
   });
   plugin.addCommand({
     id: 'clear-block-ids',
-    name: '清除本文所有块 ID',
+    name: TEXT.message0133,
     editorCallback: (editor) => plugin.ids.clearBlockIds(editor),
   });
 
   plugin.addCommand({
     id: 'debug-columns-dom',
-    name: '开发：复制分栏诊断信息',
+    name: TEXT.message0134,
     callback: () => {
       const mdView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
       if (!mdView) {
-        new Notice('当前没有活动的笔记视图');
+        new Notice(TEXT.message0135);
         return;
       }
       const diag = getColumnsDiagnostics();
@@ -115,14 +116,14 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
         const el =
           dom.querySelector('.cm-callout') ??
           dom.querySelector('.callout[data-callout="multi-column"]');
-        info.sample = el ? el.outerHTML.slice(0, 2500) : '(编辑器内未找到 callout DOM)';
+        info.sample = el ? el.outerHTML.slice(0, 2500) : TEXT.message0136;
       } else {
-        info.editorDom = '不可用';
+        info.editorDom = TEXT.message0137;
       }
       info.columnsDetection = diag;
       const json = JSON.stringify(info, null, 2);
       new ColumnsDiagModal(plugin.app, json).open();
-      navigator.clipboard.writeText(json).then(() => new Notice('诊断信息已同时复制到剪贴板')).catch(() => new Notice('复制诊断信息失败'));
+      navigator.clipboard.writeText(json).then(() => new Notice(TEXT.message0138)).catch(() => new Notice(TEXT.message0139));
     },
   });
 
@@ -130,7 +131,7 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
   for (const [id, title] of TURN_INTO) {
     plugin.addCommand({
       id: 'turn-into-' + id,
-      name: '转换为：' + title,
+      name: TEXT.message0140 + title,
       editorCallback: (editor) => plugin.converter.convertCurrentBlock(editor, id),
     });
   }
@@ -140,7 +141,7 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
     const cursor = editor.getCursor();
     const block = plugin.detector.getBlockAtLine(editor, cursor.line);
     if (!block) {
-      new Notice('这一行没有可操作的块');
+      new Notice(TEXT.message0141);
       return null;
     }
     return {
@@ -153,7 +154,7 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
   };
   plugin.addCommand({
     id: 'set-block-color',
-    name: '设置块颜色',
+    name: TEXT.message0142,
     editorCallback: (editor) => {
       const b = currentBlockOf(editor);
       if (!b) return;
@@ -172,7 +173,7 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
   });
   plugin.addCommand({
     id: 'clear-block-color',
-    name: '清除块颜色',
+    name: TEXT.message0143,
     editorCallback: (editor) => {
       const b = currentBlockOf(editor);
       if (!b) return;

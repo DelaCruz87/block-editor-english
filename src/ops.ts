@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Notice } from 'obsidian';
 import type { Editor } from 'obsidian';
 import type { BlockContext, BlockRange } from './types';
@@ -468,7 +469,7 @@ export class BlockOps {
       const lines = text.split('\n');
       if (lines.length >= 2) text = lines.slice(1, -1).join('\n');
     }
-    navigator.clipboard.writeText(text).then(() => new Notice('已复制块内容')).catch(() => new Notice('复制块内容失败'));
+    navigator.clipboard.writeText(text).then(() => new Notice(TEXT.message0259)).catch(() => new Notice(TEXT.message0260));
     this.ctx.handle.hideHandle();
   }
 }

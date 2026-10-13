@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Modal } from 'obsidian';
 import type { App } from 'obsidian';
 
@@ -17,7 +18,7 @@ export class ConfirmModal extends Modal {
   onOpen(): void {
     this.contentEl.createEl('p', { text: this.message });
     const row = this.contentEl.createDiv('modal-button-container');
-    const cancel = row.createEl('button', { text: '取消' });
+    const cancel = row.createEl('button', { text: TEXT.message0258 });
     cancel.addEventListener('click', () => this.close());
     const ok = row.createEl('button', { text: this.confirmText, cls: 'mod-warning' });
     ok.addEventListener('click', () => {

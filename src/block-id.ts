@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Notice } from 'obsidian';
 import type { Editor } from 'obsidian';
 import type { BlockContext } from './types';
@@ -13,14 +14,14 @@ export class BlockIdService {
 
   copyBlockLink(block: BlockContext): void {
     if (!block.file) {
-      new Notice('无法定位当前文件');
+      new Notice(TEXT.message0005);
       return;
     }
     const id = this.ensureBlockId(block);
     navigator.clipboard
       .writeText(`[[${block.file.basename}#^${id}]]`)
-      .then(() => new Notice(`已生成块 ID #^${id} 并复制链接`))
-      .catch(() => new Notice('复制块链接失败'));
+      .then(() => new Notice(TEXT.message0006(id)))
+      .catch(() => new Notice(TEXT.message0007));
     this.ctx.handle.hideHandle();
   }
 
@@ -105,7 +106,7 @@ export class BlockIdService {
     const cursor = editor.getCursor();
     const block = this.ctx.detector.getBlockAtLine(editor, cursor.line);
     if (!block) {
-      new Notice('这一行没有可操作的块');
+      new Notice(TEXT.message0008);
       return;
     }
     this.copyBlockLink({
@@ -123,7 +124,7 @@ export class BlockIdService {
       pickBlock(this.ctx.app, file, (id) => {
         // 用普通链接（不带 !）：可点击跳转；带 ! 是嵌入语法，块引用解析不到时会不显示
         this.ctx.ops.insertLines(block.editor, [`[[${file.basename}#^${id}]]`], block.end + 1);
-        new Notice(`已插入块引用 #^${id}`);
+        new Notice(TEXT.message0009(id));
       });
     });
   }
@@ -137,14 +138,14 @@ export class BlockIdService {
       else if (/\s\^[A-Za-z0-9-]+\s*$/.test(line)) removed++;
     }
     if (!removed) {
-      new Notice('本文没有块 ID');
+      new Notice(TEXT.message0010);
       return;
     }
     new ConfirmModal(
       this.ctx.app,
-      '清除块 ID',
-      `将从本文移除 ${removed} 个块 ID，引用它们的块链接会失效。确认清除？`,
-      '清除',
+      TEXT.message0011,
+      TEXT.message0012(removed),
+      TEXT.message0013,
       () => this.doClearBlockIds(editor)
     ).open();
   }
@@ -173,6 +174,6 @@ export class BlockIdService {
       { line: 0, ch: 0 },
       { line: total - 1, ch: editor.getLine(total - 1).length }
     );
-    new Notice(`已清除 ${removed} 个块 ID`);
+    new Notice(TEXT.message0014(removed));
   }
 }

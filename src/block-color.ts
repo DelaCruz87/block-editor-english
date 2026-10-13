@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Decoration, EditorView } from '@codemirror/view';
 import type { DecorationSet } from '@codemirror/view';
 import { Prec, StateField } from '@codemirror/state';
@@ -514,7 +515,7 @@ export function openBlockColorPicker(opts: {
 
   const title = createEl('div');
   title.className = 'block-editor-col-picker-title';
-  title.textContent = '块颜色';
+  title.textContent = TEXT.message0001;
   picker.appendChild(title);
 
   const swatches = createEl('div');
@@ -539,7 +540,7 @@ export function openBlockColorPicker(opts: {
   colorInput.type = 'color';
   colorInput.className = 'block-editor-col-picker-native';
   colorInput.value = current ?? '#f1f3f5';
-  colorInput.title = '自定义颜色';
+  colorInput.title = TEXT.message0002;
   colorInput.addEventListener('input', () => {
     input.value = colorInput.value;
     input.classList.remove('is-invalid');
@@ -561,7 +562,7 @@ export function openBlockColorPicker(opts: {
   });
   const applyBtn = createEl('button');
   applyBtn.className = 'block-editor-col-picker-apply';
-  applyBtn.textContent = '应用';
+  applyBtn.textContent = TEXT.message0003;
   const applyHex = (): void => {
     const v = normalizeBlockColor(input.value);
     if (!v) {
@@ -580,7 +581,7 @@ export function openBlockColorPicker(opts: {
 
   const clearBtn = createEl('button');
   clearBtn.className = 'block-editor-col-picker-clear';
-  clearBtn.textContent = '清除块颜色';
+  clearBtn.textContent = TEXT.message0004;
   clearBtn.addEventListener('click', () => {
     close();
     onPick(null);

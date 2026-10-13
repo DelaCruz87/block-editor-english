@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Notice } from 'obsidian';
 import type { Editor } from 'obsidian';
 import type { BlockContext, BlockRange, TurnIntoType } from './types';
@@ -291,7 +292,7 @@ export class BlockConverter {
           : getLines(editor, start + 1, end - 1).join('\n');
       // mermaid 目标：内容须为合法图语法，否则提示并终止（避免生成非法围栏）
       if (type === 'mermaid' && !isMermaidContent(inner)) {
-        new Notice('内容不是有效的 mermaid 图语法，未转换为 mermaid');
+        new Notice(TEXT.message0200);
         return;
       }
       editor.replaceRange(
@@ -313,7 +314,7 @@ export class BlockConverter {
       const content = this.readContent(editor, start);
       // mermaid 目标：普通文本 / 空内容包成围栏会被渲染器抛 UnknownDiagramError，拦截提示
       if (type === 'mermaid' && !isMermaidContent(content)) {
-        new Notice('内容不是有效的 mermaid 图语法，未转换为 mermaid');
+        new Notice(TEXT.message0201);
         return;
       }
       editor.replaceRange(
@@ -327,7 +328,7 @@ export class BlockConverter {
     if (type === 'table') {
       editor.replaceRange(
         [
-          '| 列 1 | 列 2 |',
+          TEXT.message0202,
           '| --- | --- |',
           '| ' + this.readContent(editor, start) + ' |  |',
         ].join('\n'),
@@ -403,7 +404,7 @@ export class BlockConverter {
         .filter(Boolean)
         .map((l) => '| ' + l + ' |')
         .join('\n');
-      return '| 列 1 | 列 2 |\n| --- | --- |\n' + body;
+      return TEXT.message0203 + body;
     }
     const lines = inner.split('\n');
     const rest = lines.slice(1);
@@ -443,7 +444,7 @@ export class BlockConverter {
     const cursor = editor.getCursor();
     const block = this.ctx.detector.getBlockAtLine(editor, cursor.line);
     if (!block) {
-      new Notice('这一行不支持转换');
+      new Notice(TEXT.message0204);
       return;
     }
     const ctxBlock: BlockContext = { editor, file: null, start: block.start, end: block.end, type: block.type };
@@ -503,7 +504,7 @@ export class BlockConverter {
         hit++;
       }
     }
-    if (!hit) new Notice('当前块不是折叠块');
+    if (!hit) new Notice(TEXT.message0205);
     this.ctx.handle.hideHandle();
   }
 
@@ -598,7 +599,7 @@ export class BlockConverter {
     if (cur.length) segments.push(cur);
 
     if (segments.length < 2) {
-      new Notice('组合为分栏至少需要两个段落块（用空行分隔）');
+      new Notice(TEXT.message0206);
       return;
     }
 
@@ -679,7 +680,7 @@ export class BlockConverter {
   wrapListToColumns(block: BlockContext, by: 'parent' | 'child' = 'parent'): void {
     const editor = block.editor;
     if (this.isColumnsBlock(editor, block) || this.insideColumns(editor, block)) {
-      new Notice('分栏内部不能再套分栏');
+      new Notice(TEXT.message0207);
       return;
     }
     const r = this.listColumnRange(block);
@@ -691,10 +692,10 @@ export class BlockConverter {
     if (!plan || plan.segments.length < 2) {
       new Notice(
         plan?.reason === 'multi-parent'
-          ? '按子项转为分栏要求整段只有一个父项'
+          ? TEXT.message0208
           : by === 'parent'
-            ? '按父项转为分栏至少需要两个列表项'
-            : '按子项转为分栏至少需要两个同级子项'
+            ? TEXT.message0209
+            : TEXT.message0210
       );
       return;
     }
@@ -720,7 +721,7 @@ export class BlockConverter {
   unwrapColumns(block: BlockContext): void {
     const editor = block.editor;
     if (!this.isColumnsBlock(editor, block)) {
-      new Notice('当前块不是分栏');
+      new Notice(TEXT.message0211);
       return;
     }
     const columns: string[][] = [];
@@ -763,7 +764,7 @@ export class BlockConverter {
       .filter((s) => s.length > 0);
 
     if (!parts.length) {
-      new Notice('没有可还原的栏内容');
+      new Notice(TEXT.message0212);
       return;
     }
     editor.replaceRange(
@@ -807,7 +808,7 @@ export class BlockConverter {
   appendColumnRow(block: BlockContext): void {
     const editor = block.editor;
     if (!this.isColumnsBlock(editor, block)) {
-      new Notice('当前块不是分栏');
+      new Notice(TEXT.message0213);
       return;
     }
     const lines = getLines(editor, block.start, block.end);
@@ -1026,7 +1027,7 @@ export class BlockConverter {
     const editor = block.editor;
     const p = this.parseColumnsAt(editor, block);
     if (!p || !p.colLines.length) {
-      new Notice('当前块不在分栏内');
+      new Notice(TEXT.message0214);
       return;
     }
     const i = this.columnIndexOf(p, block.start);
@@ -1057,18 +1058,18 @@ export class BlockConverter {
     const editor = block.editor;
     const p = this.parseColumnsAt(editor, block);
     if (!p || !p.colLines.length) {
-      new Notice('当前块不在分栏内');
+      new Notice(TEXT.message0215);
       return;
     }
     const i = this.columnIndexOf(p, block.start);
     if (p.segments.length <= 1) {
-      new Notice('只剩 1 栏，无法合并');
+      new Notice(TEXT.message0216);
       return;
     }
     if (p.rows.length) {
       const r = this.rowIndexOf(p.rows, i);
       if (i + 1 >= this.rowRange(p.rows, r)[1]) {
-        new Notice('已是行末栏，无法跨行合并');
+        new Notice(TEXT.message0217);
         return;
       }
     }
@@ -1088,7 +1089,7 @@ export class BlockConverter {
     const editor = block.editor;
     const p = this.parseColumnsAt(editor, block);
     if (!p || !p.colLines.length) {
-      new Notice('当前块不在分栏内');
+      new Notice(TEXT.message0218);
       return;
     }
     const i = this.columnIndexOf(p, block.start);
@@ -1114,18 +1115,18 @@ export class BlockConverter {
     const editor = block.editor;
     const p = this.parseColumnsAt(editor, block);
     if (!p || !p.colLines.length) {
-      new Notice('当前块不在分栏内');
+      new Notice(TEXT.message0219);
       return;
     }
     if (!p.rows.length || p.rows.length <= 1) {
-      new Notice('当前分栏为单行，无需行排序');
+      new Notice(TEXT.message0220);
       return;
     }
     const i = this.columnIndexOf(p, block.start);
     const r = this.rowIndexOf(p.rows, i);
     const t = r + dir;
     if (t < 0 || t >= p.rows.length) {
-      new Notice(dir === -1 ? '已是首行，无法上移' : '已是末行，无法下移');
+      new Notice(dir === -1 ? TEXT.message0221 : TEXT.message0222);
       return;
     }
     const [s1, e1] = this.rowRange(p.rows, r);
@@ -1236,7 +1237,7 @@ export class BlockConverter {
     const editor = block.editor;
     const norm = normalizeBlockColor(color);
     if (!norm) {
-      new Notice('不支持的颜色：' + color);
+      new Notice(TEXT.message0223 + color);
       return;
     }
     // 块首行存量 %% 标记：写回 span 时一并清理（避免同块双标记重复上色）
@@ -1256,7 +1257,7 @@ export class BlockConverter {
     // （建议改用分栏 bg 元数据 |bg= 做整栏配色）；提示不阻断写回
     if (this.insideColumns(editor, block)) {
       new Notice(
-        '该块位于分栏 callout 内：阅读模式受 Obsidian 渲染限制，颜色仅实时预览生效；建议改用分栏 bg 元数据 |bg= 做整栏配色',
+        TEXT.message0224,
         6000
       );
     }
@@ -1282,7 +1283,7 @@ export class BlockConverter {
       if (next !== line) editor.setLine(i, next);
     }
     if (!found) {
-      new Notice('当前块没有颜色标记');
+      new Notice(TEXT.message0225);
       return;
     }
     this.ctx.handle.hideHandle();

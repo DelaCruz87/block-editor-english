@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Decoration, EditorView, ViewPlugin, WidgetType } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import { Prec, StateEffect, StateField } from '@codemirror/state';
@@ -1016,7 +1017,7 @@ class ColumnsWidget extends WidgetType {
       try {
         fn(view);
       } catch (e) {
-        console.error('[BE-columns] dispatch 失败', e);
+        console.error(TEXT.message0046, e);
       }
     });
   }
@@ -1267,7 +1268,7 @@ class ColumnsWidget extends WidgetType {
       try {
         this.renderChild.unload();
       } catch (e) {
-        console.error('[BE-columns] 卸载渲染组件失败', e);
+        console.error(TEXT.message0047, e);
       }
       this.renderChild = null;
     }
@@ -1327,7 +1328,7 @@ class ColumnsWidget extends WidgetType {
         if (j > 0) {
           const resizer = createEl('div');
           resizer.className = 'block-editor-col-resizer';
-          resizer.title = '拖拽调整栏宽';
+          resizer.title = TEXT.message0048;
           resizer.addEventListener('mousedown', (e) => this.startResize(e, i - 1, row, resizer));
           row.appendChild(resizer);
         }
@@ -1350,7 +1351,7 @@ class ColumnsWidget extends WidgetType {
         const grip = createEl('div');
         grip.className = 'block-editor-col-grip';
         grip.textContent = '⠿';
-        grip.title = '拖动排序；点击打开菜单';
+        grip.title = TEXT.message0049;
         grip.addEventListener('mousedown', (e) => this.gripDown(e, i));
         col.appendChild(grip);
 
@@ -1496,7 +1497,7 @@ class ColumnsWidget extends WidgetType {
                 window.setTimeout(rm, 300);
               })
               .catch(() => {
-                content.setText('点击编辑此栏');
+                content.setText(TEXT.message0050);
               });
           }
         }
@@ -2055,7 +2056,7 @@ class ColumnsWidget extends WidgetType {
 
     const bgBtn = createEl('button');
     bgBtn.className = 'block-editor-col-menu-item';
-    bgBtn.title = '设置背景色';
+    bgBtn.title = TEXT.message0051;
     bgBtn.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_PALETTE));
     bgBtn.addEventListener('click', () => {
       this.closeMenu();
@@ -2064,7 +2065,7 @@ class ColumnsWidget extends WidgetType {
 
     const addBtn = createEl('button');
     addBtn.className = 'block-editor-col-menu-item';
-    addBtn.title = '新增栏';
+    addBtn.title = TEXT.message0052;
     addBtn.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_PLUS));
     addBtn.addEventListener('click', () => {
       this.closeMenu();
@@ -2073,11 +2074,11 @@ class ColumnsWidget extends WidgetType {
 
     const delBtn = createEl('button');
     delBtn.className = 'block-editor-col-menu-item';
-    delBtn.title = '删除栏';
+    delBtn.title = TEXT.message0053;
     const single = this.texts.length <= 1;
     if (single) {
       delBtn.disabled = true;
-      delBtn.title = '只剩 1 栏，无法删除';
+      delBtn.title = TEXT.message0054;
     }
     delBtn.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_X));
     delBtn.addEventListener('click', () => {
@@ -2088,7 +2089,7 @@ class ColumnsWidget extends WidgetType {
     // H2 行列编辑增强：拆分栏 / 合并到下一栏 / 追加一行 / 行上移 / 行下移
     const splitBtn = createEl('button');
     splitBtn.className = 'block-editor-col-menu-item';
-    splitBtn.title = '拆分栏（一栏拆两栏）';
+    splitBtn.title = TEXT.message0055;
     splitBtn.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_SPLIT));
     splitBtn.addEventListener('click', () => {
       this.closeMenu();
@@ -2097,11 +2098,11 @@ class ColumnsWidget extends WidgetType {
 
     const mergeBtn = createEl('button');
     mergeBtn.className = 'block-editor-col-menu-item';
-    mergeBtn.title = '合并到下一栏';
+    mergeBtn.title = TEXT.message0056;
     const rowEnd = this.rows.length ? this.rowRange(this.rowIndexOf(i))[1] : this.texts.length;
     if (single || i + 1 >= rowEnd) {
       mergeBtn.disabled = true;
-      mergeBtn.title = single ? '只剩 1 栏，无法合并' : '已是行末栏，无法跨行合并';
+      mergeBtn.title = single ? TEXT.message0057 : TEXT.message0058;
     }
     mergeBtn.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_MERGE));
     mergeBtn.addEventListener('click', () => {
@@ -2111,7 +2112,7 @@ class ColumnsWidget extends WidgetType {
 
     const rowBtn = createEl('button');
     rowBtn.className = 'block-editor-col-menu-item';
-    rowBtn.title = '追加一行（与首行同栏数）';
+    rowBtn.title = TEXT.message0059;
     rowBtn.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_PLUS));
     rowBtn.addEventListener('click', () => {
       this.closeMenu();
@@ -2121,7 +2122,7 @@ class ColumnsWidget extends WidgetType {
     // 删除整行：仅多行时可用（单行禁用，避免把整个分栏删空）
     const delRowBtn = createEl('button');
     delRowBtn.className = 'block-editor-col-menu-item';
-    delRowBtn.title = this.rows.length > 1 ? '删除整行' : '仅剩 1 行，无法删除整行';
+    delRowBtn.title = this.rows.length > 1 ? TEXT.message0060 : TEXT.message0061;
     if (this.rows.length <= 1) delRowBtn.disabled = true;
     delRowBtn.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_X));
     delRowBtn.addEventListener('click', () => {
@@ -2142,7 +2143,7 @@ class ColumnsWidget extends WidgetType {
       const rIdx = this.rowIndexOf(i);
       const rowUp = createEl('button');
       rowUp.className = 'block-editor-col-menu-item';
-      rowUp.title = '上移整行';
+      rowUp.title = TEXT.message0062;
       if (rIdx === 0) rowUp.disabled = true;
       rowUp.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_ROW_UP));
       rowUp.addEventListener('click', () => {
@@ -2152,7 +2153,7 @@ class ColumnsWidget extends WidgetType {
 
       const rowDown = createEl('button');
       rowDown.className = 'block-editor-col-menu-item';
-      rowDown.title = '下移整行';
+      rowDown.title = TEXT.message0063;
       if (rIdx === this.rows.length - 1) rowDown.disabled = true;
       rowDown.appendChild(ColumnsWidget.iconEl(ColumnsWidget.ICON_ROW_DOWN));
       rowDown.addEventListener('click', () => {
@@ -2185,7 +2186,7 @@ class ColumnsWidget extends WidgetType {
 
     const title = createEl('div');
     title.className = 'block-editor-col-picker-title';
-    title.textContent = '第 ' + (i + 1) + ' 栏背景色';
+    title.textContent = TEXT.message0064 + (i + 1) + TEXT.message0065;
     picker.appendChild(title);
 
     // 预设色板
@@ -2211,7 +2212,7 @@ class ColumnsWidget extends WidgetType {
     colorInput.type = 'color';
     colorInput.className = 'block-editor-col-picker-native';
     colorInput.value = this.bgs[i]?.light ?? '#f1f3f5';
-    colorInput.title = '自定义颜色';
+    colorInput.title = TEXT.message0066;
     colorInput.addEventListener('input', () => {
       input.value = colorInput.value;
       input.classList.remove('is-invalid');
@@ -2234,7 +2235,7 @@ class ColumnsWidget extends WidgetType {
     });
     const applyBtn = createEl('button');
     applyBtn.className = 'block-editor-col-picker-apply';
-    applyBtn.textContent = '应用';
+    applyBtn.textContent = TEXT.message0067;
     const applyHex = (): void => {
       const v = input.value.trim();
       if (!HEX_COLOR_RE.test(v)) {
@@ -2257,10 +2258,10 @@ class ColumnsWidget extends WidgetType {
     darkSection.className = 'block-editor-col-picker-dark';
     const darkToggle = createEl('button');
     darkToggle.className = 'block-editor-col-picker-dark-toggle';
-    darkToggle.textContent = '覆盖深色主题颜色';
+    darkToggle.textContent = TEXT.message0068;
     darkToggle.addEventListener('click', () => {
       darkBody.hidden = !darkBody.hidden;
-      darkToggle.textContent = darkBody.hidden ? '覆盖深色主题颜色' : '收起深色覆盖';
+      darkToggle.textContent = darkBody.hidden ? TEXT.message0069 : TEXT.message0070;
     });
     const darkBody = createEl('div');
     darkBody.className = 'block-editor-col-picker-dark-body';
@@ -2271,7 +2272,7 @@ class ColumnsWidget extends WidgetType {
     darkNative.type = 'color';
     darkNative.className = 'block-editor-col-picker-native';
     darkNative.value = this.bgs[i]?.dark ?? '#f1f3f5';
-    darkNative.title = '深色主题背景色';
+    darkNative.title = TEXT.message0071;
     const darkInput = createEl('input');
     darkInput.type = 'text';
     darkInput.placeholder = '#RRGGBB';
@@ -2292,7 +2293,7 @@ class ColumnsWidget extends WidgetType {
     };
     const darkApply = createEl('button');
     darkApply.className = 'block-editor-col-picker-apply';
-    darkApply.textContent = '应用';
+    darkApply.textContent = TEXT.message0072;
     darkApply.addEventListener('click', applyDarkHex);
     darkInput.addEventListener('keydown', (ev) => {
       if (ev.key === 'Enter') applyDarkHex();
@@ -2303,7 +2304,7 @@ class ColumnsWidget extends WidgetType {
     });
     const darkReset = createEl('button');
     darkReset.className = 'block-editor-col-picker-dark-reset';
-    darkReset.textContent = '恢复自动推导';
+    darkReset.textContent = TEXT.message0073;
     darkReset.addEventListener('click', () => {
       this.closeColorPicker();
       this.applyBgDark(i, null);
@@ -2320,7 +2321,7 @@ class ColumnsWidget extends WidgetType {
     // 清除背景
     const clearBtn = createEl('button');
     clearBtn.className = 'block-editor-col-picker-clear';
-    clearBtn.textContent = '无背景色（清除）';
+    clearBtn.textContent = TEXT.message0074;
     clearBtn.addEventListener('click', () => {
       this.closeColorPicker();
       this.applyBg(i, null);
@@ -2418,15 +2419,15 @@ function buildDecorations(state: DecorState, regions: ColumnsRegion[]): Decorati
   lastDiagnostics.livePreview = live;
 
   lastDiagnostics.regions = regions.length;
-  lastDiagnostics.note = lastDiagnostics.markerLines > 0 && regions.length === 0 ? '存在分栏标记但未识别出区间' : '';
+  lastDiagnostics.note = lastDiagnostics.markerLines > 0 && regions.length === 0 ? TEXT.message0075 : '';
   lastDiagnostics.segmentsPreview = regions.flatMap((r) =>
     r.segments.map((seg) => seg.slice(0, 30).replace(/\n/g, '⏎'))
   );
-  colLog('构建装饰', { live, markerLines: lastDiagnostics.markerLines, regions: regions.length });
+  colLog(TEXT.message0076, { live, markerLines: lastDiagnostics.markerLines, regions: regions.length });
 
   // 开关关闭或源码模式：不替换为 widget，保留原生 callout（横排与否由 body.be-columns-live-on CSS 控制）
   if (!sharedCtx?.settings.livePreviewWidget || !live) {
-    lastDiagnostics.note = !sharedCtx?.settings.livePreviewWidget ? '开关关闭：未渲染 widget' : '源码模式：未渲染 widget';
+    lastDiagnostics.note = !sharedCtx?.settings.livePreviewWidget ? TEXT.message0077 : TEXT.message0078;
     for (const e of widgetCache.values()) e.widget.destroy();
     widgetCache.clear();
     return Decoration.none;
@@ -2450,8 +2451,8 @@ function buildDecorations(state: DecorState, regions: ColumnsRegion[]): Decorati
       clampEnd <= clampStart
     ) {
       lastDiagnostics.note =
-        `跳过越界分栏区间 line=${r.startLine} pos=[${r.startPos},${r.endPos}] doc.length=${docLen}`;
-      colLog('跳过越界区间', { startLine: r.startLine, startPos: r.startPos, endPos: r.endPos, docLen });
+        TEXT.message0079(r.startLine, r.startPos, r.endPos, docLen);
+      colLog(TEXT.message0080, { startLine: r.startLine, startPos: r.startPos, endPos: r.endPos, docLen });
       continue;
     }
     used.add(r.startPos);
@@ -2469,7 +2470,7 @@ function buildDecorations(state: DecorState, regions: ColumnsRegion[]): Decorati
     } else {
       // 旧缓存不匹配（内容/视图/文档变化）：先卸载旧 widget 的渲染组件，避免泄漏
       if (entry) entry.widget.destroy();
-      colLog('创建渲染 widget', { startLine: r.startLine, doc: docId });
+      colLog(TEXT.message0081, { startLine: r.startLine, doc: docId });
       widget = new ColumnsWidget(ctx_of(state), r, docId, owner);
       widgetCache.set(r.startPos, { path: docId, owner, key, widget });
     }
@@ -2510,7 +2511,7 @@ function insertsQuote(tr: Transaction): boolean {
 
 export const columnsField = StateField.define<ColumnsState>({
   create: () => {
-    colLog('分栏字段创建（编辑器初始化）');
+    colLog(TEXT.message0082);
     return { initialized: false, regions: [], decorations: Decoration.none };
   },
   update(value, tr) {
@@ -2518,7 +2519,7 @@ export const columnsField = StateField.define<ColumnsState>({
     for (const e of tr.effects) {
       if (e.is(forceRecompute)) {
         forced = true;
-        colLog('收到强制重算效果');
+        colLog(TEXT.message0083);
       }
     }
 
@@ -2538,7 +2539,7 @@ export const columnsField = StateField.define<ColumnsState>({
       // kept 分栏 startPos 偏上（覆盖前置行）、endPos 偏上（漏覆盖分栏尾部），
       // 与 Obsidian 原生 callout 渲染叠加成同一分栏上下两份（镜像重复）。
       // 全量重扫保证每次变更后 range 精确；widget 仍走 cache 复用，不丢焦点。
-      colLog('文档变更 → 全量重扫（增量弃用）');
+      colLog(TEXT.message0084);
       return fullRescan(tr);
     } catch (e) {
       lastDiagnostics.note = e instanceof Error ? e.message : String(e);
@@ -2559,7 +2560,7 @@ function fullRescan(tr: Transaction): ColumnsState {
   const stats = { markerLines: 0 };
   const regions = scanRegions(tr.state.doc, stats);
   lastDiagnostics.markerLines = stats.markerLines;
-  colLog('扫描完成', {
+  colLog(TEXT.message0085, {
     区间数: regions.length,
     区间范围: regions.map((r) => [r.startLine, r.endLine]),
   });
@@ -2571,7 +2572,7 @@ function fullRescan(tr: Transaction): ColumnsState {
 const columnsInteractions = ViewPlugin.fromClass(
   class {
     constructor(view: EditorView) {
-      colLog('编辑器挂载 → 补算装饰');
+      colLog(TEXT.message0086);
       const v = view;
       queueMicrotask(() => {
         try {

@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 /**
  * 斜杠「插入类」命令的纯逻辑：日期时间格式化、片段展开、启用集合过滤。
  *
@@ -7,7 +8,7 @@
 import type { InsertActionId, InsertSpec } from './types';
 
 /** 周三 → 周三；dddd 用「星期三」 */
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const WEEKDAYS = [TEXT.message0250, TEXT.message0251, TEXT.message0252, TEXT.message0253, TEXT.message0254, TEXT.message0255, TEXT.message0256];
 
 const pad = (n: number): string => String(n).padStart(2, '0');
 
@@ -26,7 +27,7 @@ export function formatDateTime(now: Date, format: string): string {
     mm: pad(now.getMinutes()),
     ss: pad(now.getSeconds()),
     ddd: WEEKDAYS[now.getDay()],
-    dddd: '星期' + WEEKDAYS[now.getDay()].slice(1),
+    dddd: TEXT.message0257 + WEEKDAYS[now.getDay()].slice(1),
   };
   // 长 token 必须排在短 token 之前（dddd 先于 ddd、YYYY 先于 YY），否则会被截断
   return format.replace(/YYYY|YY|MM|DD|HH|mm|ss|dddd|ddd/g, (m) => table[m] ?? m);

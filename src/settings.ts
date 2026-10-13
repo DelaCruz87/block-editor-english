@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { PluginSettingTab, setIcon } from 'obsidian';
 import type {
   SettingDefinition,
@@ -178,7 +179,7 @@ export class BlockEditorSettingTab extends PluginSettingTab {
         setting.addExtraButton((b) =>
           b
             .setIcon('rotate-ccw')
-            .setTooltip(`恢复默认值（${def}）`)
+            .setTooltip(TEXT.message0270(def))
             .onClick(() => {
               // 先刷新滑块外观，再持久化并触发副作用
               slider?.setValue(def);
@@ -194,114 +195,114 @@ export class BlockEditorSettingTab extends PluginSettingTab {
     return [
       {
         type: 'group',
-        heading: 'Block Editor 设置',
+        heading: TEXT.message0271,
         items: [
           {
-            name: '显示块手柄',
-            desc: '在编辑器左侧显示 Notion 风格的块手柄',
+            name: TEXT.message0272,
+            desc: TEXT.message0273,
             control: { type: 'toggle', key: 'showHandle' },
           },
           {
-            name: '手柄跟随光标',
-            desc: '光标移动后手柄自动跟到当前块；关闭后仅在鼠标悬停时显示',
+            name: TEXT.message0274,
+            desc: TEXT.message0275,
             control: { type: 'toggle', key: 'handleFollowsCursor' },
           },
           {
-            name: '块悬停高亮',
-            desc: '鼠标悬停在块上时，给手柄对应的块加一层浅色高亮背景',
+            name: TEXT.message0276,
+            desc: TEXT.message0277,
             control: { type: 'toggle', key: 'blockHoverHighlight' },
           },
           {
-            name: '高亮颜色',
-            desc: '自定义悬停高亮的背景色；空值表示跟随当前 Obsidian 主题的悬停色',
+            name: TEXT.message0278,
+            desc: TEXT.message0279,
             control: { type: 'color', key: 'blockHoverHighlightColor' },
           },
           this.numericSetting({
-            name: '高亮透明度',
-            desc: '悬停高亮背景的透明度，0 为完全透明，1 为完全不透明',
+            name: TEXT.message0280,
+            desc: TEXT.message0281,
             key: 'blockHoverHighlightOpacity',
             min: 0,
             max: 1,
             step: 0.05,
           }),
           {
-            name: '实验：实时预览自渲染分栏',
-            desc: '开启后实时预览中分栏区域由插件自渲染（双击进入编辑）；关闭时显示原生嵌套 callout',
+            name: TEXT.message0282,
+            desc: TEXT.message0283,
             control: { type: 'toggle', key: 'livePreviewWidget' },
           },
           {
-            name: '启用斜杠命令',
-            desc: '在正文中输入 / 快速把当前块转换为其他类型',
+            name: TEXT.message0284,
+            desc: TEXT.message0285,
             control: { type: 'toggle', key: 'slashCommands' },
           },
           {
-            name: '行内斜杠命令（插入附件）',
-            desc: '非行首输入 /（如「文字/图」「sdfs /」）只提供图片 / 音频 / 视频 / PDF 插入；行首 / 仍是完整菜单。C:/、https:// 等路径形态不会触发',
+            name: TEXT.message0286,
+            desc: TEXT.message0287,
             control: { type: 'toggle', key: 'slashInlineCommands' },
           },
           {
-            name: '拖拽自动滚动',
-            desc: '拖动块到编辑区上下边缘时自动滚动',
+            name: TEXT.message0288,
+            desc: TEXT.message0289,
             control: { type: 'toggle', key: 'dragAutoScroll' },
           },
           this.numericSetting({
-            name: '缩进步长',
-            desc: '块缩进 / 减少缩进时的空格数，0 表示自动检测全文最小缩进',
+            name: TEXT.message0290,
+            desc: TEXT.message0291,
             key: 'indentStep',
             min: 0,
             max: 8,
             step: 1,
           }),
           {
-            name: '点击链接时的打开位置',
-            desc: '点击内部链接 [[...]] 时在哪里打开；Ctrl/Cmd+点击等修饰键行为不受影响',
+            name: TEXT.message0292,
+            desc: TEXT.message0293,
             control: {
               type: 'dropdown',
               key: 'linkOpenMode',
-              options: { current: '当前标签页', tab: '新标签页', split: '分屏（右侧）', window: '新窗口（弹出）' },
+              options: { current: TEXT.message0294, tab: TEXT.message0295, split: TEXT.message0296, window: TEXT.message0297 },
             },
           },
           this.numericSetting({
-            name: '默认栏间距',
-            desc: '分栏外壳未写 gap= 参数时的栏间距（px），实时预览与阅读模式生效',
+            name: TEXT.message0298,
+            desc: TEXT.message0299,
             key: 'columnsGap',
             min: 0,
             max: 48,
             step: 1,
           }),
           this.numericSetting({
-            name: '默认圆角',
-            desc: '分栏外壳未写 radius= 参数时的栏圆角（px）',
+            name: TEXT.message0300,
+            desc: TEXT.message0301,
             key: 'columnsRadius',
             min: 0,
             max: 24,
             step: 1,
           }),
           {
-            name: '默认垂直对齐',
-            desc: '分栏外壳未写 valign= 参数时的栏垂直对齐方式',
+            name: TEXT.message0302,
+            desc: TEXT.message0303,
             control: {
               type: 'dropdown',
               key: 'columnsValign',
-              options: { stretch: '拉伸（等高）', top: '顶部对齐', center: '居中对齐', bottom: '底部对齐' },
+              options: { stretch: TEXT.message0304, top: TEXT.message0305, center: TEXT.message0306, bottom: TEXT.message0307 },
             },
           },
           {
-            name: '默认边框',
-            desc: '分栏外壳未写 border 参数时是否显示栏边框',
+            name: TEXT.message0308,
+            desc: TEXT.message0309,
             control: { type: 'toggle', key: 'columnsBorder' },
           },
           this.numericSetting({
-            name: '手柄尺寸',
-            desc: '编辑器左侧块手柄的大小（px）',
+            name: TEXT.message0310,
+            desc: TEXT.message0311,
             key: 'handleSize',
             min: 12,
             max: 32,
             step: 1,
           }),
           this.numericSetting({
-            name: '拖拽阈值',
-            desc: '按住块手柄拖动的判定位移（px），小于该位移视为点击弹出块菜单',
+            name: TEXT.message0312,
+            desc: TEXT.message0313,
             key: 'dragThreshold',
             min: 0,
             max: 16,
@@ -311,66 +312,66 @@ export class BlockEditorSettingTab extends PluginSettingTab {
       },
       {
         type: 'group',
-        heading: '斜杠命令 · 插入类',
+        heading: TEXT.message0314,
         items: [
           {
-            name: '日期格式',
-            desc: '可用 token：YYYY 年、MM 月、DD 日、ddd 周三、dddd 星期三；其余字符原样保留',
+            name: TEXT.message0315,
+            desc: TEXT.message0316,
             control: { type: 'text', key: 'dateFormat' },
           },
           {
-            name: '时间格式',
-            desc: '可用 token：HH 时、mm 分、ss 秒；其余字符原样保留',
+            name: TEXT.message0317,
+            desc: TEXT.message0318,
             control: { type: 'text', key: 'timeFormat' },
           },
           {
-            name: '日期',
-            desc: '插入今天的日期（按上面的日期格式）',
+            name: TEXT.message0319,
+            desc: TEXT.message0320,
             control: { type: 'toggle', key: 'insDate' },
           },
           {
-            name: '时间',
-            desc: '插入当前时间',
+            name: TEXT.message0321,
+            desc: TEXT.message0322,
             control: { type: 'toggle', key: 'insTime' },
           },
           {
-            name: '日期时间',
-            desc: '插入「日期 + 空格 + 时间」',
+            name: TEXT.message0323,
+            desc: TEXT.message0324,
             control: { type: 'toggle', key: 'insDateTime' },
           },
           {
-            name: '行内公式',
-            desc: '插入 $ $，光标停在两个 $ 中间',
+            name: TEXT.message0325,
+            desc: TEXT.message0326,
             control: { type: 'toggle', key: 'insMath' },
           },
           {
-            name: '行内代码',
-            desc: '插入一对反引号，光标停在其中',
+            name: TEXT.message0327,
+            desc: TEXT.message0328,
             control: { type: 'toggle', key: 'insInlineCode' },
           },
           {
-            name: '高亮',
-            desc: '插入 == ==，光标停在中间',
+            name: TEXT.message0329,
+            desc: TEXT.message0330,
             control: { type: 'toggle', key: 'insHighlight' },
           },
           {
-            name: '笔记链接',
-            desc: '选一篇笔记，插入指向它的链接',
+            name: TEXT.message0331,
+            desc: TEXT.message0332,
             control: { type: 'toggle', key: 'insNote' },
           },
           {
-            name: '嵌入笔记',
-            desc: '选一篇笔记，把它的内容嵌入当前位置',
+            name: TEXT.message0333,
+            desc: TEXT.message0334,
             control: { type: 'toggle', key: 'insEmbedNote' },
           },
           {
-            name: '块引用',
-            desc: '先选笔记再选块，插入指向该块的链接',
+            name: TEXT.message0335,
+            desc: TEXT.message0336,
             control: { type: 'toggle', key: 'insBlockRef' },
           },
           {
-            name: '嵌入块',
-            desc: '先选笔记再选块，把该块内容嵌入当前位置',
+            name: TEXT.message0337,
+            desc: TEXT.message0338,
             control: { type: 'toggle', key: 'insBlockEmbed' },
           },
         ],
@@ -393,18 +394,18 @@ export class BlockEditorSettingTab extends PluginSettingTab {
         cls: 'be-donate-group',
         items: [
           {
-            name: '打赏支持',
-            aliases: ['打赏', '赞赏', '捐赠', '收款码', 'donate', 'sponsor'],
+            name: TEXT.message0339,
+            aliases: [TEXT.message0340, TEXT.message0341, TEXT.message0342, TEXT.message0343, 'donate', 'sponsor'],
             render: (setting) => {
               setting.settingEl.addClass('be-donate-row');
               const details = setting.settingEl.createEl('details', { cls: 'be-donate' });
               const summary = details.createEl('summary', { cls: 'be-donate-summary' });
               const chevron = summary.createSpan({ cls: 'be-donate-chevron' });
               setIcon(chevron, 'chevron-right');
-              summary.createSpan({ cls: 'be-donate-label', text: '打赏支持' });
+              summary.createSpan({ cls: 'be-donate-label', text: TEXT.message0344 });
               summary.createSpan({
                 cls: 'be-donate-hint',
-                text: '如果这个插件对你有帮助，欢迎请作者喝杯咖啡',
+                text: TEXT.message0345,
               });
               const body = details.createDiv({ cls: 'be-donate-body' });
               const list = body.createDiv({ cls: 'be-donate-codes' });
@@ -416,8 +417,8 @@ export class BlockEditorSettingTab extends PluginSettingTab {
                     alt: code.alt,
                     role: 'button',
                     tabindex: '0',
-                    title: '点击放大',
-                    'aria-label': `${code.alt}，点击放大`,
+                    title: TEXT.message0346,
+                    'aria-label': TEXT.message0347(code.alt),
                   },
                 });
                 const openPreview = () =>
@@ -429,7 +430,7 @@ export class BlockEditorSettingTab extends PluginSettingTab {
                     openPreview();
                   }
                 });
-                fig.createEl('figcaption', { text: `${code.label} · 点击放大` });
+                fig.createEl('figcaption', { text: TEXT.message0348(code.label) });
               }
             },
           },

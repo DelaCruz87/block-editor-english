@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Decoration } from '@codemirror/view';
 import type { DecorationSet } from '@codemirror/view';
 import type { EditorState, Range } from '@codemirror/state';
@@ -92,7 +93,7 @@ export function safeDecoCompute(
       const len = doc && typeof doc.length === 'number' ? doc.length : 0;
       return guardDecorations(set, len);
     } catch (e) {
-      log('decorations.compute 异常已收敛，本次返回空装饰', e);
+      log(TEXT.message0045, e);
       return Decoration.none;
     }
   };

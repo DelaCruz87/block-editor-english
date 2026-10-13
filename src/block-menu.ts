@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { Menu, Notice } from 'obsidian';
 import type { Editor } from 'obsidian';
 import type { BlockContext, TurnIntoType } from './types';
@@ -54,58 +55,58 @@ export class BlockMenuController {
     if (fold !== null) {
       menu.addItem((mi) =>
         mi
-          .setTitle(fold === 'collapsed' ? '展开' : '折叠')
+          .setTitle(fold === 'collapsed' ? TEXT.message0015 : TEXT.message0016)
           .onClick(() => this.ctx.converter.toggleFoldState(block))
       );
     }
 
     menu.addSeparator();
-    menu.addItem((mi) => mi.setTitle('在上方插入块').onClick(() => this.ctx.ops.insertBlock(block, 'above')));
-    menu.addItem((mi) => mi.setTitle('在下方插入块').onClick(() => this.ctx.ops.insertBlock(block, 'below')));
+    menu.addItem((mi) => mi.setTitle(TEXT.message0017).onClick(() => this.ctx.ops.insertBlock(block, 'above')));
+    menu.addItem((mi) => mi.setTitle(TEXT.message0018).onClick(() => this.ctx.ops.insertBlock(block, 'below')));
 
     menu.addSeparator();
-    menu.addItem((mi) => mi.setTitle('复制块内容').onClick(() => this.ctx.ops.copyBlockContent(block)));
+    menu.addItem((mi) => mi.setTitle(TEXT.message0019).onClick(() => this.ctx.ops.copyBlockContent(block)));
     menu.addItem((mi) =>
-      mi.setTitle('生成块 ID').onClick(() => this.ctx.ids.copyBlockLink(block))
+      mi.setTitle(TEXT.message0020).onClick(() => this.ctx.ids.copyBlockLink(block))
     );
     menu.addItem((mi) =>
-      mi.setTitle('引用其他块…').onClick(() => this.ctx.ids.referenceOtherBlock(block))
+      mi.setTitle(TEXT.message0021).onClick(() => this.ctx.ids.referenceOtherBlock(block))
     );
-    menu.addItem((mi) => mi.setTitle('创建副本').onClick(() => this.ctx.ops.duplicateBlock(block)));
+    menu.addItem((mi) => mi.setTitle(TEXT.message0022).onClick(() => this.ctx.ops.duplicateBlock(block)));
 
     menu.addSeparator();
-    menu.addItem((mi) => mi.setTitle('上移').onClick(() => this.ctx.ops.moveBlockVertically(block, -1)));
-    menu.addItem((mi) => mi.setTitle('下移').onClick(() => this.ctx.ops.moveBlockVertically(block, 1)));
+    menu.addItem((mi) => mi.setTitle(TEXT.message0023).onClick(() => this.ctx.ops.moveBlockVertically(block, -1)));
+    menu.addItem((mi) => mi.setTitle(TEXT.message0024).onClick(() => this.ctx.ops.moveBlockVertically(block, 1)));
 
     menu.addSeparator();
     if (this.ctx.converter.isColumnsBlock(editor, block)) {
-      menu.addItem((mi) => mi.setTitle('添加一栏').onClick(() => this.ctx.converter.addColumn(block)));
-      menu.addItem((mi) => mi.setTitle('追加一行').onClick(() => this.ctx.converter.appendColumnRow(block)));
-      menu.addItem((mi) => mi.setTitle('取消分栏').onClick(() => this.ctx.converter.unwrapColumns(block)));
+      menu.addItem((mi) => mi.setTitle(TEXT.message0025).onClick(() => this.ctx.converter.addColumn(block)));
+      menu.addItem((mi) => mi.setTitle(TEXT.message0026).onClick(() => this.ctx.converter.appendColumnRow(block)));
+      menu.addItem((mi) => mi.setTitle(TEXT.message0027).onClick(() => this.ctx.converter.unwrapColumns(block)));
     } else if (this.ctx.converter.insideColumns(editor, block)) {
       // 分栏内部块：分栏行列编辑（拆分/合并/插入/行排序），不允许再套分栏
       const colState = this.ctx.converter.columnsMenuState(editor, block);
       const canMerge = !!colState && colState.canMerge;
       const multiRow = !!colState && colState.rows.length > 1;
-      menu.addItem((mi) => mi.setTitle('拆分一栏').onClick(() => this.ctx.converter.splitColumn(block)));
+      menu.addItem((mi) => mi.setTitle(TEXT.message0028).onClick(() => this.ctx.converter.splitColumn(block)));
       menu.addItem((mi) =>
         mi
-          .setTitle('合并右栏')
+          .setTitle(TEXT.message0029)
           .setDisabled(!canMerge)
           .onClick(() => this.ctx.converter.mergeColumn(block))
       );
-      menu.addItem((mi) => mi.setTitle('插入一栏').onClick(() => this.ctx.converter.insertColumn(block)));
+      menu.addItem((mi) => mi.setTitle(TEXT.message0030).onClick(() => this.ctx.converter.insertColumn(block)));
       if (multiRow) {
         menu.addSeparator();
         menu.addItem((mi) =>
           mi
-            .setTitle('行上移')
+            .setTitle(TEXT.message0031)
             .setDisabled(!colState || !colState.canUp)
             .onClick(() => this.ctx.converter.moveColumnRow(block, -1))
         );
         menu.addItem((mi) =>
           mi
-            .setTitle('行下移')
+            .setTitle(TEXT.message0032)
             .setDisabled(!colState || !colState.canDown)
             .onClick(() => this.ctx.converter.moveColumnRow(block, 1))
         );
@@ -113,23 +114,23 @@ export class BlockMenuController {
       menu.addSeparator();
       menu.addItem((mi) =>
         mi
-          .setTitle('添加分栏')
+          .setTitle(TEXT.message0033)
           .setDisabled(true)
       );
       menu.addItem((mi) =>
         mi
-          .setTitle('组合为分栏')
+          .setTitle(TEXT.message0034)
           .setDisabled(true)
       );
     } else {
       menu.addItem((mi) =>
         mi
-          .setTitle('添加分栏')
+          .setTitle(TEXT.message0035)
           .onClick(() => this.ctx.converter.addEmptyColumns(block))
       );
       menu.addItem((mi) =>
         mi
-          .setTitle('组合为分栏')
+          .setTitle(TEXT.message0036)
           .setDisabled(this.ctx.converter.columnsSegmentCount(block) < 2)
           .onClick(() => this.ctx.converter.wrapBlockToColumns(block))
       );
@@ -141,13 +142,13 @@ export class BlockMenuController {
         const byChild = this.ctx.converter.listColumnCount(block, 'child');
         menu.addItem((mi) =>
           mi
-            .setTitle('列·父项')
+            .setTitle(TEXT.message0037)
             .setDisabled(byParent < 2)
             .onClick(() => this.ctx.converter.wrapListToColumns(block, 'parent'))
         );
         menu.addItem((mi) =>
           mi
-            .setTitle('列·子项')
+            .setTitle(TEXT.message0038)
             .setDisabled(byChild < 2)
             .onClick(() => this.ctx.converter.wrapListToColumns(block, 'child'))
         );
@@ -158,7 +159,7 @@ export class BlockMenuController {
     // H5 任意块颜色标记：设置 / 更改 / 清除（浮层定位取菜单项点击位置）
     const hasColor = this.ctx.converter.blockColorOf(block) !== null;
     menu.addItem((mi) =>
-      mi.setTitle('块颜色').onClick((ev) => {
+      mi.setTitle(TEXT.message0039).onClick((ev) => {
         openBlockColorPicker({
           x: (ev as MouseEvent).clientX,
           y: (ev as MouseEvent).clientY,
@@ -172,15 +173,15 @@ export class BlockMenuController {
     );
     if (hasColor) {
       menu.addItem((mi) =>
-        mi.setTitle('清除块颜色').onClick(() => this.ctx.converter.clearBlockColor(block))
+        mi.setTitle(TEXT.message0040).onClick(() => this.ctx.converter.clearBlockColor(block))
       );
     }
 
     menu.addSeparator();
-    menu.addItem((mi) => mi.setTitle(`本块 ${this.ctx.ops.blockLength(block)} 字`).setDisabled(true));
+    menu.addItem((mi) => mi.setTitle(TEXT.message0041(this.ctx.ops.blockLength(block))).setDisabled(true));
     menu.addItem((mi) =>
       mi
-        .setTitle(block.type === 'heading' ? '删除整段' : '删除')
+        .setTitle(block.type === 'heading' ? TEXT.message0042 : TEXT.message0043)
         .onClick(() => this.ctx.ops.deleteBlock(block))
     );
 
@@ -192,7 +193,7 @@ export class BlockMenuController {
     const cursor = editor.getCursor();
     const block = this.ctx.detector.getBlockAtLine(editor, cursor.line);
     if (!block) {
-      new Notice('这一行没有可操作的块');
+      new Notice(TEXT.message0044);
       return;
     }
     const b: BlockContext = {

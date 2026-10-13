@@ -1,3 +1,4 @@
+import { TEXT } from './strings';
 import { EditorSuggest } from 'obsidian';
 import type {
   Editor,
@@ -79,11 +80,11 @@ export class BlockInserter {
   run(id: InsertActionId, editor: Editor, pos: EditorPosition): void {
     const spec = INSERT_SPECS[id];
     if (!spec) return;
-    const title = TITLE_OF.get(id) ?? '内容';
+    const title = TITLE_OF.get(id) ?? TEXT.message0349;
 
     switch (spec.kind) {
       case 'pick':
-        pickFile(this.ctx.app, spec.exts, '选择' + title, (file: TFile) => {
+        pickFile(this.ctx.app, spec.exts, TEXT.message0350 + title, (file: TFile) => {
           this.insertAt(editor, pos, `![[${file.path}]]`);
         });
         return;
@@ -210,7 +211,7 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
     );
     if (!SlashSuggest.logged) {
       SlashSuggest.logged = true;
-      let before = '(读取失败)';
+      let before = TEXT.message0351;
       try {
         const line = context.editor.getLine(context.start.line);
         before = line.slice(Math.max(0, context.end.ch - 24), context.end.ch);
