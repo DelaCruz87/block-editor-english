@@ -1,4 +1,4 @@
-/** 供 spec 复用：list-number.ts 是纯逻辑，直接 esbuild 打成 mjs */
+/* * For spec reuse: list-number.ts is pure logic and can be directly typed into mjs by esbuild */
 import { build } from 'esbuild';
 
 const r = await build({

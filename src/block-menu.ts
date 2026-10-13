@@ -7,10 +7,10 @@ import { CALLOUT_TYPES, CODE_LANGS, TURN_INTO } from './constants';
 import { openBlockColorPicker } from './block-color';
 import { getCM } from './util';
 
-/** 菜单项偏多，加此类后由 styles.css 排成两列，降低菜单高度 */
+/** There are too many menu items. After adding this class, styles.css will arrange them into two columns to reduce the height of the menu. */
 const MENU_GRID_CLASS = 'block-editor-menu-grid';
 
-// Menu 类型未在 typings 里暴露 dom / scrollEl，但运行时存在；缺失时静默退回单列
+// The Menu type does not expose dom / scrollEl in typings, but exists at runtime; if missing, it will silently return to a single column.
 function useGridLayout(menu: Menu): Menu {
   const m = menu as unknown as { dom?: HTMLElement; scrollEl?: HTMLElement };
   m.dom?.classList.add(MENU_GRID_CLASS);
@@ -18,7 +18,7 @@ function useGridLayout(menu: Menu): Menu {
   return menu;
 }
 
-/** 块菜单：转换为、插入、复制、移动与删除 */
+/** Block menu: Convert to, Insert, Copy, Move and Delete */
 export class BlockMenuController {
   constructor(private ctx: BlockEditorPlugin) {}
 
@@ -34,7 +34,7 @@ export class BlockMenuController {
 
     const menu = useGridLayout(new Menu());
 
-    // 点击的块参与多选时，「转换为」批量应用到整个选区
+    // When the clicked block participates in multi-selection, "Convert to" is applied to the entire selection in batches
     const ranges = this.ctx.selection.actionRanges(block);
     const multi = ranges.length > 1;
 
@@ -50,7 +50,7 @@ export class BlockMenuController {
       });
     }
 
-    // 折叠块展开态切换：仅对折叠块显示，非折叠块不出现该项
+    // Folding block expanded state switch: only displayed for folded blocks, this item does not appear for non-folded blocks
     const fold = this.ctx.converter.foldStateOf(block);
     if (fold !== null) {
       menu.addItem((mi) =>
@@ -84,7 +84,7 @@ export class BlockMenuController {
       menu.addItem((mi) => mi.setTitle(TEXT.message0026).onClick(() => this.ctx.converter.appendColumnRow(block)));
       menu.addItem((mi) => mi.setTitle(TEXT.message0027).onClick(() => this.ctx.converter.unwrapColumns(block)));
     } else if (this.ctx.converter.insideColumns(editor, block)) {
-      // 分栏内部块：分栏行列编辑（拆分/合并/插入/行排序），不允许再套分栏
+      // Column internal block: Column and row editing (split/merge/insert/row sort), no more columns are allowed.
       const colState = this.ctx.converter.columnsMenuState(editor, block);
       const canMerge = !!colState && colState.canMerge;
       const multiRow = !!colState && colState.rows.length > 1;
@@ -135,8 +135,8 @@ export class BlockMenuController {
           .onClick(() => this.ctx.converter.wrapBlockToColumns(block))
       );
 
-      // 列表专用：「组合为分栏」按空行切段，列表项之间通常无空行 → 切不出栏。
-      // 故对列表块另给两个按缩进层级切分的入口。
+      // Special for lists: "Combine into columns" cuts segments according to blank lines. There are usually no blank lines between list items → columns cannot be cut.
+      // Therefore, the list block is given two additional entries divided by indentation level.
       if (block.type === 'list') {
         const byParent = this.ctx.converter.listColumnCount(block, 'parent');
         const byChild = this.ctx.converter.listColumnCount(block, 'child');
@@ -156,7 +156,7 @@ export class BlockMenuController {
     }
 
     menu.addSeparator();
-    // H5 任意块颜色标记：设置 / 更改 / 清除（浮层定位取菜单项点击位置）
+    // H5 arbitrary block color mark: set/change/clear (floating layer positioning to select menu item click position)
     const hasColor = this.ctx.converter.blockColorOf(block) !== null;
     menu.addItem((mi) =>
       mi.setTitle(TEXT.message0039).onClick((ev) => {
@@ -188,7 +188,7 @@ export class BlockMenuController {
     return menu;
   }
 
-  // 命令面板里没有鼠标事件，菜单就贴着块的左上角弹
+  // There are no mouse events in the command panel, and the menu pops up against the upper left corner of the block.
   openMenuAtCursor(editor: Editor): void {
     const cursor = editor.getCursor();
     const block = this.ctx.detector.getBlockAtLine(editor, cursor.line);
@@ -226,7 +226,7 @@ export class BlockMenuController {
     this.showMenuAtBlock(menu, block);
   }
 
-  // Callout 类型子菜单（多选时批量应用）
+  // Callout type submenu (applied in batches when multiple selections are made)
   private openCalloutMenu(block: BlockContext): void {
     const m = block.editor.getLine(block.start).match(/\[!([\w-]+)\][+-]?/);
     const current = m ? m[1].toLowerCase() : null;

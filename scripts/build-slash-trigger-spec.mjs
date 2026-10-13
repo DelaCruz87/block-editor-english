@@ -1,7 +1,6 @@
-/**
- * 把 src/slash-trigger.ts 用 esbuild 打成 ESM .mjs，
- * 供 slash-trigger-spec.mjs 在纯 Node 里断言（无需 Obsidian 环境）。
- */
+/* *
+ * Use esbuild to build src/slash-trigger.ts into ESM .mjs,
+ * For slash-trigger-spec.mjs to assert in pure Node (no Obsidian environment required). */
 import { build } from 'esbuild';
 import { mkdirSync } from 'node:fs';
 

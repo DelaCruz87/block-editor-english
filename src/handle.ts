@@ -5,9 +5,9 @@ import { HANDLE_W } from './constants';
 import { getCM, getEditorFromContent } from './util';
 import { computeHandleLeft } from './handle-layout';
 
-/** Notion 式块手柄：悬停显示、光标跟随、拖拽入口 */
+/** Notion-style block handle: hover display, cursor follow, drag entry */
 export class HandleController {
-  /** 一次性诊断开关：只打第一条，避免悬停时刷屏 */
+  /** One-time diagnostic switch: only hit the first item to avoid refreshing the screen when hovering */
   private static dodgeLogged = false;
   private handleEl: HTMLElement | null = null;
   private highlightEl: HTMLElement | null = null;
@@ -18,9 +18,9 @@ export class HandleController {
   constructor(private ctx: BlockEditorPlugin) {}
 
   init(): void {
-    // 高亮 / 手柄不在 init 时挂入 DOM，而是在 showHighlight / showHandle 时
-    // 动态挂到当前编辑器的 .cm-editor 上：.cm-editor 有 overflow:hidden，
-    // absolute 定位的高亮会被物理裁剪在编辑器可视区内，永远不会溢出到标签页栏。
+    // Highlight/handle is not hung into DOM during init, but during showHighlight/showHandle
+    // Dynamically hang on the .cm-editor of the current editor: .cm-editor has overflow:hidden,
+    // Absolutely positioned highlights are physically clipped within the editor's viewable area and will never overflow into the tab bar.
     const highlight = createEl('div');
     highlight.className = 'block-editor-hover-block';
     this.highlightEl = highlight;
@@ -72,7 +72,7 @@ export class HandleController {
     const target = e.target;
     if (!(target instanceof HTMLElement)) return;
 
-    // 鼠标在 handle 上：保持显示
+    // Mouse over handle: keep display
     if (this.handleEl?.contains(target)) {
       this.clearHideTimer();
       return;
@@ -127,7 +127,7 @@ export class HandleController {
     const cm = getCM(editor);
     if (!cm) return;
     const doc = cm.state.doc;
-    // 文档可能已经变短（删除 / 撤销），旧行号会越界抛错
+    // The document may have been shortened (deleted/undone), and the old line number will be out of bounds and an error will be thrown.
     if (block.start < 0 || block.start >= doc.lines) {
       this.hideHandle();
       return;
@@ -139,19 +139,19 @@ export class HandleController {
       return;
     }
 
-    // 挂到当前编辑器 .cm-editor：absolute 定位 + overflow:hidden 物理裁剪，
-    // 手柄 / 高亮永远不会溢出到标签页栏
+    // Hang on the current editor .cm-editor: absolute positioning + overflow:hidden physical cropping,
+    // Handles/highlights never overflow into the tab bar
     const editorDom = cm.dom;
     const editorRect = editorDom.getBoundingClientRect();
 
     const lineH = coords.bottom - coords.top || 20;
-    // M4：手柄尺寸取设置值（缺省回退常量 20），与 styles.css 的 --be-handle-size 保持一致
+    // M4: The handle size takes the set value (default fallback constant 20), consistent with --be-handle-size of styles.css
     const handleSize = this.ctx.settings.handleSize || HANDLE_W;
 
     const foldLeft = this.findFoldIndicatorLeft(cm, line.from);
-    // 实时预览下，列表 / 标题行首左侧还画着 Obsidian 的折叠图标：
-    // 手柄必须排在图标左边，否则两者叠在一起（图标被遮住就点不到折叠）。
-    // 折叠图标只在有子项时出现，故按行实时量测，量不到就退回行首左侧。
+    // Under Live Preview, the Obsidian fold icon is drawn on the left side of the list/title line:
+    // The handle must be arranged on the left side of the icon, otherwise the two will overlap (if the icon is covered, you cannot click to collapse it).
+    // The folding icon only appears when there are sub-items, so it is measured in real time according to the row, and if it is not measured, it returns to the left side of the first row.
     const layout = computeHandleLeft({
       lineLeft: coords.left,
       foldLeft,
@@ -160,7 +160,7 @@ export class HandleController {
       handleSize,
     });
 
-    // 一次性诊断：确认避让是否生效（量不到折叠图标时 foldLeft 为 null）
+    // One-time diagnosis: Confirm whether the avoidance is effective (foldLeft is null when the fold icon cannot be reached)
     if (!HandleController.dodgeLogged) {
       HandleController.dodgeLogged = true;
       console.log('[block-editor] handle-dodge:', {
@@ -180,8 +180,8 @@ export class HandleController {
       this.handleEl.setCssStyles({ position: 'absolute', display: 'flex' });
       this.handleEl.style.top = top + 'px';
       this.handleEl.style.left = layout.left + 'px';
-      // 左侧留白不够时按可用宽度压缩手柄（而不是让它压回折叠图标上）。
-      // 有富余时 layout.size === handleSize，与 CSS 变量 --be-handle-size 同值。
+      // When there is not enough space on the left side, the handle is compressed by the available width (instead of letting it press back onto the collapse icon).
+      // When there is room, layout.size === handleSize, which is the same value as the CSS variable --be-handle-size.
       this.handleEl.style.width = layout.size + 'px';
       this.handleEl.style.height = layout.size + 'px';
       this.handleEl.classList.toggle('is-squeezed', layout.squeezed);
@@ -190,10 +190,9 @@ export class HandleController {
   }
 
   /**
-   * 取该行折叠图标（`.list-collapse-indicator` / `.collapse-indicator`）左缘的视口 x。
-   * 量不到（源码模式无图标、图标未渲染、隐藏元素 rect 全 0）一律返回 null，
-   * 由 computeHandleLeft 退回「贴行首左侧」的旧位置。
-   */
+   * Get the viewport x on the left edge of the fold icon (`.list-collapse-indicator` / `.collapse-indicator`) in this row.
+   * If the amount is less than the amount (no icon in source code mode, icon not rendered, hidden element rect is all 0), null will be returned.
+   * Return the old position of "left side of the first line" by computeHandleLeft. */
   private findFoldIndicatorLeft(cm: CMView, pos: number): number | null {
     try {
       const at = cm.domAtPos(pos);
@@ -210,7 +209,7 @@ export class HandleController {
       const ind = lineEl.querySelector('.list-collapse-indicator, .collapse-indicator');
       if (!(ind instanceof HTMLElement)) return null;
       const r = ind.getBoundingClientRect();
-      // 隐藏元素（display:none）宽高为 0：不可当成有效量测，否则手柄会贴左缘
+      // The width and height of the hidden element (display:none) is 0: it cannot be regarded as a valid measurement, otherwise the handle will stick to the left edge
       if (r.width <= 0 || r.height <= 0) return null;
       return r.left;
     } catch {
@@ -230,7 +229,7 @@ export class HandleController {
     this.currentBlock = null;
   }
 
-  // 滚动 / 窗口变化后按当前块重算高亮位置；拖拽中或手柄关闭时不显示
+  // After scrolling/window changes, the highlighted position is recalculated according to the current block; it is not displayed when dragging or the handle is closed.
   renderHighlight(): void {
     if (!this.ctx.settings.showHandle || this.ctx.drag.isActive() || !this.currentBlock) {
       this.hideHighlight();
@@ -239,9 +238,9 @@ export class HandleController {
     this.showHighlight(this.currentBlock.editor, this.currentBlock);
   }
 
-  // 手柄对应块的浅色高亮，给「即将操作哪一块」以视觉反馈
+  // The light color highlight of the corresponding block of the handle provides visual feedback on "which block is about to be operated"
   private showHighlight(editor: Editor, block: BlockRange): void {
-    // 设置关闭时不显示高亮（并抹掉可能已显示的那层）
+    // Set highlights not to show when turned off (and erase any layers that may have been shown)
     if (!this.ctx.settings.blockHoverHighlight) {
       this.hideHighlight();
       return;
@@ -262,13 +261,13 @@ export class HandleController {
       this.hideHighlight();
       return;
     }
-    // 挂到当前编辑器 .cm-editor，用 absolute 定位 + overflow:hidden 物理裁剪：
-    // 高亮永远不会溢出编辑器可视区，从根本上杜绝覆盖标签页栏。
-    // 坐标从视口系转换为编辑器系（减去 editorRect 的 top/left）。
+    // Hang to the current editor .cm-editor, use absolute positioning + overflow:hidden physical cropping:
+    // Highlights will never overflow the editor's viewable area, fundamentally preventing them from covering the tab bar.
+    // Coordinates are converted from viewport system to editor system (minus the top/left of editorRect).
     const editorDom = cm.dom;
     const editorRect = editorDom.getBoundingClientRect();
-    // 宽度基准取内容区（.cm-content，即行宽）而非整个 .cm-editor：
-    // .cm-editor 含左右侧留白，用它的右缘会使高亮右侧超出行宽。
+    // The width reference is the content area (.cm-content, that is, line width) rather than the entire .cm-editor:
+    // .cm-editor contains left and right margins. Using its right edge will cause the highlighted right side to exceed the line width.
     const contentRect = cm.contentDOM.getBoundingClientRect();
     if (el.parentElement !== editorDom) editorDom.appendChild(el);
 
@@ -301,7 +300,7 @@ export class HandleController {
     }
   }
 
-  // 鼠标离开后不直接消失，退回「光标所在块」的手柄
+  // The mouse does not disappear directly after leaving it, but returns to the handle of the "block where the cursor is located"
   private fallbackHandle(): void {
     this.hideTimer = null;
     if (this.ctx.drag.isActive()) return;
@@ -318,13 +317,13 @@ export class HandleController {
     this.hideHandle();
   }
 
-  // 光标所在块的手柄常显（仅当编辑器本身获得焦点时生效）
+  // The handle of the block where the cursor is located is always displayed (only takes effect when the editor itself has focus)
   updateCursorBlock(): void {
     if (this.ctx.drag.isActive()) return;
     const block = this.getCursorBlock();
     this.cursorBlock = block;
-    // 取不到光标块（切换页面 / 编辑器失焦）：手柄与高亮是 body 上的
-    // fixed 浮层，不会随页面切换自动移除，必须在此清除上一页的残留。
+    // The cursor block cannot be retrieved (switching pages/editor is out of focus): handles and highlights are on the body
+    // fixed The floating layer will not be automatically removed when the page switches. The residue of the previous page must be cleared here.
     if (!block) {
       this.hideHandle();
       return;

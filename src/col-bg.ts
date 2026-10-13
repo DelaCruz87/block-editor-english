@@ -1,48 +1,47 @@
 /**
- * 分栏背景色双主题工具：浅色/深色双值模型 + 深色自动推导 + 渲染变量写入。
+ * Column background color dual theme tool: light/dark dual value model + dark automatic derivation + rendering variable writing.
  *
- * 数据模型：
- * - 文档元数据语法：`>> [!col|bg=#xxxxxx]`（浅色，兼容旧数据）与可选
- *   `|bg-dark=#yyyyyy`（深色主题下的背景，用户显式覆盖时才落库）。
- * - 读取时归一化为 `ColBg { light, dark }`：仅给 bg 时 dark 由算法自动推导
- *   （deriveDarkColor），两套都缺省则无背景（null）。
- * - 自动推导的 dark 不写回文档（读取端按同一确定性算法复现，保持旧单值
- *   格式兼容、避免文档膨胀）；仅用户通过「覆盖深色」入口显式设置的 dark
- *   才写 `bg-dark=`，保证跨端一致。
+ *Data model:
+ * - Document metadata syntax: `>> [!col|bg=#xxxxxx]` (light color, compatible with old data) with optional
+ * `|bg-dark=#yyyyyy` (the background under the dark theme will be dropped only when the user explicitly overrides it).
+ * - Normalized to `ColBg { light, dark }` when reading: dark is automatically derived by the algorithm when only bg is given
+ * (deriveDarkColor), both sets default to no background (null).
+ * - Automatically derived dark is not written back to the document (read side reproduces according to the same deterministic algorithm, keeping the old single value
+ * Format compatibility, avoid document expansion); only the dark explicitly set by the user through the "Override Dark" entry
+ * Only write `bg-dark=` to ensure cross-end consistency.
  *
- * 渲染链路：
- * - 阅读模式 postProcessor 与实时预览 ColumnsWidget 都在元素上写两个 CSS
- *   变量：`--col-bg-light` / `--col-bg-dark`（内联 style），不再写死单色；
- *   styles.css 消费 `--col-bg`（默认 light，body.theme-dark 下取 dark）。
- * - 文字对比色同样按 light/dark 各自独立计算（--col-bg-text-light /
- *   --col-bg-text-dark），保证两主题下正文都可读。
- */
+ * Rendering link:
+ * - Reading mode postProcessor and Live Preview ColumnsWidget both write two CSS on the element
+ * Variables: `--col-bg-light` / `--col-bg-dark` (inline style), no longer hard-coded monochrome;
+ * styles.css consumes `--col-bg` (default is light, body.theme-dark is dark).
+ * - Text contrast colors are also calculated independently according to light/dark (--col-bg-text-light /
+ * --col-bg-text-dark), ensuring that the text is readable under both themes. */
 
-/** 分栏背景双色模型（dark 为深色主题下的背景；light 缺失即无背景） */
+/** Column background two-color model (dark is the background under the dark theme; if light is missing, there is no background) */
 export interface ColBg {
   light: string | null;
   dark: string | null;
 }
 
-/** 子栏元数据参数：bg=#xxxxxx（浅色，必填才生效）；bg-dark=#yyyyyy（深色覆盖，可选） */
+/** Subcolumn metadata parameters: bg=#xxxxxx (light color, required to take effect); bg-dark=#yyyyyy (dark overlay, optional) */
 const COL_META_BG_RE = /(?:^|[\s|])bg=([#0-9a-fA-F]{3,8})(?:$|[\s|])/;
 const COL_META_BG_DARK_RE = /(?:^|[\s|])bg-dark=([#0-9a-fA-F]{3,8})(?:$|[\s|])/;
 
-/** 解析子栏 callout 元数据（`bg=#fff|bg-dark=#111` 或旧式单值 `bg=#fff`）→ ColBg */
+/** Parse subcolumn callout metadata (`bg=#fff|bg-dark=#111` or legacy single value `bg=#fff`) → ColBg */
 export function parseColBgMeta(meta: string): ColBg | null {
   const lm = meta.match(COL_META_BG_RE);
   const dm = meta.match(COL_META_BG_DARK_RE);
   return normalizeColBg(lm ? lm[1] : null, dm ? dm[1] : null);
 }
 
-/** 归一化：仅 light → 自动推导 dark；light/dark 都缺省 → null（无背景） */
+/** Normalization: only light → automatically derive dark; both light/dark default → null (no background) */
 export function normalizeColBg(light: string | null, dark: string | null): ColBg | null {
   if (!light) return null;
   if (dark && /^#[0-9a-fA-F]{3,8}$/.test(dark)) return { light, dark };
   return { light, dark: deriveDarkColor(light) };
 }
 
-/** hex → [r, g, b, a]（a 为 0~1；#rgb / #rgba / #rrggbb / #rrggbbaa 均支持） */
+/** hex → [r, g, b, a] (a is 0~1; #rgb / #rgba / #rrggbb / #rrggbbaa are all supported) */
 function hexToRgba(hex: string): [number, number, number, number] {
   let h = hex.replace('#', '');
   if (h.length === 3 || h.length === 4) h = h.split('').map((c) => c + c).join('');
@@ -54,7 +53,7 @@ function hexToRgba(hex: string): [number, number, number, number] {
   return [r, g, b, a];
 }
 
-/** [r, g, b, a] → hex（保持 alpha 位，与输入透明度一致） */
+/** [r, g, b, a] → hex (keep alpha bit, consistent with input transparency) */
 function rgbaToHex(r: number, g: number, b: number, a: number): string {
   const to = (v: number): string =>
     Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0');
@@ -102,7 +101,7 @@ function hslToRgb(h: number, s: number, l: number): [number, number, number] {
   ];
 }
 
-/** WCAG 相对亮度（0~1） */
+/** WCAG relative brightness (0~1) */
 function relativeLuminance(r: number, g: number, b: number): number {
   const f = (v: number): number => {
     const c = v / 255;
@@ -112,11 +111,10 @@ function relativeLuminance(r: number, g: number, b: number): number {
 }
 
 /**
- * 深色自动推导：HSL 变换 —— 色相不变，亮度压到 8%~25%（浅色已偏暗时保持
- * 或抬到 8% 下限避免死黑），饱和度 ×0.5，透明度不变；推导结果与深色
- * 主题背景（--background-primary 的深色典型值 #1e1e1e）对比度不足时向
- * 背景色微调（提亮），避免深色栏在深色主题下与页面背景融为一体。
- */
+ * Automatic derivation of dark colors: HSL transformation - the hue remains unchanged, and the brightness is reduced to 8%~25% (maintained when the light color is darker)
+ * Or raise it to the lower limit of 8% to avoid dead black), saturation ×0.5, transparency unchanged; the derivation results are consistent with dark colors
+ * The theme background (dark typical value of --background-primary #1e1e1e) is not enough in contrast.
+ * The background color is fine-tuned (brightened) to prevent the dark bar from blending into the page background under the dark theme. */
 export function deriveDarkColor(light: string): string {
   const [r, g, b, a] = hexToRgba(light);
   const [h, s, l] = rgbToHsl(r, g, b);
@@ -142,7 +140,7 @@ export function deriveDarkColor(light: string): string {
   return rgbaToHex(nr, ng, nb, a);
 }
 
-/** 按背景亮度选对比文字色（近黑 / 近白，YIQ 阈值 150） */
+/** Select contrasting text color according to background brightness (near black/near white, YIQ threshold 150) */
 export function pickContrastText(bg: string): string {
   const [r, g, b] = hexToRgba(bg);
   const yiq = (r * 299 + g * 587 + b * 114) / 1000;
@@ -150,13 +148,12 @@ export function pickContrastText(bg: string): string {
 }
 
 /**
- * 把双色背景写入元素内联 CSS 变量（阅读模式 postProcessor 与实时预览
- * ColumnsWidget 共用）：
- * - --col-bg-light / --col-bg-dark：两种主题下的背景色（无背景时不设）
- * - --col-bg-text-light / --col-bg-text-dark：对应主题下的正文对比色
- * styles.css 中 `--col-bg` 默认取 light，body.theme-dark 下取 dark；
- * `--col-bg-text` 同理（见 styles.css「分栏：背景色双主题」段）。
- */
+ * Write the two-color background to the element's inline CSS variable (reading mode postProcessor and live preview
+ * Common to ColumnsWidget):
+ * - --col-bg-light / --col-bg-dark: background color under two themes (not set when there is no background)
+ * - --col-bg-text-light / --col-bg-text-dark: Contrast color of the text under the corresponding theme
+ * `--col-bg` in styles.css defaults to light, and body.theme-dark defaults to dark;
+ * The same applies to `--col-bg-text` (see styles.css "Column: Background Color Dual Theme" paragraph). */
 export function setColBgVars(el: HTMLElement, bg: ColBg | null): void {
   const set = (name: string, v: string | null): void => {
     if (v) el.style.setProperty(name, v);

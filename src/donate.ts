@@ -1,24 +1,23 @@
 import { TEXT } from './strings';
 /**
- * 打赏收款码资源（内联 Base64）。
+ * Tip payment code resources (inline Base64).
  *
- * 图片以 Data URI 形式写在源码里，`npm run build` 时由 esbuild 一并打包进 main.js，
- * 插件目录无需额外的图片文件，桌面端 / 移动端都可直接读取。
+ * The picture is written in the source code in the form of Data URI. When `npm run build`, it is packaged into main.js by esbuild.
+ * There is no need for additional image files in the plug-in directory, and it can be read directly by both desktop and mobile terminals.
  *
- * 图片源文件：assets/wx.png（微信）、assets/zfb.png（支付宝）。更换收款码时，
- * 用下方命令重新生成 Base64 并替换对应 src 即可：
- *   [Convert]::ToBase64String([IO.File]::ReadAllBytes("assets/wx.png"))
- * 输出前面补上「data:image/png;base64,」。
+ * Image source files: assets/wx.png (WeChat), assets/zfb.png (Alipay). When changing the payment code,
+ * Use the following command to regenerate Base64 and replace the corresponding src:
+ * [Convert]::ToBase64String([IO.File]::ReadAllBytes("assets/wx.png"))
+ * Add "data:image/png;base64," before the output.
  *
- * src 为空字符串时，设置页不会渲染「支持作者」分组。
- */
+ * When src is an empty string, the settings page will not render the "Supported Authors" group. */
 
 export interface DonateCode {
-  /** 展示标签，如「微信」「支付宝」 */
+  /** Display tags, such as "WeChat" and "Alipay" */
   label: string;
-  /** 图片替代文本（无障碍与加载失败提示） */
+  /** Image alternative text (accessibility and loading failure prompt) */
   alt: string;
-  /** 图片 Data URI，形如 data:image/png;base64,xxxx */
+  /** Image Data URI, in the form of data:image/png;base64,xxxx */
   src: string;
 }
 

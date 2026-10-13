@@ -1,7 +1,7 @@
 import type { App, Editor, MarkdownView, TFile } from 'obsidian';
 import type { CMView } from './types';
 
-/** Editor.cm 上的 CM6 视图，按本插件用到的表面取用 */
+/** CM6 view on Editor.cm, taken according to the surface used by this plug-in */
 export function getCM(editor: Editor): CMView | null {
   const cm = (editor as unknown as { cm?: unknown }).cm;
   return (cm as CMView) ?? null;
@@ -12,10 +12,10 @@ export function getIndent(line: string): string {
   return m ? m[1] : '';
 }
 
-/** 分栏垂直对齐语义值 → CSS align-items 合法值。
- *  align-items 不接受 top / bottom（非法值会被浏览器忽略并回退 stretch，
- *  表现为顶部 / 底部对齐不生效），须映射为 flex-start / flex-end；
- *  center / stretch 本就是合法值，原样返回。 */
+/** Column vertical alignment semantic value → CSS align-items legal value.
+ * align-items does not accept top / bottom (illegal values will be ignored by the browser and fall back to stretch,
+ * Shows that top/bottom alignment does not take effect) and must be mapped to flex-start/flex-end;
+ * center / stretch is a legal value and will be returned unchanged. */
 export function colValignToCss(v: string): string {
   if (v === 'top') return 'flex-start';
   if (v === 'bottom') return 'flex-end';
@@ -35,10 +35,10 @@ export function shiftIndent(line: string, delta: number): string {
   return ' '.repeat(Math.max(cur + delta, 0)) + line.slice(cur);
 }
 
-/** 视口锁定：在 fn 执行期间钉住 CM 编辑器的滚动位置。
- *  程序化改文档 / 重建 widget DOM 时，CM6 会按变更重算视口，导致整篇文档滚动条
- *  跳离当前编辑位置；此处记录并还原 scrollTop（同步 + 下一帧各一次，覆盖 CM6
- *  测量阶段引起的异步位移），让操作始终停留在当前编辑位置。 */
+/** Viewport lock: Pin the CM editor's scroll position during fn execution.
+ * When programmatically changing the document/rebuilding the widget DOM, CM6 will recalculate the viewport according to the change, resulting in scroll bars throughout the document
+ * Jump away from the current editing position; record and restore scrollTop here (synchronized + once each for the next frame, covering CM6
+ *Asynchronous displacement caused by the measurement phase), allowing the operation to always stay at the current editing position. */
 export function keepViewport(
   cm: { scrollDOM: HTMLElement } | null | undefined,
   fn: () => void
@@ -56,7 +56,7 @@ export function keepViewport(
   });
 }
 
-/** 从 .cm-content DOM 反查所属编辑器与文件 */
+/** Check the editor and file from .cm-content DOM */
 export function getEditorFromContent(
   app: App,
   cmContent: HTMLElement

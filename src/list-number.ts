@@ -1,30 +1,29 @@
 /**
- * 有序列表序号重编号（纯逻辑，不 import obsidian，可被离线断言）
+ * Ordered list sequence number renumbering (pure logic, no import obsidian, can be asserted offline)
  *
- * 背景：Obsidian 的 Live Preview 显示的是**源码里的数字**（阅读视图 / 导出才按顺序
- * 连号），而块的移动语义是「整段文本搬运」—— 拖拽重排有序列表后源码序号必然错乱。
- * 本模块在移动 / 复制 / 删除的**同一次整段重写**里顺带把序号改回来。
+ * Background: Obsidian’s Live Preview displays the numbers in the source code (reading view/export only in order
+ * consecutive numbers), and the movement semantics of blocks is "moving the entire text" - after dragging and rearranging the ordered list, the source code serial number will inevitably be confused.
+ * This module changes the serial number back during the same entire segment rewrite during move/copy/delete.
  *
- * 三条语义：
- *  1. **起始号取自搬运前的列表**：把 `1. 甲` 从 `1.甲 2.乙 3.丙` 拖走后，剩下的首行
- *     是 `2. 乙`；若拿它当锚点，整段会变成 2/3/4。正确结果是从列表**原本**的起始号
- *     1 重新连号。所以调用方需传入搬运前的层快照 `collectLayerStarts`。
- *  2. **层级独立**：每个（引用链 + 缩进 + 分隔符）组合各自连号，嵌套子列表不受父层影响。
- *  3. **围栏 / 数学块内部不参与**：列表项里嵌的代码围栏、公式块内容原样保留。
+ * Three semantics:
+ * 1. **The starting number is taken from the list before moving**: After dragging `1. A` away from `1.A 2.B 3.C`, the remaining first line
+ * is `2. B`; if it is used as an anchor point, the entire section will become 2/3/4. The correct result is the starting number from the list **original**
+ * 1 Re-number. Therefore, the caller needs to pass in the layer snapshot `collectLayerStarts` before moving.
+ * 2. **Level independent**: Each (reference chain + indent + delimiter) combination has its own consecutive number, and the nested sublist is not affected by the parent layer.
+ * 3. **Fences/mathematical blocks are not included inside**: The contents of code fences and formula blocks embedded in list items are retained as they are.
  *
- * 同一条 key（引用链 + 缩进 + 分隔符）在文档里可能出现多次（被空行 / 正文分隔的
- * 多个列表），故快照按文档顺序存成队列，重编号时逐个消费。
- */
+ * The same key (reference chain + indent + separator) may appear multiple times in the document (separated by blank lines/text
+ * Multiple lists), so the snapshots are stored in a queue in document order and consumed one by one when renumbering. */
 
-/** 有序列表项：行下标 + 原始序号 */
+/** Ordered list items: row index + original sequence number */
 interface OrderedItem {
   index: number;
   num: number;
 }
 
-/** 一个缩进层级上的列表（`ul` 层只负责打断有序序列，不参与编号） */
+/** A list at the indentation level (the `ul` level is only responsible for interrupting the ordered sequence and does not participate in numbering) */
 interface Layer {
-  /** 引用链 + 缩进 + 分隔符，同 key 的层级才是同一个列表 */
+  /** Reference chain + indent + separator, the same key level is the same list */
   key: string;
   kind: '.' | ')' | 'ul';
   items: OrderedItem[];
@@ -32,9 +31,8 @@ interface Layer {
 
 export interface RenumberOpts {
   /**
-   * 搬运前的层快照（`collectLayerStarts` 的产物）。提供时各层起始号以它为准。
-   * 缺省时退化为「取该层在输出里的首行序号」，适用于无搬运语义的纯文本场景。
-   */
+   * Layer snapshot before transfer (product of `collectLayerStarts`). When provided, the starting number of each layer shall be based on it.
+   * By default, it degenerates to "get the first line number of this layer in the output", which is suitable for plain text scenarios without transfer semantics. */
   layerStarts?: Map<string, number[]>;
 }
 
@@ -44,22 +42,20 @@ export interface RenumberResult {
 }
 
 /**
- * 列表标记：必须在行首（允许缩进与引用前缀），标记后须跟空白。
- * 序号上限 9 位，与 CommonMark 一致；`1.` / `1)` 两种分隔符都识别。
- */
+ * List mark: must be at the beginning of the line (indentation and quotation prefix are allowed), and the mark must be followed by whitespace.
+ * The upper limit of the serial number is 9 digits, consistent with CommonMark; both `1.` / `1)` delimiters are recognized. */
 const LIST_RE = /^[\t ]*(?:>[\t ]*)*(?:[-*+]|\d{1,9}[.)])[\t ]+/;
-/** 有序标记的数字部分 */
+/** The numerical part of the ordered label */
 const ORDERED_NUM_RE = /[\t ]*(?:>[\t ]*)*(\d{1,9})[.)][\t ]+/;
-/** 列表标记里的分隔符（`.` / `)`），无序项返回空串 —— 注意只捕获分隔符，不含序号数字 */
+/** The delimiter in the list mark (`.` / `)`), unordered items return an empty string - note that only the delimiter is captured, not the serial number. */
 const DELIM_RE = /(?:^|[\t >])(?:[-*+]|\d{1,9}([.)]))[\t ]/;
 
 /**
- * 剥出「引用链 + 有效缩进」。
+ * Strip out "reference chain + effective indentation".
  *
- * 层级比较必须在剥掉引用前缀之后进行：`> 1. 甲` 与 `1. 乙` 缩进都是 0，
- * 但分属引用内外两个列表，靠 key 区分，否则会串号。
- * 引用链里 `>` 之后的空白计入缩进 —— `>   1. 甲` 是「引用下的三级缩进」。
- */
+ * Level comparison must be performed after stripping off the reference prefix: the indentation of `> 1. A` and `1. B` is 0,
+ * But they belong to two lists, the inner and outer lists, which are distinguished by key, otherwise there will be aliasing.
+ * The space after `>` in the reference chain is counted as indentation - `>   1. A` is the "three-level indentation under the reference". */
 function listContext(line: string): { indent: number } {
   const m = line.match(/^([\t ]*)((?:>[\t ]*)*)/);
   const lead = m ? m[1] : '';
@@ -69,7 +65,7 @@ function listContext(line: string): { indent: number } {
   };
 }
 
-/** 该行的列表层级 key：缩进 + 分隔符（不含序号数字，否则每行都成不同 key） */
+/** List level key of this line: indent + separator (excluding serial numbers, otherwise each line will be a different key) */
 function layerKey(line: string): string {
   const ctx = listContext(line);
   const d = line.match(DELIM_RE);
@@ -77,16 +73,16 @@ function layerKey(line: string): string {
   return `${ctx.indent}|${delim}`;
 }
 
-/** `layerKey` 的对外别名，供 ops.ts 判定「两行是否属于同一列表」 */
+/** The external alias of `layerKey`, used by ops.ts to determine "whether two lines belong to the same list" */
 export const layerKeyOf = layerKey;
 
-/** 列表项的序号；无序项返回 0 */
+/** The sequence number of the list item; unordered items return 0 */
 function seqOf(line: string): number {
   const m = line.match(ORDERED_NUM_RE);
   return m ? parseInt(m[1], 10) : 0;
 }
 
-/** 只替换列表标记里的序号，缩进、引用前缀、分隔符、后续空白全部保留 */
+/** Only replace the serial numbers in the list tags, and keep all indents, reference prefixes, separators, and subsequent whitespace */
 function replaceMarkerNum(line: string, n: number): string {
   return line.replace(
     /^([\t ]*(?:>[\t ]*)*)(\d{1,9})([.)])/,
@@ -95,9 +91,8 @@ function replaceMarkerNum(line: string, n: number): string {
 }
 
 /**
- * 扫描一段文本，记录每个层级 key 的起始序号队列（文档顺序）。
- * 搬运前调用一次，把结果传给 `renumberOrdered`。
- */
+ * Scan a piece of text and record the starting sequence number queue (document order) of each level key.
+ * Call once before moving and pass the result to `renumberOrdered`. */
 export function collectLayerStarts(lines: string[]): Map<string, number[]> {
   const starts = new Map<string, number[]>();
   let fence: string | null = null;
@@ -120,7 +115,7 @@ export function collectLayerStarts(lines: string[]): Map<string, number[]> {
     if (math) continue;
 
     if (!LIST_RE.test(line)) {
-      // 空行 / 顶格非列表行把当前所有层级截断 —— 后续同 key 视为新列表
+      // Empty lines/non-list lines in the top grid will truncate all current levels - subsequent entries with the same key will be treated as a new list
       if (line.trim() === '' || listContext(line).indent === 0) seen.clear();
       continue;
     }
@@ -134,32 +129,31 @@ export function collectLayerStarts(lines: string[]): Map<string, number[]> {
 }
 
 /**
- * 对一段文本重排其中的有序列表序号。纯函数，不改动入参。
+ * Rearrange the sequence number of the ordered list in a piece of text. Pure function, no changes to input parameters.
  *
- * @param lines 一次整段重写产出的**新**行数组（移动 / 删除 / 复制后的结果）
- * @param opts.layerStarts 搬运前的层快照，见 `collectLayerStarts`
- */
+ * @param lines The **new** line array produced by rewriting the entire section at once (the result after moving/deleting/copying)
+ * @param opts.layerStarts Layer snapshot before transfer, see `collectLayerStarts` */
 export function renumberOrdered(
   lines: string[],
   opts: RenumberOpts = {}
 ): RenumberResult {
   const out = lines.slice();
   const layerStarts = opts.layerStarts;
-  /** 各 key 已消费到第几个列表（同名 key 可能有多个列表，按文档顺序取） */
+  /** Which list has been consumed for each key (keys with the same name may have multiple lists, which are taken in document order) */
   const cursor = new Map<string, number>();
 
-  /** 当前仍在延续的层级；空行 / 顶格非列表行清空，表示列表结束 */
+  /** The current level is still continuing; empty rows/top grid non-list rows are cleared to indicate the end of the list */
   let active: Layer[] = [];
   const allLayers: Layer[] = [];
 
   let fence: string | null = null;
   let math = false;
 
-  // ---- 第一阶段：分层收集有序项 ----
+  // ---- The first stage: hierarchical collection of ordered items ----
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    // 围栏代码：开关行与内部行都不参与编号，也不重置层级（围栏常嵌在列表项里）
+    // Fence code: Switch lines and internal lines are not involved in numbering, nor do they reset the level (fences are often embedded in list items)
     const fenceMark = line.match(/^\s*(`{3,}|~{3,})/);
     if (fenceMark) {
       const ch = fenceMark[1][0];
@@ -180,7 +174,7 @@ export function renumberOrdered(
       if (line.trim() === '') {
         active = [];
       } else {
-        // 非列表行：缩进比所有活跃层都深 → 视为列表项的续行（保留层级）
+        // Non-list lines: indented deeper than all active levels → treated as continuation lines of list items (levels preserved)
         const ind = listContext(line).indent;
         const shallowest = active.length ? Math.min(...active.map((l) => Number(l.key.split('|')[0]))) : -1;
         if (!(active.length && ind > shallowest)) active = [];
@@ -193,14 +187,14 @@ export function renumberOrdered(
     const kind: Layer['kind'] = delim === '' ? 'ul' : delim === ')' ? ')' : '.';
     const key = layerKey(line);
 
-    // 同 key 同分隔符 → 沿用当前层（继续连号）；换无序 / 换分隔符 → 新列表
+    // Same key and same delimiter → keep the current level (continue the serial number); change to disorder/change delimiter → new list
     let layer = active.find((l) => l.key === key && l.kind === kind) ?? null;
     if (!layer && kind !== 'ul') {
       layer = { key, kind, items: [] };
       allLayers.push(layer);
     }
 
-    // 更深的层级随这一行结束；同 key 的旧层（分隔符不同）也被丢弃
+    // Deeper levels end with this line; old levels with the same key (different delimiters) are also discarded
     const ind = Number(key.split('|')[0]);
     active = active.filter((l) => Number(l.key.split('|')[0]) < ind);
     if (layer) {
@@ -209,7 +203,7 @@ export function renumberOrdered(
     }
   }
 
-  // ---- 第二阶段：定起始号并改写 ----
+  // ----The second stage: determine the starting number and rewrite it ----
   let changed = false;
   for (const layer of allLayers) {
     if (!layer.items.length) continue;
@@ -218,7 +212,7 @@ export function renumberOrdered(
       const queue = layerStarts.get(layer.key);
       const at = cursor.get(layer.key) ?? 0;
       cursor.set(layer.key, at + 1);
-      // 快照里没有对应列表（本次编辑新造出来的）→ 退回首行序号
+      // There is no corresponding list in the snapshot (newly created in this edit) → Return to the first row number
       start = queue && queue.length ? queue[Math.min(at, queue.length - 1)] : layer.items[0].num;
     } else {
       start = layer.items[0].num;

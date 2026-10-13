@@ -13,74 +13,74 @@ import { DONATE_CODES, type DonateCode } from './donate';
 import { ImagePreviewModal } from './modal';
 import { colValignToCss } from './util';
 
-/** 点击内部链接时的打开位置；'current' 表示沿用 Obsidian 原生行为 */
+/** The opening position when clicking on the internal link; 'current' means following Obsidian's native behavior */
 export type LinkOpenMode = 'current' | 'tab' | 'split' | 'window';
 
 export interface BlockEditorSettings {
-  /** 显示块手柄 */
+  /** Show block handles */
   showHandle: boolean;
-  /** 手柄跟随光标所在块 */
+  /** The handle follows the block where the cursor is located */
   handleFollowsCursor: boolean;
-  /** 悬停时高亮手柄对应的块 */
+  /** Highlight the block corresponding to the handle when hovering */
   blockHoverHighlight: boolean;
-  /** 悬停高亮颜色（空串表示跟随主题 --background-modifier-hover） */
+  /** Hover highlight color (empty string means follow the theme --background-modifier-hover) */
   blockHoverHighlightColor: string;
-  /** 悬停高亮透明度（0~1） */
+  /** Hover highlight transparency (0~1) */
   blockHoverHighlightOpacity: number;
-  /** 启用 / 斜杠命令 */
+  /** Enable / slash command */
   slashCommands: boolean;
-  /** 行内斜杠命令：非行首输入 / 触发（只给附件插入类） */
+  /** Inline slash command: non-first-line input/trigger (only insert classes for attachments) */
   slashInlineCommands: boolean;
-  /** 拖拽到编辑区边缘自动滚动 */
+  /** Drag to the edge of the editing area to automatically scroll */
   dragAutoScroll: boolean;
-  /** 缩进步长（空格数），0 表示自动检测全文最小缩进 */
+  /** Indentation length (number of spaces), 0 means automatically detecting the minimum indentation of the full text */
   indentStep: number;
-  /** 实验：实时预览中由插件自渲染分栏（默认关闭；关闭时显示原生嵌套 callout） */
+  /** Experiment: Columns are self-rendered by the plug-in in Live Preview (off by default; native nested callout is displayed when off) */
   livePreviewWidget: boolean;
-  // M4：分栏默认外观（未在分栏外壳写 gap/valign/radius/border 参数时生效）
-  /** 分栏默认栏间距（px） */
+  // M4: Default appearance of columns (effective when gap/valign/radius/border parameters are not written in the column shell)
+  /** Default column spacing for columns (px) */
   columnsGap: number;
-  /** 分栏默认圆角（px） */
+  /** Column default rounded corners (px) */
   columnsRadius: number;
-  /** 分栏默认垂直对齐 */
+  /** Columns are aligned vertically by default */
   columnsValign: 'top' | 'center' | 'bottom' | 'stretch';
-  /** 分栏默认边框 */
+  /** Default border for columns */
   columnsBorder: boolean;
-  // M4：手柄 / 拖拽阈值可调
-  /** 块手柄尺寸（px） */
+  // M4: Adjustable handle/drag threshold
+  /** Block handle size (px) */
   handleSize: number;
-  /** 拖拽判定阈值（px），小于该位移视为点击 */
+  /** Drag judgment threshold (px), a displacement smaller than this is considered a click */
   dragThreshold: number;
-  /** 点击内部链接时的打开位置 */
+  /** The opening position when clicking on the internal link */
   linkOpenMode: LinkOpenMode;
-  // 斜杠「插入类」命令
-  /** 日期格式（token：YYYY / MM / DD / ddd / dddd） */
+  // Slash "insert class" command
+  /** Date format (token: YYYY/MM/DD/ddd/dddd) */
   dateFormat: string;
-  /** 时间格式（token：HH / mm / ss） */
+  /** Time format (token: HH/mm/ss) */
   timeFormat: string;
-  /** 命令开关：日期 */
+  /** Command switch: date */
   insDate: boolean;
-  /** 命令开关：时间 */
+  /** Command switch: time */
   insTime: boolean;
-  /** 命令开关：日期时间 */
+  /** Command switch: date and time */
   insDateTime: boolean;
-  /** 命令开关：行内公式 */
+  /** Command switch: inline formula */
   insMath: boolean;
-  /** 命令开关：行内代码 */
+  /** Command switch: inline code */
   insInlineCode: boolean;
-  /** 命令开关：高亮 */
+  /** Command switch: highlight */
   insHighlight: boolean;
-  /** 命令开关：笔记链接 */
+  /** Command switch: Note link */
   insNote: boolean;
-  /** 命令开关：嵌入笔记 */
+  /** Command switch: embed notes */
   insEmbedNote: boolean;
-  /** 命令开关：块引用 */
+  /** Command switch: block quote */
   insBlockRef: boolean;
-  /** 命令开关：嵌入块 */
+  /** Command switch: embedded block */
   insBlockEmbed: boolean;
 }
 
-// 除新增项外，默认值等于重构前的内置行为
+// Except for new items, the default value is equal to the built-in behavior before the refactoring
 export const DEFAULT_SETTINGS: BlockEditorSettings = {
   showHandle: true,
   handleFollowsCursor: true,
@@ -113,10 +113,21 @@ export const DEFAULT_SETTINGS: BlockEditorSettings = {
   insBlockEmbed: true,
 };
 
-/** M4：把分栏默认外观 / 手柄尺寸写到 body CSS 变量，styles.css 以 var() 消费。
- *  设置变更时调用；未开启实时预览的阅读模式同样吃到该变量。 */
+/** M4: Write the default appearance/handle size of the column to the body CSS variable, and consume styles.css with var().
+ * Called when settings are changed; reading mode without Live Preview also gets this variable. */
 export function applyColumnsCssVars(settings: BlockEditorSettings): void {
   const body = document.body;
+  body.style.setProperty('--be-hintMove', JSON.stringify(TEXT.hintMove));
+  body.style.setProperty('--be-hintNest', JSON.stringify(TEXT.hintNest));
+  body.style.setProperty('--be-hintCopy', JSON.stringify(TEXT.hintCopy));
+  body.style.setProperty('--be-hintMoveDocument', JSON.stringify(TEXT.hintMoveDocument));
+  body.style.setProperty('--be-hintCopyDocument', JSON.stringify(TEXT.hintCopyDocument));
+  body.style.setProperty('--be-hintColumnLeft', JSON.stringify(TEXT.hintColumnLeft));
+  body.style.setProperty('--be-hintColumnRight', JSON.stringify(TEXT.hintColumnRight));
+  body.style.setProperty('--be-hintAddColumn', JSON.stringify(TEXT.hintAddColumn));
+  body.style.setProperty('--be-hintCopyColumn', JSON.stringify(TEXT.hintCopyColumn));
+  body.style.setProperty('--be-hintEditColumn', JSON.stringify(TEXT.hintEditColumn));
+
   body.style.setProperty('--be-col-gap', settings.columnsGap + 'px');
   body.style.setProperty('--be-col-radius', settings.columnsRadius + 'px');
   body.style.setProperty('--be-col-valign', colValignToCss(settings.columnsValign));
@@ -124,8 +135,8 @@ export function applyColumnsCssVars(settings: BlockEditorSettings): void {
   body.style.setProperty('--be-handle-size', settings.handleSize + 'px');
 }
 
-/** 块悬停高亮的颜色 / 透明度写到 body CSS 变量，styles.css 以 var() 消费。
- *  颜色为空串时回退到 Obsidian 主题的 --background-modifier-hover，深浅主题自动跟随。 */
+/** The color/transparency of the block hover highlight is written to the body CSS variable, and styles.css is consumed with var().
+ * When the color is an empty string, it will fall back to the --background-modifier-hover of the Obsidian theme, and the dark and light themes will automatically follow. */
 export function applyHoverHighlightCssVars(settings: BlockEditorSettings): void {
   const body = document.body;
   const color = settings.blockHoverHighlightColor.trim();
@@ -136,7 +147,7 @@ export function applyHoverHighlightCssVars(settings: BlockEditorSettings): void 
   body.style.setProperty('--be-hover-opacity', String(settings.blockHoverHighlightOpacity));
 }
 
-/** 以数值（滑块）呈现、带「恢复默认值」入口的设置项 key */
+/** A setting item key presented as a numerical value (slider) with a "restore default value" entry */
 type NumericSettingKey =
   | 'blockHoverHighlightOpacity'
   | 'indentStep'
@@ -151,10 +162,9 @@ export class BlockEditorSettingTab extends PluginSettingTab {
   }
 
   /**
-   * 数值（滑块）设置项：声明式 control 不提供「恢复默认」入口，故用 render 自定义
-   * ——滑块 + 恢复默认按钮（rotate-ccw）。滑块改动与恢复默认都经 setControlValue
-   * 持久化并触发副作用，行为与声明式 control 一致。
-   */
+   * Numeric (slider) setting item: Declarative control does not provide a "restore default" entry, so use render to customize it
+   * --Slider + restore default button (rotate-ccw). The slider can be changed and restored to default through setControlValue.
+   * Persist and trigger side effects, behavior consistent with declarative control. */
   private numericSetting(opts: {
     name: string;
     desc: string;
@@ -181,7 +191,7 @@ export class BlockEditorSettingTab extends PluginSettingTab {
             .setIcon('rotate-ccw')
             .setTooltip(TEXT.message0270(def))
             .onClick(() => {
-              // 先刷新滑块外观，再持久化并触发副作用
+              // Refresh the slider appearance first, then persist it and trigger side effects
               slider?.setValue(def);
               void this.setControlValue(opts.key, def);
             })
@@ -381,10 +391,9 @@ export class BlockEditorSettingTab extends PluginSettingTab {
   }
 
   /**
-   * 「支持作者」分组：把打赏收款码渲染成可折叠区块（默认收起，点击展开）。
-   * 收款码以 Base64 Data URI 内联在 src/donate.ts，构建时打包进 main.js；
-   * 未配置任何图片时不生成该分组。
-   */
+   * "Support Authors" group: Render the reward collection code into a collapsible block (collapsed by default, click to expand).
+   * The payment code is inlined in src/donate.ts as Base64 Data URI and packaged into main.js during construction;
+   * This group will not be generated when no pictures are configured. */
   private donateGroups(): SettingDefinitionItem[] {
     const codes: DonateCode[] = DONATE_CODES.filter((c) => c.src.trim().length > 0);
     if (codes.length === 0) return [];
@@ -440,50 +449,49 @@ export class BlockEditorSettingTab extends PluginSettingTab {
   }
 
   /**
-   * 声明式设置（getSettingDefinitions）由框架直接持久化到 plugin.settings —— 框架
-   * 不执行插件的「一次性副作用」（写 body CSS 变量、切 body class、重建 CM6 widget、
-   * 刷新悬停高亮）。而声明式控件的变更都会经过 setControlValue（官方类型
-   * SettingControlBase.key 即传入本方法），故在此统一收口分发，避免逐项遗漏。
-   */
+   * Declarative settings (getSettingDefinitions) are persisted directly to plugin.settings by the framework - framework
+   * Do not execute the "one-time side effects" of the plug-in (writing body CSS variables, cutting body classes, rebuilding CM6 widgets,
+   * Refresh hover highlighting). Changes to declarative controls will go through setControlValue (official type
+   * SettingControlBase.key is passed into this method), so it is distributed uniformly here to avoid missing items one by one. */
   async setControlValue(key: string, value: unknown): Promise<void> {
     await super.setControlValue(key, value);
     SETTING_SIDE_EFFECTS[key]?.(this.plugin, value);
   }
 }
 
-/** 需要「一次性副作用」的设置项：声明式设置在框架持久化后由此分发应用。
- *  惰性读取型设置（linkOpenMode / slashCommands / showHandle / indentStep /
- *  dragThreshold / handleFollowsCursor 等）无需登记，消费方按需读 plugin.settings。 */
+/** Settings that require "one-time side effects": declarative settings are distributed to the application after the framework persists.
+ * Lazy read settings (linkOpenMode/slashCommands/showHandle/indentStep/
+ * dragThreshold / handleFollowsCursor, etc.) No need to register, consumers can read plugin.settings on demand. */
 const SETTING_SIDE_EFFECTS: Record<
   string,
   (plugin: BlockEditorPlugin, value: unknown) => void
 > = {
-  // 分栏实时预览总开关：切 body class 并立即重建分栏装饰
+  // Column Live Preview master switch: cut the body class and immediately rebuild the column decoration
   livePreviewWidget: (plugin, value) => {
     document.body.classList.toggle('be-columns-live-on', Boolean(value));
     recomputeColumnsEditors(plugin.app);
   },
-  // 分栏默认外观：写 body CSS 变量 + 重建 widget（gap / radius / border 变化须重建）
+  // Default appearance of columns: write body CSS variable + rebuild widget (gap / radius / border changes must be rebuilt)
   columnsGap: applyColumnsSideEffects,
   columnsRadius: applyColumnsSideEffects,
   columnsValign: applyColumnsSideEffects,
   columnsBorder: applyColumnsSideEffects,
-  // 手柄尺寸：仅需更新 body 变量
+  // Handle size: just update the body variable
   handleSize: (plugin) => applyColumnsCssVars(plugin.settings),
-  // 悬停高亮：颜色 / 透明度写 body 变量后立即重绘当前高亮
+  // Hover highlight: Redraw the current highlight immediately after writing the color/transparency to the body variable
   blockHoverHighlightColor: applyHoverSideEffects,
   blockHoverHighlightOpacity: applyHoverSideEffects,
-  // 悬停高亮开关：重绘即可（是否可见由 handle 内按设置判定）
+  // Hover highlight switch: Just redraw (whether visible or not is determined by pressing the setting in the handle)
   blockHoverHighlight: (plugin) => plugin.handle.renderHighlight(),
 };
 
-/** 分栏外观类设置的副作用：body CSS 变量 + 强制重建编辑器内的分栏 widget */
+/** Side effects of column appearance class settings: body CSS variable + forced reconstruction of column widgets in the editor */
 function applyColumnsSideEffects(plugin: BlockEditorPlugin): void {
   applyColumnsCssVars(plugin.settings);
   recomputeColumnsEditors(plugin.app);
 }
 
-/** 悬停高亮类设置的副作用：body CSS 变量 + 立即重绘当前高亮 */
+/** Side effects of hover highlight class setting: body CSS variable + immediate redraw of current highlight */
 function applyHoverSideEffects(plugin: BlockEditorPlugin): void {
   applyHoverHighlightCssVars(plugin.settings);
   plugin.handle.renderHighlight();

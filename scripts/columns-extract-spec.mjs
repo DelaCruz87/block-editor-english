@@ -1,20 +1,19 @@
-/**
- * 需求 B（栏拖出分栏）状态机回归。
+/* *
+ * Requirement B (column is dragged out into columns) state machine returns.
  *
- * 背景（真实 bug）：gripDown 的 onUp 开头无条件调 clearOutLine()，
- * 而 clearOutLine 内部会把 outLine 置为 null —— 提取分支读到的永远是 null，
- * 表现为「怎么拖都拖不出来」。此套件把该状态机原样复刻并断言调用顺序，
- * 防止顺序类 bug 再次发生（顺序错了 ts 与运行时单测都未必报）。
+ * Background (real bug): clearOutLine() is unconditionally called at the beginning of onUp of gripDown,
+ * Internally, clearOutLine will set outLine to null - what the extraction branch reads will always be null.
+ * It manifests as "I can't drag it out no matter how hard I drag it." This kit reproduces the state machine as it is and asserts the calling sequence.
+ * Prevent sequence bugs from happening again (wrong sequence ts and runtime single tests may not be reported).
  *
- * 运行：node scripts/columns-extract-spec.mjs
- */
+ * Run: node scripts/columns-extract-spec.mjs */
 import { readFileSync } from 'node:fs';
 
 let pass = 0, fail = 0;
 const ok = (c, l) => { if (c) { pass++; console.log(`  PASS ${l}`); } else { fail++; console.log(`  FAIL ${l}`); } };
 const eq = (a, b, l) => ok(JSON.stringify(a) === JSON.stringify(b), `${l}（got ${JSON.stringify(a)}, want ${JSON.stringify(b)}）`);
 
-/** resolveExtractLine 的镜像实现（区间外任意行合法，与实现同步） */
+/* * Mirror implementation of resolveExtractLine (any line outside the range is legal, synchronized with the implementation) */
 function resolveExtractLine(shellStart, shellEnd, line) {
   if (line < 0) return null;
   if (line < shellStart) return line;
@@ -22,7 +21,7 @@ function resolveExtractLine(shellStart, shellEnd, line) {
   return null;
 }
 
-/** 复刻 gripDown 修复后的状态机 */
+/* * Reprint the repaired state machine of gripDown */
 function simulate({ insideWidget, hoverLine, start, end, inEditorRect = true }) {
   let dragging = false, hover = -1, outLine = null;
   const clearOutLine = () => { outLine = null; };
@@ -37,61 +36,61 @@ function simulate({ insideWidget, hoverLine, start, end, inEditorRect = true }) 
   if (hover !== -1) clearOutLine();
   else { const l = computeOutLine(); outLine = l; if (l === null) clearOutLine(); }
 
-  // onUp（修复后的顺序：先捕获，再清理）
+  // onUp (fixed order: capture first, then clean)
   const finalOutLine = outLine;
   clearOutLine();
   const extracted = finalOutLine !== null && hover === -1;
   return { computed: finalOutLine, extracted };
 }
 
-console.log('\n=== 1. 合法落点必须能提取 ===');
+console.log("=== 1. The legal landing point must be able to be extracted ===");
 {
   const below = simulate({ insideWidget: false, hoverLine: 13, start: 2, end: 12 });
-  eq(below.computed, 13, '分栏下方紧邻行算出落点 13');
-  ok(below.extracted, '下方紧邻 → 触发提取');
+  eq(below.computed, 13, "Calculate the landing point of the row immediately below the column 13");
+  ok(below.extracted, "Immediately below → trigger extraction");
 
-  // 自由定位：区间外的远行同样合法（用户诉求「能随意拖拽位置」）
+  // Free positioning: Long-distance travel outside the range is also legal (users demand "the ability to drag and drop positions at will")
   const far = simulate({ insideWidget: false, hoverLine: 40, start: 2, end: 12 });
-  eq(far.computed, 40, '远下方任意行 → 落点 40');
-  ok(far.extracted, '远下方 → 触发提取（放宽后的核心能力）');
+  eq(far.computed, 40, "Any row far below → drop point 40");
+  ok(far.extracted, "Far below → trigger extraction (relaxed core capabilities)");
 
   const above = simulate({ insideWidget: false, hoverLine: 1, start: 2, end: 12 });
-  eq(above.computed, 1, '分栏上方紧邻行算出落点 1');
-  ok(above.extracted, '上方紧邻 → 触发提取');
+  eq(above.computed, 1, "Calculate the drop point 1 for the row immediately above the column");
+  ok(above.extracted, "Immediately above → trigger extraction");
 
-  // 回归：外壳行被 widget 吞掉，指针在 widget 上方实际只能命中 start-1
+  // Regression: The shell line is swallowed by the widget, and the pointer can only hit start-1 above the widget.
   const above0 = simulate({ insideWidget: false, hoverLine: 0, start: 2, end: 12 });
-  eq(above0.computed, 0, '更靠上的行也算合法');
-  ok(above0.extracted, '远上方 → 触发提取');
+  eq(above0.computed, 0, "Rows higher up are also considered legal.");
+  ok(above0.extracted, "Far above → trigger extraction");
 }
 
-console.log('\n=== 1b. resolveExtractLine 几何（真实实现）===');
+console.log("=== 1b. resolveExtractLine geometry (real implementation) ===");
 {
-  // 直接 import 打包产物，锁住「区间外任意行合法」这条规则
+  // Directly import the packaged product and lock the rule "Any line outside the range is legal"
   const { resolveExtractLine: rel } = await import('../temp/verify/droptarget.mjs');
-  eq(rel(2, 12, 13), 13, 'endLine+1 命中');
-  eq(rel(2, 12, 14), 14, 'endLine+2 命中');
-  eq(rel(2, 12, 40), 40, '远下方命中（自由定位）');
-  eq(rel(2, 12, 1), 1, '紧邻上行命中');
-  eq(rel(2, 12, 0), 0, '远上方命中');
-  eq(rel(2, 12, 2), null, '外壳行（区间内）不命中');
-  eq(rel(2, 12, 7), null, '区间内部不命中');
-  eq(rel(2, 12, 12), null, '末行（区间内）不命中');
-  eq(rel(0, 7, -1), null, '负行号不命中');
+  eq(rel(2, 12, 13), 13, "endLine+1 hit");
+  eq(rel(2, 12, 14), 14, "endLine+2 hit");
+  eq(rel(2, 12, 40), 40, "Far below hit (free positioning)");
+  eq(rel(2, 12, 1), 1, "Immediately after the upward hit");
+  eq(rel(2, 12, 0), 0, "Hit from far above");
+  eq(rel(2, 12, 2), null, "Shell row (in range) miss");
+  eq(rel(2, 12, 7), null, "Miss within the range");
+  eq(rel(2, 12, 12), null, "The last row (within the interval) misses");
+  eq(rel(0, 7, -1), null, "Negative line number misses");
 }
 
-console.log('\n=== 1c. 连续拖动同一落点：状态不得被自己清掉（用户日志复刻）===');
+console.log("=== 1c. Continuously drag the same drop point: the status cannot be cleared by yourself (user log replication) ===");
 {
-  // 复刻 gripDown 的 onMove/onUp 循环（含 showOutLine 的调用点）。
-  // 真实日志曾出现「outLine 94 反复打印 20 次，但 up 时 finalOutLine=null」：
-  // 根因是 showOutLine 内部调 clearOutLine() 移除上一条线，而它同时把 outLine
-  // 置 null —— 每次算出落点后立刻自毁，下次移动又被判定为「值变化」而重复打印。
+  // Replicate the onMove/onUp loop of gripDown (including the call point of showOutLine).
+  // The real log once showed "outLine 94 was printed 20 times repeatedly, but finalOutLine=null when up":
+  // The root cause is that showOutLine internally calls clearOutLine() to remove the previous line, and it also changes outLine
+  // Set to null - self-destruct immediately after each landing point is calculated, and the next move will be judged as a "value change" and printed repeatedly.
   const runMoves = (moves, start, end, buggy = false) => {
     const logs = [];
     let hover = -1, outLine = null, el = null;
     const removeEl = () => { el = null; };
     const clearOutLine = () => { removeEl(); outLine = null; };
-    // 修复版只换 DOM；buggy 版复用了 clearOutLine（历史 bug）
+    // The repaired version only changes the DOM; the buggy version reuses clearOutLine (historical bug)
     const showOutLine = (line) => { if (buggy) clearOutLine(); else removeEl(); el = line; };
     const compute = (m) => {
       if (m.insideWidget) return null;
@@ -117,108 +116,109 @@ console.log('\n=== 1c. 连续拖动同一落点：状态不得被自己清掉（
     return { logs, finalOutLine, extracted: finalOutLine !== null && hover === -1 };
   };
 
-  // 用户实际场景：start=78 end=92，先滑到 93 再停在 94，之后连续多帧停在 94
+  // Actual user scenario: start=78 end=92, first slide to 93 and then stop at 94, and then stop at 94 for multiple consecutive frames
   const moves = [
     { hoverLine: 93 }, { hoverLine: 94 },
     { hoverLine: 94 }, { hoverLine: 94 }, { hoverLine: 94 }, { hoverLine: 94 },
   ];
   const fixed = runMoves(moves, 78, 92);
-  eq(fixed.logs, [93, 94], '同一落点的后续帧不应再打印（只记录 93→94 一次变化）');
-  eq(fixed.finalOutLine, 94, '松手时落点仍为 94');
-  ok(fixed.extracted, '连续拖动后仍能触发提取（用户日志里这里是 null）');
+  eq(fixed.logs, [93, 94], "Subsequent frames at the same landing point should not be printed again (only a change of 93→94 is recorded)");
+  eq(fixed.finalOutLine, 94, "When you let go, the landing point is still 94");
+  ok(fixed.extracted, "Extraction can still be triggered after continuous dragging (this is null in the user log)");
 
-  // 反例：故意退回旧实现，必须重现用户日志的形态（证明上面两条断言有效）
+  // Counterexample: Deliberately returning to the old implementation, the shape of the user log must be reproduced (proving that the above two assertions are valid)
   const buggy = runMoves(moves, 78, 92, true);
-  ok(buggy.logs.length > 2, '旧实现会重复打印落点（bad case，证明断言非恒真）');
-  eq(buggy.finalOutLine, null, '旧实现松手时落点为 null（bad case）');
-  ok(!buggy.extracted, '旧实现不触发提取（bad case）');
+  ok(buggy.logs.length > 2, "The old implementation will repeatedly print the landing point (bad case, proving that the assertion is not always true)");
+  eq(buggy.finalOutLine, null, "The old implementation dropped the point to null when letting go (bad case)");
+  ok(!buggy.extracted, "Old implementation does not trigger extraction (bad case)");
 }
 
-console.log('\n=== 2. 非法落点必须不提取（不能因修 bug 而放宽）===');
+console.log("=== 2. Illegal landing points must not be extracted (cannot be relaxed due to bug fixes) ===");
 {
   const inside = simulate({ insideWidget: false, hoverLine: 7, start: 2, end: 12 });
-  ok(!inside.extracted, '区间内部行 → 不提取');
+  ok(!inside.extracted, "Rows inside the interval → do not extract");
   const far = simulate({ insideWidget: false, hoverLine: 30, start: 2, end: 12 });
-  ok(far.extracted, '区间外的远行 → 允许提取（放宽后，不再是非法）');
+  ok(far.extracted, "Long distance travel outside the zone → Withdrawal is allowed (no longer illegal after relaxation)");
   const inWidget = simulate({ insideWidget: true, hoverLine: null, start: 2, end: 12 });
-  ok(!inWidget.extracted, '指针仍在 widget 内 → 走栏间换序，不提取');
+  ok(!inWidget.extracted, "The pointer is still within the widget → Change the order between columns without extracting");
   const outside = simulate({ insideWidget: false, hoverLine: 13, start: 2, end: 12, inEditorRect: false });
-  ok(!outside.extracted, '指针在编辑器可视区外 → 不提取');
+  ok(!outside.extracted, "The pointer is outside the editor's visible area → do not extract");
   const topmost = simulate({ insideWidget: false, hoverLine: 0, start: 0, end: 12 });
-  ok(!topmost.extracted, '分栏在文档首行时，外壳行本身是区间内部 → 不提取');
+  ok(!topmost.extracted, "When the column is in the first line of the document, the shell line itself is inside the range → not extracted");
 }
 
-console.log('\n=== 3. 源码顺序守卫：onUp 必须先捕获再清理 ===');
+console.log("=== 3. Source code sequence guard: onUp must be captured first and then cleaned ===");
 {
   const src = readFileSync('src/columns-preview.ts', 'utf8');
   const i = src.indexOf('private extractColumnTo');
-  ok(i > 0, 'extractColumnTo 存在');
+  ok(i > 0, "extractColumnTo exists");
   const upIdx = src.indexOf('const onUp = (ev: MouseEvent) => {');
-  ok(upIdx > 0, 'gripDown 的 onUp 存在');
-  const upBody = src.slice(upIdx, upIdx + 700);
+  ok(upIdx > 0, "gripDown's onUp exists");
+  // Ignore prose length: the guard measures executable statements.
+  const upBody = src.slice(upIdx, src.indexOf('const el = document.elementFromPoint', upIdx)).replace(/\/\/[^\n]*/g, '');
   const capIdx = upBody.indexOf('const finalOutLine = outLine;');
   const clearIdx = upBody.indexOf('clearOutLine();');
-  ok(capIdx > 0, 'onUp 内有「先捕获 outLine」这一步');
-  ok(clearIdx > 0, 'onUp 内有 clearOutLine() 调用');
-  ok(capIdx < clearIdx, '捕获必须早于清理（顺序反了就是原始 bug）');
-  ok(upBody.includes('this.extractColumnTo(from, finalOutLine'), '提取分支使用捕获值而非已被清理的 outLine');
+  ok(capIdx > 0, "There is a step of \"capture outLine first\" in onUp");
+  ok(clearIdx > 0, "There is a clearOutLine() call in onUp");
+  ok(capIdx < clearIdx, "Capture must precede cleanup (reversing the order is the original bug)");
+  ok(upBody.includes('this.extractColumnTo(from, finalOutLine'), "Extract branch uses captured value instead of sanitized outLine");
 
-  // 源码守卫：showOutLine 重画线时不得调用会清状态的 clearOutLine()
+  // Source code guard: showOutLine must not call clearOutLine() which clears the status when redrawing the line.
   const showAt = src.indexOf('const showOutLine = ');
-  ok(showAt > 0, 'showOutLine 存在');
+  ok(showAt > 0, "showOutLine exists");
   const showBody = src.slice(showAt, showAt + 1200);
-  // 剥掉注释行再断言：注释里会提到 clearOutLine 这个反例，否则守卫被自己的注释触发
+  // Strip the comment line and assert again: the comment will mention the clearOutLine counterexample, otherwise the guard will be triggered by its own comment.
   const showCode = showBody.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
-  ok(/removeOutLineEl\(\)/.test(showCode), 'showOutLine 只移除 DOM（removeOutLineEl）');
-  ok(!/clearOutLine\(\)/.test(showCode), 'showOutLine 不得调用 clearOutLine（会把 outLine 清成 null）');
-  ok(/const removeOutLineEl = /.test(src), '存在「只清 DOM」的 removeOutLineEl');
-  ok(/const clearOutLine = \(\)/.test(src), '存在「清 DOM + 清状态」的 clearOutLine');
+  ok(/removeOutLineEl\(\)/.test(showCode), "showOutLine only removes the DOM (removeOutLineEl)");
+  ok(!/clearOutLine\(\)/.test(showCode), "showOutLine must not call clearOutLine (will clear outLine to null)");
+  ok(/const removeOutLineEl = /.test(src), "There is a removeOutLineEl that \"only clears the DOM\"");
+  ok(/const clearOutLine = \(\)/.test(src), "There is clearOutLine that \"clears DOM + clears state\"");
 }
 
-console.log('\n=== 4. grip 命中区守卫（CSS 不得退化）===');
+console.log("=== 4. grip hit zone guard (CSS must not be degraded) ===");
 {
   const css = readFileSync('styles.css', 'utf8');
   const m = css.match(/\.block-editor-col-grip\s*\{([^}]*)\}/);
-  ok(!!m, '找到 .block-editor-col-grip 规则');
+  ok(!!m, "Find the .block-editor-col-grip rule");
   const body = m ? m[1] : '';
-  ok(/padding:\s*4px\s+0/.test(body), 'grip 有纵向 padding（纵向命中区 > 8px）');
-  ok(/width:\s*100%/.test(body), 'grip 横向铺满整栏（无需对准字形）');
-  ok(/-webkit-user-select/.test(body), 'grip 禁用 webkit 文本选中');
-  ok(/cursor:\s*grab/.test(body), 'grip 有 grab 光标反馈');
-  ok(/\.block-editor-col-grip:hover/.test(css), 'grip 有悬停反馈');
+  ok(/padding:\s*4px\s+0/.test(body), "The grip has vertical padding (vertical hit area > 8px)");
+  ok(/width:\s*100%/.test(body), "grip spreads the entire column horizontally (no need to align the fonts)");
+  ok(/-webkit-user-select/.test(body), "grip disables webkit text selection");
+  ok(/cursor:\s*grab/.test(body), "grip has grab cursor feedback");
+  ok(/\.block-editor-col-grip:hover/.test(css), "grip has hover feedback");
 }
 
-console.log('\n=== 5. 落点线可见性守卫（回归：曾经隐形 / 曾经耦合）===');
+console.log("=== 5. Drop point line visibility guard (return: once invisible / once coupled) ===");
 {
   const css = readFileSync('styles.css', 'utf8');
-  // 【解耦后的核心不变量】外观基类 .block-editor-indicator 不得声明 display。
-  // 它的两个消费者对可见性的需求相反：drag.ts 的插入线是常驻单例、要默认隐藏；
-  // columns-preview 的落点线每次新建、必须一挂上就可见。把 display 写进基类，
-  // 后者就只能靠 `.a.b` 特异性硬盖 —— 改基类时它会静默隐形，表现为「拖不出来」。
+  // [Core invariants after decoupling] The appearance base class .block-editor-indicator must not declare display.
+  // Its two consumers have opposite visibility needs: the insertion line of drag.ts is a resident singleton and should be hidden by default;
+  // Each time the drop point line of columns-preview is created, it must be visible as soon as it is hung up. Write display into the base class,
+  // The latter can only be covered by the `.a.b` specificity - when the base class is modified, it will be silently invisible and "cannot be dragged out".
   const ind = css.match(/\.block-editor-indicator\s*\{([^}]*)\}/);
-  ok(!!ind, '找到 .block-editor-indicator 外观基类');
-  ok(!!ind && !/display\s*:/.test(ind[1]), '外观基类不含 display（显隐不属于外观，两条线各自独立）');
-  ok(!!ind && /position:\s*absolute/.test(ind[1]), '外观基类声明 position:absolute（定位属外观）');
-  // 两条线各自的显隐规则必须存在且互不覆盖（都是单类选择器，特异性相同）
+  ok(!!ind, "Find the .block-editor-indicator appearance base class");
+  ok(!!ind && !/display\s*:/.test(ind[1]), "The appearance base class does not contain display (display and concealment do not belong to the appearance, and the two lines are independent)");
+  ok(!!ind && /position:\s*absolute/.test(ind[1]), "Appearance base class declaration position:absolute (positioning belongs to appearance)");
+  // The respective explicit and implicit rules of the two lines must exist and do not cover each other (both are single-type selectors with the same specificity)
   const insertLine = css.match(/\.block-editor-insert-line\s*\{([^}]*)\}/);
-  ok(!!insertLine && /display:\s*none/.test(insertLine[1]), '插入线默认 display:none（可复用单例需默认隐藏）');
+  ok(!!insertLine && /display:\s*none/.test(insertLine[1]), "Insert lines default to display:none (reusable singletons need to be hidden by default)");
   const outline = css.match(/\.block-editor-col-outline\s*\{([^}]*)\}/);
-  ok(!!outline, '存在 .block-editor-col-outline 规则');
-  ok(!!outline && /display:\s*block/.test(outline[1]), 'col-outline 自身即 display:block（一次性元素，必须一挂上就可见）');
-  ok(!/\.block-editor-indicator\.block-editor-col-outline/.test(css), 'col-outline 不再靠复合选择器压制基类（耦合已消除）');
-  // 显示侧统一走 .is-visible 状态类：grep 这一个类名即可看出「谁在显示」
-  ok(/\.block-editor-insert-line\.is-visible/.test(css), '存在 .is-visible 显示态规则');
+  ok(!!outline, ".block-editor-col-outline rule exists");
+  ok(!!outline && /display:\s*block/.test(outline[1]), "col-outline itself is display:block (one-time element, must be visible as soon as it is hung)");
+  ok(!/\.block-editor-indicator\.block-editor-col-outline/.test(css), "col-outline no longer relies on compound selectors to suppress base classes (coupling has been eliminated)");
+  // On the display side, use the .is-visible status class: grep this class name to see "who is displaying"
+  ok(/\.block-editor-insert-line\.is-visible/.test(css), "There is a .is-visible display rule");
   const dragSrc = readFileSync('src/drag.ts', 'utf8');
-  ok(!/setCssStyles\(\{[^}]*display/.test(dragSrc), 'drag.ts 不再用 setCssStyles 写内联 display（显隐只在 CSS 里可见）');
-  ok(/classList\.toggle\('is-visible'/.test(dragSrc), 'drag.ts 统一用 is-visible 类切换显隐');
-  // 源码侧：新建元素必须带该类名（不再内联置 display）
+  ok(!/setCssStyles\(\{[^}]*display/.test(dragSrc), "drag.ts no longer uses setCssStyles to write inline display (display is only visible in CSS)");
+  ok(/classList\.toggle\('is-visible'/.test(dragSrc), "drag.ts uniformly uses the is-visible class to switch between visible and hidden");
+  // Source code side: New elements must have this class name (display is no longer set inline)
   const src = readFileSync('src/columns-preview.ts', 'utf8');
-  ok(/block-editor-indicator block-editor-col-outline/.test(src), '源码新建落点线带 col-outline 类名');
-  ok(!/el\.style\.display = 'block'/.test(src), '源码不再内联置 display（与 CSS 重复声明）');
-  // 源栏拖拽态反馈：没有它时用户无法判断拖拽是否已开始
-  ok(/\.block-editor-col-editor\.block-editor-col-dragging/.test(css), '存在源栏拖拽态样式');
-  ok(/classList\.toggle\('block-editor-col-dragging'/.test(src), '源码会切换源栏拖拽态');
+  ok(/block-editor-indicator block-editor-col-outline/.test(src), "The source code creates a new drop-out line with the col-outline class name");
+  ok(!/el\.style\.display = 'block'/.test(src), "Source code no longer sets display inline (duplicate declaration with CSS)");
+  // Source bar drag status feedback: without it, the user cannot tell whether the drag has started.
+  ok(/\.block-editor-col-editor\.block-editor-col-dragging/.test(css), "There is a drag-and-drop style in the source bar");
+  ok(/classList\.toggle\('block-editor-col-dragging'/.test(src), "The source code will switch the source bar drag state");
 }
 
-console.log(`\n${'='.repeat(46)}\n通过 ${pass} / 失败 ${fail}\n${'='.repeat(46)}`);
+console.log(`\n${'='.repeat(46)}Pass${pass}/fail${fail}\n${'='.repeat(46)}`);
 process.exit(fail ? 1 : 0);

@@ -1,21 +1,19 @@
 import { TEXT } from './strings';
 /**
- * 斜杠「插入类」命令的纯逻辑：日期时间格式化、片段展开、启用集合过滤。
+ * Pure logic of the slash "insert class" command: date and time formatting, fragment expansion, and enable collection filtering.
  *
- * 本模块不 import obsidian、不碰 DOM，可被 scripts/insert-actions-spec.mjs
- * 用 esbuild 单独打包后在 Node 里断言。
- */
+ * This module does not import obsidian, does not touch the DOM, and can be used by scripts/insert-actions-spec.mjs
+ * Use esbuild to package it separately and assert it in Node. */
 import type { InsertActionId, InsertSpec } from './types';
 
-/** 周三 → 周三；dddd 用「星期三」 */
+/** Wednesday → Wednesday; dddd uses "Wednesday" */
 const WEEKDAYS = [TEXT.message0250, TEXT.message0251, TEXT.message0252, TEXT.message0253, TEXT.message0254, TEXT.message0255, TEXT.message0256];
 
 const pad = (n: number): string => String(n).padStart(2, '0');
 
 /**
- * 按 token 格式化时间（不依赖 moment，便于离线断言）。
- * 支持 YYYY / YY / MM / DD / HH / mm / ss / ddd / dddd，其余字符原样保留。
- */
+ * Format time by token (does not rely on moment, convenient for offline assertion).
+ * Support YYYY / YY / MM / DD / HH / mm / ss / ddd / dddd, and leave the remaining characters as they are. */
 export function formatDateTime(now: Date, format: string): string {
   const y = now.getFullYear();
   const table: Record<string, string> = {
@@ -26,14 +24,14 @@ export function formatDateTime(now: Date, format: string): string {
     HH: pad(now.getHours()),
     mm: pad(now.getMinutes()),
     ss: pad(now.getSeconds()),
-    ddd: WEEKDAYS[now.getDay()],
-    dddd: TEXT.message0257 + WEEKDAYS[now.getDay()].slice(1),
+    ddd: WEEKDAYS[now.getDay()].slice(0, 3),
+    dddd: WEEKDAYS[now.getDay()],
   };
-  // 长 token 必须排在短 token 之前（dddd 先于 ddd、YYYY 先于 YY），否则会被截断
+  // Long tokens must be ranked before short tokens (dddd comes before ddd, YYYY comes before YY), otherwise it will be truncated.
   return format.replace(/YYYY|YY|MM|DD|HH|mm|ss|dddd|ddd/g, (m) => table[m] ?? m);
 }
 
-/** 片段展开结果：text 为插入文本，caret 为光标相对插入起点的偏移 */
+/** Fragment expansion result: text is the inserted text, caret is the offset of the cursor relative to the insertion starting point */
 export interface SnippetResult {
   text: string;
   caret: number;
@@ -41,13 +39,12 @@ export interface SnippetResult {
 
 const clamp = (n: number, max: number): number => Math.max(0, Math.min(n, max));
 
-/** 文本类片段插完后光标落在末尾 */
+/** After inserting the text fragment, the cursor is at the end */
 const atEnd = (text: string): SnippetResult => ({ text, caret: text.length });
 
 /**
- * 展开一个插入命令的「静态文本部分」。
- * 返回 null 表示该命令需要交互（选文件 / 选笔记），没有可预先算出的文本。
- */
+ * Expand the "static text part" of an insert command.
+ * Returning null indicates that the command requires interaction (select files/select notes) and there is no pre-calculated text. */
 export function resolveSnippet(
   spec: InsertSpec,
   ctx: { now: Date; dateFormat: string; timeFormat: string }
@@ -66,9 +63,8 @@ export function resolveSnippet(
 }
 
 /**
- * 可在设置里单独关掉的插入命令 → 对应设置字段名。
- * 图片 / 音频 / 视频 / PDF 是插入类的基本盘，**不给关**，故不在表中。
- */
+ * Insert command that can be turned off separately in the settings → corresponds to the setting field name.
+ * Picture/Audio/Video/PDF are the basic disks of the insert class and are not disabled, so they are not included in the table. */
 export const INSERT_TOGGLE_KEY: Partial<Record<InsertActionId, string>> = {
   date: 'insDate',
   time: 'insTime',
@@ -83,10 +79,9 @@ export const INSERT_TOGGLE_KEY: Partial<Record<InsertActionId, string>> = {
 };
 
 /**
- * 按设置过滤出启用中的插入命令。
- * @param settings 插件设置（任意对象即可，避免本模块依赖 settings.ts）
- * 字段缺失（旧版本配置）视为启用；只有显式 false 才剔除。
- */
+ * Filter out enabled insert commands by setting.
+ * @param settings Plug-in settings (any object is enough to avoid this module relying on settings.ts)
+ * Missing fields (old version configuration) are considered enabled; only explicit false is removed. */
 export function enabledInsertIds(
   ids: readonly InsertActionId[],
   settings: Record<string, unknown> | null | undefined
@@ -94,7 +89,7 @@ export function enabledInsertIds(
   if (!settings) return [...ids];
   return ids.filter((id) => {
     const key = INSERT_TOGGLE_KEY[id];
-    if (!key) return true; // 无开关项（媒体 4 项）常驻
+    if (!key) return true; // No switch items (media 4 items) are resident
     return settings[key] !== false;
   });
 }

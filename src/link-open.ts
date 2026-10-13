@@ -1,7 +1,7 @@
 import type { App, PaneType } from 'obsidian';
 import type { LinkOpenMode } from './settings';
 
-/** openLinkText 的宽松签名（避免额外导入 OpenViewState 等类型） */
+/** Relaxed signature of openLinkText (avoids additional imports of OpenViewState and other types) */
 type OpenLinkText = (
   linktext: string,
   sourcePath: string,
@@ -12,7 +12,7 @@ type OpenLinkText = (
 let original: OpenLinkText | null = null;
 let targetProto: Record<string, unknown> | null = null;
 
-/** 安装链接打开桥接；重复调用幂等（已安装时直接返回） */
+/** The installation link opens the bridge; repeated calls are idempotent (return directly when installed) */
 export function installLinkOpenBridge(app: App, getMode: () => LinkOpenMode): void {
   if (original) return;
   const proto = Object.getPrototypeOf(app.workspace) as Record<string, unknown> | null;
@@ -28,9 +28,9 @@ export function installLinkOpenBridge(app: App, getMode: () => LinkOpenMode): vo
     openViewState?: unknown
   ): Promise<void> {
     const mode = getMode();
-    // 仅在「调用方未指定打开位置」时套用设置：
-    // Ctrl/Cmd+点击（Obsidian 传 'tab'）、Ctrl/Cmd+Alt+点击（传 'split'）、
-    // 其它插件传入的显式值都原样放行，修饰键行为天然保留。
+    // The setting is only applied if "the caller did not specify an opening location":
+    // Ctrl/Cmd+click (Obsidian passes 'tab'), Ctrl/Cmd+Alt+click (passes 'split'),
+    // Explicit values passed in by other plug-ins are released as is, and the modifier key behavior is naturally retained.
     const unspecified = newLeaf == null || newLeaf === false;
     const internal = !/^(?:https?|mailto|tel):/i.test(linktext);
     const next = unspecified && internal && mode !== 'current' ? mode : newLeaf;
@@ -42,7 +42,7 @@ export function installLinkOpenBridge(app: App, getMode: () => LinkOpenMode): vo
   targetProto = proto;
 }
 
-/** 卸载并还原原始方法（插件卸载时调用） */
+/** Uninstall and restore the original method (called when the plug-in is uninstalled) */
 export function uninstallLinkOpenBridge(): void {
   if (targetProto && original) targetProto.openLinkText = original;
   original = null;

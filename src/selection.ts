@@ -9,7 +9,7 @@ export interface SelectionState {
   ranges: BlockRange[];
 }
 
-/** 多选块：Shift+点击手柄加入 / 移出，并渲染高亮层 */
+/** Multi-selection block: Shift+click the handle to add/remove and render the highlight layer */
 export class SelectionManager {
   selection: SelectionState | null = null;
   private layerEl: HTMLElement | null = null;
@@ -17,8 +17,8 @@ export class SelectionManager {
   constructor(private ctx: BlockEditorPlugin) {}
 
   init(): void {
-    // 选区层不在 init 时挂入 DOM，renderSelection 时动态挂到当前编辑器的
-    // .cm-editor 上：absolute 定位 + overflow:hidden 物理裁剪，不会溢出到标签页栏。
+    // The selection layer is not linked to the DOM during init, and is dynamically linked to the current editor during renderSelection.
+    // On .cm-editor: absolute positioning + overflow:hidden physical cropping, which will not overflow to the tab bar.
     const layer = createEl('div');
     layer.className = 'block-editor-selection-layer';
     this.layerEl = layer;
@@ -30,7 +30,7 @@ export class SelectionManager {
     this.selection = null;
   }
 
-  // 当前块参与了多选就返回整个选区，否则只返回自己
+  // If the current block participates in multi-selection, the entire selection will be returned, otherwise only itself will be returned.
   actionRanges(block: BlockContext): BlockRange[] {
     const sel = this.selection;
     if (sel && this.isInSelection(block) && sel.ranges.length > 0) return sel.ranges;
@@ -52,7 +52,7 @@ export class SelectionManager {
     else ranges.push({ start: block.start, end: block.end, type: block.type });
 
     ranges.sort((a, b) => a.start - b.start);
-    // 相邻 / 重叠的块合并成一段
+    // Adjacent/overlapping blocks are merged into one segment
     const merged: BlockRange[] = [];
     for (const r of ranges) {
       const last = merged[merged.length - 1];
@@ -80,14 +80,14 @@ export class SelectionManager {
     const cm = getCM(sel.editor);
     if (!cm) return;
 
-    // 挂到当前编辑器 .cm-editor，absolute 定位 + overflow:hidden 物理裁剪
+    // Hang to the current editor .cm-editor, absolute positioning + overflow:hidden physical cropping
     const editorDom = cm.dom;
     const editorRect = editorDom.getBoundingClientRect();
     if (layer.parentElement !== editorDom) editorDom.appendChild(layer);
 
     const doc = cm.state.doc;
     for (const r of sel.ranges) {
-      // 选区可能因文档变化过期，越界直接跳过（doc.line 越界会抛错）
+      // The selection may expire due to document changes, and it will be skipped if it goes out of bounds (doc.line will throw an error if it goes out of bounds)
       if (r.start >= doc.lines || r.end >= doc.lines) continue;
       const from = cm.coordsAtPos(doc.line(r.start + 1).from);
       const below = doc.line(r.end + 1);

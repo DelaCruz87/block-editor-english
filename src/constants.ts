@@ -4,7 +4,7 @@ import type { InsertActionId, InsertSpec, TurnIntoItem } from './types';
 export const HANDLE_W = 20;
 export const HANDLE_H = 20;
 
-/** 「转换为」菜单项 */
+/** "Convert to" menu item */
 export const TURN_INTO: TurnIntoItem[] = [
   ['paragraph', TEXT.message0144],
   ['h1', TEXT.message0145],
@@ -25,7 +25,7 @@ export const TURN_INTO: TurnIntoItem[] = [
   ['divider', TEXT.message0159],
 ];
 
-/** 块 ID 的词表：Obsidian 只认拉丁字母、数字和连字符，所以用「易拼写的短单词 + 序号」 */
+/** Block ID word list: Obsidian only recognizes Latin letters, numbers and hyphens, so use "easy-to-spell short words + serial numbers" */
 export const ID_WORDS = [
   'amber', 'anchor', 'arbor', 'aspen', 'autumn', 'bamboo', 'beacon', 'birch', 'bloom', 'breeze',
   'brook', 'candle', 'canyon', 'cedar', 'cherry', 'cinder', 'clover', 'coral', 'cotton', 'dawn',
@@ -37,7 +37,7 @@ export const ID_WORDS = [
   'thistle', 'tide', 'timber', 'valley', 'velvet', 'violet', 'walnut', 'willow', 'winter', 'zephyr',
 ];
 
-/** Obsidian 官方 Callout 类型（canonical 名称，菜单用） */
+/** Obsidian official Callout type (canonical name, used in menu) */
 export const CALLOUT_TYPES: [string, string][] = [
   ['note', TEXT.message0160],
   ['abstract', TEXT.message0161],
@@ -51,7 +51,7 @@ export const CALLOUT_TYPES: [string, string][] = [
   ['bug', TEXT.message0169],
   ['example', TEXT.message0170],
   ['quote', TEXT.message0171],
-  // M5：更多官方 callout 类型
+  // M5: More official callout types
   ['cite', TEXT.message0172],
   ['info', TEXT.message0173],
   ['help', TEXT.message0174],
@@ -68,7 +68,7 @@ export const CALLOUT_TYPES: [string, string][] = [
   ['target', TEXT.message0185],
 ];
 
-/** 代码块语言 */
+/** Code block language */
 export const CODE_LANGS: [string, string][] = [
   ['', TEXT.message0186],
   ['js', 'JavaScript'],
@@ -85,7 +85,7 @@ export const CODE_LANGS: [string, string][] = [
   ['html', 'HTML'],
   ['css', 'CSS'],
   ['mermaid', 'Mermaid'],
-  // M5：代码语言扩展
+  // M5: Code Language Extension
   ['cpp', 'C++'],
   ['csharp', 'C#'],
   ['php', 'PHP'],
@@ -103,7 +103,7 @@ export const CODE_LANGS: [string, string][] = [
   ['graphql', 'GraphQL'],
 ];
 
-/** 斜杠「插入类」动作（与 TURN_INTO 合并进斜杠建议列表） */
+/** Slash "insert class" action (merged with TURN_INTO into the slash suggestion list) */
 export const INSERT_ACTIONS: [InsertActionId, string][] = [
   ['image', TEXT.message0187],
   ['audio', TEXT.message0188],
@@ -121,11 +121,11 @@ export const INSERT_ACTIONS: [InsertActionId, string][] = [
   ['blockembed', TEXT.message0199],
 ];
 
-/** 日期 / 时间格式默认值（token 说明见 insert-actions.ts 的 formatDateTime） */
+/**Date/time format default value (for token description, see formatDateTime in insert-actions.ts) */
 export const DEFAULT_DATE_FORMAT = 'YYYY-MM-DD';
 export const DEFAULT_TIME_FORMAT = 'HH:mm';
 
-/** 媒体选择器的扩展名白名单（小写、不含点） */
+/** Extension whitelist for media selectors (lowercase, no dot) */
 export const MEDIA_EXTS: Record<'image' | 'audio' | 'video' | 'pdf', string[]> = {
   image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'avif'],
   audio: ['mp3', 'wav', 'm4a', 'ogg', 'flac'],
@@ -134,9 +134,8 @@ export const MEDIA_EXTS: Record<'image' | 'audio' | 'video' | 'pdf', string[]> =
 };
 
 /**
- * 各插入动作怎么执行（BlockInserter 按 kind 分派）。与 INSERT_ACTIONS 一一对应。
- * 必须排在 MEDIA_EXTS 之后：对象字面量在模块求值时就会读取它。
- */
+ * How to perform each insertion action (BlockInserter is dispatched according to kind). One-to-one correspondence with INSERT_ACTIONS.
+ * Must come after MEDIA_EXTS: the object literal is read when the module is evaluated. */
 export const INSERT_SPECS: Record<InsertActionId, InsertSpec> = {
   image: { kind: 'pick', exts: MEDIA_EXTS.image },
   audio: { kind: 'pick', exts: MEDIA_EXTS.audio },
@@ -145,7 +144,7 @@ export const INSERT_SPECS: Record<InsertActionId, InsertSpec> = {
   date: { kind: 'dynamic', dyn: 'date' },
   time: { kind: 'dynamic', dyn: 'time' },
   datetime: { kind: 'dynamic', dyn: 'datetime' },
-  // 光标落在两个标记中间（caret = 1 或 2），否则插完还得手动往回挪
+  // The cursor falls between the two marks (caret = 1 or 2), otherwise you have to move it back manually after inserting
   math: { kind: 'snippet', text: '$$', caret: 1 },
   inlinecode: { kind: 'snippet', text: '``', caret: 1 },
   highlight: { kind: 'snippet', text: '====', caret: 2 },

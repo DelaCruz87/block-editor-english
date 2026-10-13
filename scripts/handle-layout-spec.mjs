@@ -1,114 +1,113 @@
-/**
- * 手柄横向定位（避让折叠图标）回归。
+/* *
+ * Controller horizontal positioning (avoid fold icon) returns.
  *
- * 背景（真实 bug）：实时预览下 Obsidian 把列表 / 标题的折叠图标画在行首左侧的
- * 留白里，而手柄旧逻辑固定画在「行首左侧 size+6px」，两者落在同一块留白上 →
- * 视觉重叠，且手柄压住图标后折叠点不到。
+ * Background (real bug): Under real-time preview, Obsidian draws the folding icon of the list/title on the left side of the line
+ * In the blank space, the old logic of the handle is fixed at "size+6px on the left side of the line", and both fall on the same blank space →
+ * There is visual overlap, and the folding point cannot be found after pressing the icon with the handle.
  *
- * 修法：手柄右缘贴「折叠图标左缘 - gap」；左侧留白不够时压缩手柄而不是压回图标。
+ * Fix: Paste "left edge of folded icon - gap" on the right edge of the handle; when there is not enough space on the left side, compress the handle instead of pressing the icon back.
  *
- * 运行：node scripts/build-handle-layout-spec.mjs && node scripts/handle-layout-spec.mjs
- */
+ * Run: node scripts/build-handle-layout-spec.mjs && node scripts/handle-layout-spec.mjs */
 import { computeHandleLeft, isDodgeableFold, HANDLE_GAP, HANDLE_INSET, HANDLE_MIN_SIZE } from '../temp/verify/handle-layout.mjs';
 
 let pass = 0, fail = 0;
 const ok = (c, l) => { if (c) { pass++; console.log(`  PASS ${l}`); } else { fail++; console.log(`  FAIL ${l}`); } };
 const eq = (a, b, l) => ok(Object.is(a, b), `${l}（got ${JSON.stringify(a)}, want ${JSON.stringify(b)}）`);
 
-/** 典型几何：编辑器左缘 0、行首 x=320（含文件边距 32 + 内容），手柄 20 */
+/* * Typical geometry: editor left edge 0, start of line x=320 (including file margin 32 + content), handle 20 */
 const base = { lineLeft: 320, editorLeft: 0, editorWidth: 800, handleSize: 20 };
-/** 折叠图标：画在行首左 20px 处（宽 ~16），即 x=300 */
+/* * Folding icon: Draw 20px left of the beginning of the line (width ~16), that is, x=300 */
 const FOLD = 300;
 
-console.log('\n=== 1. 旧行为回归：没有折叠图标 ===');
+console.log("=== 1. Return of old behavior: no folding icon ===");
 {
   const r = computeHandleLeft({ ...base, foldLeft: null });
-  eq(r.left, 320 - HANDLE_GAP - 20, '无图标 → 手柄贴行首左侧（gap 6 + size 20）');
-  eq(r.size, 20, '无图标 → 不压缩');
-  ok(!r.squeezed, '无图标 → 不标记 squeezed');
+  eq(r.left, 320 - HANDLE_GAP - 20, "No icon → Controller sticker on the left side of the line (gap 6 + size 20)");
+  eq(r.size, 20, "No icon → no compression");
+  ok(!r.squeezed, "No icon → not marked squeezed");
 }
 
-console.log('\n=== 2. 有折叠图标：必须整体让到图标左侧（核心修复）===');
+console.log("=== 2. There is a folded icon: it must be moved to the left side of the icon (core repair) ===");
 {
   const r = computeHandleLeft({ ...base, foldLeft: FOLD });
-  eq(r.left + r.size, FOLD - HANDLE_GAP, '手柄右缘 = 图标左缘 - gap（不再压住图标）');
-  ok(r.left + r.size <= FOLD - HANDLE_GAP + 0.5, '手柄与图标零重叠');
-  eq(r.size, 20, '留白充足 → 保持原尺寸');
-  ok(!r.squeezed, '留白充足 → 不标记 squeezed');
+  eq(r.left + r.size, FOLD - HANDLE_GAP, "Right edge of handle = left edge of icon - gap (no longer pressing the icon)");
+  ok(r.left + r.size <= FOLD - HANDLE_GAP + 0.5, "The handle has zero overlap with the icon");
+  eq(r.size, 20, "Sufficient white space → maintain original size");
+  ok(!r.squeezed, "Sufficient white space → do not mark squeezed");
 }
 
-console.log('\n=== 3. 无效量测必须忽略（防手柄乱飞）===');
+console.log("=== 3. Invalid measurements must be ignored (to prevent the handle from flying around) ===");
 {
-  ok(!isDodgeableFold(null, 320, 0), 'null → 不避让');
-  ok(!isDodgeableFold(0, 320, 0), 'rect 全 0（display:none 的图标）→ 不避让');
-  ok(!isDodgeableFold(-5, 320, 0), '图标左缘在编辑器外 → 不避让');
-  ok(!isDodgeableFold(400, 320, 0), '图标在行首右侧（量错元素）→ 不避让');
-  ok(!isDodgeableFold(Number.NaN, 320, 0), 'NaN → 不避让');
-  ok(isDodgeableFold(FOLD, 320, 0), '正常图标（行首左侧、编辑器内）→ 避让');
+  ok(!isDodgeableFold(null, 320, 0), "null → do not give way");
+  ok(!isDodgeableFold(0, 320, 0), "rect all 0 (display:none icon) → no avoidance");
+  ok(!isDodgeableFold(-5, 320, 0), "The left edge of the icon is outside the editor → no avoidance");
+  ok(!isDodgeableFold(400, 320, 0), "The icon is on the right side of the beginning of the line (the wrong element is measured) → no avoidance");
+  ok(!isDodgeableFold(Number.NaN, 320, 0), "NaN → do not avoid");
+  ok(isDodgeableFold(FOLD, 320, 0), "Normal icon (left side of the line, in the editor) → avoid");
 
-  // 回归：隐藏图标若被当成有效量测，手柄会贴到编辑器左缘（旧 bug 形态）
+  // Regression: If the hidden icon is regarded as a valid measurement, the handle will be attached to the left edge of the editor (old bug form)
   const bad = computeHandleLeft({ ...base, foldLeft: 0 });
-  eq(bad.left, 320 - HANDLE_GAP - 20, 'rect 全 0 的图标被忽略 → 退回行首左侧');
+  eq(bad.left, 320 - HANDLE_GAP - 20, "Icons with all rect 0s are ignored → return to the left of the beginning of the line");
 }
 
-console.log('\n=== 4. 留白不足：压缩手柄而非压回图标 ===');
+console.log("=== 4. Insufficient white space: compress the handle instead of pressing back the icon ===");
 {
-  // 编辑器左缘 276（文件边距 24），图标 x=300 → 图标左侧只有 24px 可用
+  // Editor left margin 276 (file margin 24), icon x=300 → only 24px available on the left side of the icon
   const r = computeHandleLeft({ lineLeft: 320, foldLeft: FOLD, editorLeft: 276, editorWidth: 800, handleSize: 20 });
-  ok(r.size < 20, `留白不足 → 压缩手柄（size=${r.size}）`);
-  ok(r.size >= HANDLE_MIN_SIZE, `压缩不低于最小边长 ${HANDLE_MIN_SIZE}`);
-  ok(r.left >= HANDLE_INSET, '压缩后不越出编辑器左缘');
-  ok(r.left + r.size <= FOLD - 276 + 0.5, '压缩后仍与图标零重叠（图标左缘 - editorLeft）');
-  ok(r.squeezed, '压缩 → 标记 squeezed（调用方据此降级）');
+  ok(r.size < 20, `Insufficient white space → Compression handle (size=${r.size}）`);
+  ok(r.size >= HANDLE_MIN_SIZE, `Compress no less than minimum side length${HANDLE_MIN_SIZE}`);
+  ok(r.left >= HANDLE_INSET, "Does not exceed the left edge of the editor after compression");
+  ok(r.left + r.size <= FOLD - 276 + 0.5, "Still overlaps zero of the icon after compression (left edge of the icon - editorLeft)");
+  ok(r.squeezed, "squeeze → mark squeezed (caller downgrades accordingly)");
 }
 
-console.log('\n=== 5. 连最小尺寸都放不下：钳制 + 如实上报 ===');
+console.log("=== 5. Can’t even fit in the minimum size: clamp + report truthfully ===");
 {
-  // 图标紧贴编辑器左缘：左侧可用宽度 4px
+  // Icon hugs the left edge of the editor: available width on the left is 4px
   const r = computeHandleLeft({ lineLeft: 320, foldLeft: 300, editorLeft: 296, editorWidth: 800, handleSize: 20 });
-  eq(r.size, HANDLE_MIN_SIZE, '放不下 → 取最小边长');
-  eq(r.left, HANDLE_INSET, '钳制到最小留白');
-  ok(r.squeezed, '仍重叠 → squeezed = true（不假装成功）');
+  eq(r.size, HANDLE_MIN_SIZE, "Can’t fit → take the smallest side length");
+  eq(r.left, HANDLE_INSET, "Clamp to minimum white space");
+  ok(r.squeezed, "still overlap → squeezed = true (do not pretend success)");
 }
 
-console.log('\n=== 6. 右边界钳制：行首跑到编辑器外（极窄面板 / 长行横向滚动）===');
+console.log("=== 6. Right border clamping: the beginning of the line runs outside the editor (extremely narrow panel/long line horizontal scrolling) ===");
 {
-  // 行首 x=780 已在 720 宽的编辑器之外：不钳制的话手柄会被 overflow:hidden 整个裁掉
+  // The beginning of the line x=780 is already outside the 720-wide editor: without clamping, the handle will be completely cropped by overflow:hidden
   const r = computeHandleLeft({ lineLeft: 780, foldLeft: null, editorLeft: 0, editorWidth: 720, handleSize: 20 });
-  eq(r.left, 720 - HANDLE_INSET - 20, '钳制到右侧留白处');
-  ok(r.left + r.size <= 720 - HANDLE_INSET + 0.5, '手柄右缘不越出编辑器右缘');
+  eq(r.left, 720 - HANDLE_INSET - 20, "Clamp to the blank space on the right");
+  ok(r.left + r.size <= 720 - HANDLE_INSET + 0.5, "The right edge of the handle does not exceed the right edge of the editor");
 
-  // 行首仍在编辑器内：无需钳制，按原样贴行首左侧
+  // The beginning of the line is still in the editor: no need to clamp, stick to the left side of the beginning of the line as it is
   const inBounds = computeHandleLeft({ lineLeft: 700, foldLeft: null, editorLeft: 0, editorWidth: 720, handleSize: 20 });
-  eq(inBounds.left, 700 - HANDLE_GAP - 20, '行首在编辑器内 → 不触发钳制');
-  ok(inBounds.left + inBounds.size <= 720 - HANDLE_INSET + 0.5, '即便不钳制也不越界');
+  eq(inBounds.left, 700 - HANDLE_GAP - 20, "The beginning of the line is in the editor → does not trigger clamping");
+  ok(inBounds.left + inBounds.size <= 720 - HANDLE_INSET + 0.5, "Even if it is not clamped, it will not cross the line");
 }
 
-console.log('\n=== 7. 量测 → 定位 端到端（复刻 showHandle 的调用）===');
+console.log("=== 7. Measurement → Positioning end-to-end (replicate the call of showHandle) ===");
 {
   const scenarios = [
-    { name: '源码模式（无图标）', lineLeft: 320, foldLeft: null, editorLeft: 0 },
-    { name: '列表有子项（图标 x=300）', lineLeft: 320, foldLeft: 300, editorLeft: 0 },
-    { name: '列表有子项（缩进两层，行首 x=352）', lineLeft: 352, foldLeft: 332, editorLeft: 0 },
-    { name: '标题（图标 x=300）', lineLeft: 320, foldLeft: 300, editorLeft: 0 },
+    { name: "Source code mode (no icon)", lineLeft: 320, foldLeft: null, editorLeft: 0 },
+    { name: "List has children (icon x=300)", lineLeft: 320, foldLeft: 300, editorLeft: 0 },
+    { name: "The list has children (indented two levels, x=352 at the beginning of the line)", lineLeft: 352, foldLeft: 332, editorLeft: 0 },
+    { name: "title (icon x=300)", lineLeft: 320, foldLeft: 300, editorLeft: 0 },
   ];
   for (const s of scenarios) {
     const r = computeHandleLeft({ lineLeft: s.lineLeft, foldLeft: s.foldLeft, editorLeft: s.editorLeft, editorWidth: 800, handleSize: 20 });
     const rightEdgeViewport = s.editorLeft + r.left + r.size;
     const anchor = s.foldLeft ?? s.lineLeft;
-    ok(rightEdgeViewport <= anchor - HANDLE_GAP + 0.5, `${s.name} → 手柄右缘 ${rightEdgeViewport} ≤ 让位基准-6 (${anchor - HANDLE_GAP})`);
+    ok(rightEdgeViewport <= anchor - HANDLE_GAP + 0.5, `${s.name}→ right edge of handle${rightEdgeViewport}≤ giving way base-6 (${anchor - HANDLE_GAP})`);
   }
 }
 
-console.log('\n=== 8. 源码守卫：showHandle 不得再用硬编码 -6 定位 ===');
+console.log("=== 8. Source code guard: showHandle must no longer use hard-coded -6 positioning ===");
 {
   const src = (await import('node:fs')).readFileSync('src/handle.ts', 'utf8');
   const showHandle = src.slice(src.indexOf('showHandle(editor'), src.indexOf('private findFoldIndicatorLeft'));
-  ok(showHandle.includes('computeHandleLeft'), 'showHandle 走 computeHandleLeft');
-  ok(!showHandle.includes('- handleSize - 6'), '不再硬编码「行首 - size - 6」');
-  ok(showHandle.includes('layout.size'), '压缩后的尺寸用于居中与宽高');
-  ok(showHandle.includes('is-squeezed'), 'squeezed 反馈到 DOM（CSS 兜底）');
+  ok(showHandle.includes('computeHandleLeft'), "showHandle go computeHandleLeft");
+  ok(!showHandle.includes('- handleSize - 6'), "No more hardcoding \"start of line - size - 6\"");
+  ok(showHandle.includes('layout.size'), "Compressed dimensions are used for centering, width and height");
+  ok(showHandle.includes('is-squeezed'), "squeezed is fed back to the DOM (CSS covert)");
 }
 
-console.log(`\n合计：${pass} 通过 / ${fail} 失败`);
+console.log(`Total:${pass}via /${fail}failed`);
 if (fail) process.exit(1);

@@ -1,86 +1,90 @@
-# Block Editor
+# Block Editor English
 
-[English](图片/README.en.md) | 简体中文
+An English-language fork of [MarcBolo's Block Editor](https://github.com/MarcBolo/block-editor/tree/43f80c0d9bf98659a48e37878799283975ac75f1) for Obsidian desktop. It provides Notion-style block handles, drag-and-drop reordering, multiple selection, block conversion, editable columns, colors, block references and slash commands.
 
-Notion 风格的 Obsidian 块编辑插件：块手柄、拖拽排序、多选、块类型转换、分栏与块颜色。仅桌面端。
+The fork translates UI text, settings, commands, notices, diagnostics, source comments, development scripts and documentation. The plugin ID is `block-editor-english`, so community updates to the original cannot overwrite it. The original MIT license and author attribution are preserved. [Fork provenance and compatibility](FORK.md) describes the exact starting revision, inherited limitations and verification.
 
-![alt text](l.png)
-![alt text](a.png) 
-## 功能
+## Features
 
-- **块手柄**：鼠标悬停或光标所在块的左侧显示六点拖拽手柄（Notion 样式），对应块浅色高亮
+- **Block handles**: A six-dot handle appears beside the hovered block or the block containing the cursor. Optional highlighting makes its scope visible.
+- **Drag and drop**: Move blocks within a note or between panes. A floating preview and insertion line show the destination. The editor scrolls near its edges. Hold Alt to copy instead of move. Splits of the same file use an in-document move.
+- **Nesting**: Drop to the right of a list, quote or callout body to nest the block. Moving left reduces indentation. Dropping to the right of a paragraph or heading converts that target into a list item and nests the dragged block below it. The indent step is configurable; automatic drag nesting uses four spaces.
+- **Quick columns**: Drop at the left or right edge of a target block to combine the two into columns.
+- **Insert a column by dragging**: Drag a block or selected group into a rendered columns layout. An insertion band within 18 px of a gap takes priority; otherwise the left half of a column inserts before it, and the right half inserts after it. Multi-row layouts resolve the insertion band within the row under the pointer. Alt retains the source.
+- **Extract a column**: Drag its top handle outside the layout. The upper or lower half of a destination line chooses insertion before or after it. The extracted text loses the column quote prefixes. If fewer than two columns remain, the layout becomes ordinary paragraphs. Remaining widths are redistributed proportionally. Alt copies the column instead.
+- **Action hints**: The preview identifies moving, nesting, copying, cross-document transfer or a left/right column drop. Invalid destinations have no action hint.
+- **Multiple selection**: Shift-click handles to select or deselect blocks. Drag, delete, copy or convert the selection together. Esc exits selection.
+- **Block menu**: Convert to paragraphs, headings 1-6, lists, tasks, quotes, callouts, toggles, code, math, tables or dividers. Code conversion offers 30 language choices; callouts offer 26 types. The menu also inserts above/below, duplicates without reusing block IDs, moves blocks, sets colors, operates on columns, reports character length and deletes blocks. Deleting a heading removes its whole section.
+- **Slash commands**: Type `/` at the start of a block to search conversion and insertion actions. Matching uses subsequences and relevance ranking. Inline `/` offers image, audio, video and PDF insertion. Paths such as `C:/` and `https://` do not trigger suggestions. Code fences suppress slash suggestions.
+- **Insert actions**: Insert dates, times, inline math, inline code, highlights, note links, note embeds, block references or block embeds. Optional actions have individual settings switches. Media insertion selects an existing vault attachment.
+- **Block IDs**: Generate easy-to-spell `^block-id` identifiers, copy block links, or select a note and block to insert a reference. Structured blocks receive IDs on separate lines where required. Clearing all IDs asks for confirmation because existing references would stop resolving.
+- **Columns**: Combine adjacent selected blocks, splitting at blank lines. Reading view displays columns side by side. Live Preview supports rendered layouts and in-column editing. Operations include adding/splitting columns, merging right, adding/deleting rows, reordering rows and unwrapping the layout. Width metadata supports `60-40` and `60-40/50-50`. Layout parameters include `gap=`, `radius=`, `valign=` and `border`; individual columns accept `bg=` and `bg-dark=`.
+- **Nested lists to columns**: "Columns by parent items" creates a column for each top-level item and its descendants. "Columns by child items" requires one parent and creates columns for its children, retaining the parent as introductory text outside the layout. Ordered and unordered lists work; code fences do not introduce split points. Ambiguous input or fewer than two columns disables the action.
+- **Block colors**: Use preset swatches, a native color picker or custom hex values. Light colors derive dark-theme and contrasting text colors automatically; columns also support an explicit dark color override.
+- **Internal links**: Choose the current tab, a new tab, a right split or a new window. Modifier-click behavior remains native.
+- **Command palette**: Move blocks with Alt+Up/Down, indent/outdent, open the menu, generate IDs, reference or duplicate blocks, manage colors, clear IDs, convert types and inspect column diagnostics.
 
-- **拖拽排序**：拖动块出现浮动预览与插入指示线（宽度取编辑器行宽）；拖到编辑区上下边缘自动滚动；拖到列表 / 引用 / Callout 正文右侧变为其子块（缩进 4 个字符，可用「缩进步长」调整），向左拖出自动降级缩进；拖到**普通段落 / 标题**右侧时自动把目标转为列表项（`- `  前缀）并把被拖块缩进为其子项（Markdown 下只有列表项有父子结构）；拖到目标块左 / 右边缘快速与它合成两栏分栏；按住 **Alt 拖拽 = 复制到落点**；支持**跨分屏拖到其他文档**（移动 = 目标插入 + 源删除，Alt 同样为复制；同一文件的分屏按文档内移动处理）
+## Screenshots
 
-- **拖入分栏新增一栏**：把文本块（或 Shift 多选的一组块）拖进分栏，**该块成为新的一栏**。落点分三档，按优先级判定：① **两栏之间的插入带**（指针距中缝 18px 内，命中即画竖线 + 参照栏描边）→ 插在两栏之间；② 栏的**右半区** → 插到该栏之后；③ 栏的**左半区** → 插到该栏之前。多行分栏时插入带按行独立计算（落在第 2 行的带只增加该行栏数）；最右栏右半区 = 追加到行末。Alt = 复制到新栏、源块保留
+Captured during native acceptance in Sandbox-1 on 2026-10-14.
 
-- **把栏拖出分栏**：按住栏顶 `⠿` 手柄拖到分栏**区间外的任意位置**（显示横向插入线），该栏剥掉引用前缀后成为普通块。指针落在某行的**上半**插到该行之前、**下半**插到该行之后，因此每一行都有两个可选落点；拖到文末则追加在最后。落在分栏自身范围内（栏之间）不显示落点，那是栏间换序。剩余栏不足 2 栏时自动降级为「取消分栏」，整段还原为普通段落；被拖出栏的宽度按比例分给剩余栏。Alt = 复制到落点、栏仍保留
+![English block menu](docs/menu.png)
 
-- **拖动动作提示**：拖动时浮动预览上实时显示松手将执行的动作——移动 / 缩进为子块 / 复制（Alt）/ 移动到其他文档 / 复制到其他文档（Alt）/ 分栏 · 左 / 分栏 · 右，不会出现落点提示时（拖回自身等）不显示
+![English settings](docs/settings.png)
 
-- **多选**：Shift + 点击手柄把块加入 / 移出选区，可整组拖动、删除、复制、**批量转换类型**；Esc 退出多选
+## Settings
 
-- **块菜单**：点击手柄弹出菜单——18 种类型互转（代码块带 30 种语言子菜单、Callout 带 26 种类型子菜单）、折叠块展开 / 折叠切换、上/下方插入块、复制块内容 / 生成块 ID / 引用其他块…、创建副本（副本不带块 ID）、上移 / 下移、块颜色（设置 / 清除）、分栏（组合为分栏 / 添加分栏 / 添加一栏 / 追加一行 / 取消分栏）、本块字数、删除（标题为删除整段）
+Open Settings > Block Editor English. Numeric controls have a restore-default button.
 
-- **斜杠命令**：正文输入 `/` 模糊搜索（子序列匹配 + 相关度排序，中英文可混查）快速转换块类型，或插入媒体嵌入（图片 / 音频 / 视频 / PDF，从仓库选择附件；代码块内自动禁用）
+| Setting | Default | Behavior |
+| --- | --- | --- |
+| Show block handles | On | Display editor handles; commands and slash suggestions also work without them. |
+| Handle follows cursor | On | Follow the active block; disable to show handles only on hover. |
+| Highlight hovered block | On | Highlight the block associated with the handle. |
+| Highlight color | Theme | An empty value follows the theme hover color. |
+| Highlight opacity | 0.55 | Range 0-1. |
+| Render columns in Live Preview | On | Use plugin widgets; disable for native nested callouts. |
+| Enable slash commands | On | Enable `/` suggestions. |
+| Inline slash commands | On | Offer attachment insertion after text. |
+| Drag auto-scroll | On | Scroll near editor edges. |
+| Indent step | 0 (automatic) | Detect the smallest document indentation or specify 1-8 spaces. |
+| Link open location | Current tab | Current tab, new tab, right split or new window. |
+| Default column gap | 10 px | Used when `gap=` is absent. |
+| Default corner radius | 8 px | Used when `radius=` is absent. |
+| Default vertical alignment | Stretch | Stretch, top, center or bottom when `valign=` is absent. |
+| Default border | Off | Used when `border` is absent. |
+| Handle size | 20 px | Range 12-32 px. |
+| Drag threshold | 4 px | Range 0-16 px; smaller pointer movements open the menu. |
+| Date format | `YYYY-MM-DD` | Supports `YYYY`, `YY`, `MM`, `DD`, `ddd` and `dddd`. |
+| Time format | `HH:mm` | Supports `HH`, `mm` and `ss`. |
+| Optional insert actions | All on | Independent date, time, date/time, math, code, highlight, note and block reference/embed switches. |
+| Support the original author | Collapsed | Original author's WeChat and Alipay QR codes; click to enlarge. |
 
-- **块 ID**：生成易拼写的 `^block-id`（正确处理代码块 / 列表等结构化块 ID 独立成行的规则）、复制块链接、图形化「引用其他块…」（选笔记 → 选块 → 插入 `[[笔记#^id]]` 链接）、一键清除全文块 ID（带确认框，防误触）
+Weekday tokens produce English values such as `Wed` and `Wednesday`. Other characters in a custom format remain unchanged. Stored settings keys and values are compatible with the original.
 
-- **分栏**：Shift 多选相邻块后菜单「组合为分栏」（按空行切段，每段一栏）；阅读视图并排显示；Live Preview 渲染为并排分栏，**点击展开为源码编辑，点击外部自动收回**；支持多行分栏（「追加一行」，宽度按 `60-40` / `60-40/50-50` 分配）与栏内编辑（拆分一栏 / 合并右栏 / 插入一栏 / 行上移 / 行下移）；外壳可写 `gap=` `radius=` `valign=` `border` 覆盖默认外观，子栏可写 `bg=` `bg-dark=` 设背景色；分栏块菜单还支持「添加一栏」「取消分栏」，可整体拖动 / 删除 / 跨文档搬运；栏可**拖入新块**、**拖出为普通块**（实时预览自渲染分栏下生效，见上文两条拖拽说明）
+## Installation
 
-- **嵌套列表转分栏**：「组合为分栏」按空行切段，而列表项之间通常没有空行 → 嵌套列表另给两个按缩进层级切分的入口（块菜单）：**列·父项**（每个一级列表项各成一栏，其下子行跟随）、**列·子项**（每个二级列表项各成一栏，要求整段只有一个父项）。按子项切分时父项作为**分栏前的引导段**单独成行，不并入任何一栏（父项统领全部子项，塞进某一栏会误导归属）。切分只看缩进层级，`-` 与 `1.` 有序列表同样适用；列表项内嵌的代码围栏不参与切点判定。栏数不足 2 或形态歧义时菜单项置灰
+Download `main.js`, `manifest.json` and `styles.css` from an English fork release. Put them in the vault's `.obsidian/plugins/block-editor-english/` directory, then enable **Block Editor English** in Community plugins.
 
-- **块颜色**：任意块可设置背景色（预设色板 / 原生取色器 / 自定义 hex）；hex 浅色自动推导深色主题配色与正文对比色，深浅主题自动跟随
+When replacing the original, copy its `data.json` into the new directory before enabling the fork. Verify the fork loads and the settings are retained before uninstalling the original. Keep a backup of the original plugin and settings. Run only one of the two plugins in a vault at a time: both register the same editor behaviors and CSS classes.
 
-- **链接打开位置**：内部链接 `[[...]]` 可配置在当前标签页 / 新标签页 / 分屏 / 新窗口打开；Ctrl/Cmd+点击等修饰键行为不受影响
+## Development
 
-- **命令面板**：`Alt+↑/↓` 移动块、缩进 / 反缩进、打开块菜单、生成块 ID、引用其他块…、重复当前块、设置 / 清除块颜色、清除块 ID，以及每种类型独立的「转换为」命令
-
-## 设置
-
-设置 → Block Editor：
-
-| 设置项          | 默认     | 说明                                            |
-| ------------ | ------ | --------------------------------------------- |
-| 显示块手柄        | 开      | 关闭后仅保留命令与斜杠入口                                 |
-| 手柄跟随光标       | 开      | 关闭后仅在鼠标悬停时显示手柄                                |
-| 块悬停高亮        | 开      | 悬停时给手柄对应的块加一层浅色高亮背景                           |
-| 高亮颜色         | 跟随主题   | 自定义悬停高亮背景色；留空跟随当前主题的悬停色                       |
-| 高亮透明度        | 0.55   | 悬停高亮背景的透明度（0\~1）                              |
-| 实验：实时预览自渲染分栏 | 开      | 开启后实时预览中分栏由插件自渲染（双击进入编辑）；关闭时显示原生嵌套 callout    |
-| 启用斜杠命令       | 开      | `/` 建议开关                                      |
-| 拖拽自动滚动       | 开      | 拖到边缘自动滚动                                      |
-| 缩进步长         | 自动     | 固定空格数或自动检测全文最小缩进；同时决定拖动嵌套插入的缩进（自动时为 4）        |
-| 点击链接时的打开位置   | 当前标签页  | 点击内部链接 `[[...]]` 时在哪里打开；Ctrl/Cmd+点击等修饰键行为不受影响 |
-| 默认栏间距        | 10 px  | 分栏外壳未写 `gap=` 参数时的栏间距                         |
-| 默认圆角         | 8 px   | 分栏外壳未写 `radius=` 参数时的栏圆角                      |
-| 默认垂直对齐       | 拉伸（等高） | 分栏外壳未写 `valign=` 参数时的栏垂直对齐方式                  |
-| 默认边框         | 关      | 分栏外壳未写 `border` 参数时是否显示栏边框                    |
-| 手柄尺寸         | 20 px  | 编辑器左侧块手柄的大小                                   |
-| 拖拽阈值         | 4 px   | 按住手柄拖动的判定位移，小于该位移视为点击弹出块菜单                    |
-
-<br />
-
-## 开发
-
-```bash
-npm install        # 安装依赖
-npm run dev        # 监听构建（开发时用）
-npm run build      # 类型检查 + 生产构建 → main.js
-npm test           # 行为对照测试（未登记用例对照 scripts/legacy-main.cjs）
-npm run test:update # 有意变更行为后重新生成预期差异基线 scripts/parity-baseline.json
-npm run test:columns # 分栏双向拖拽落点判定回归（纯 Node，无需 Obsidian 环境）
-npm run test:cmview  # CMView 运行时形状回归（dispatch 在视图自身，无 .view 包装）
-npm run test:extract # 栏拖出回归（状态机顺序守卫 + 端到端 markdown 结构 + 单步撤销）
-npm run test:columns-list # 嵌套列表转分栏回归（切分 / 剥缩进 / 围栏感知 / 产物往返一致性）
-npm run test:columns-list:mutation # 变异测试：确认上一套断言非恒真（3 个变异须全部被抓获）
+```sh
+npm ci
+npm run build
+npm test
+npm run dev
 ```
 
-## 开源许可
+The build type-checks TypeScript and generates `main.js`. `npm test` runs nine inherited regression suites plus an English-source, interpolation and weekday suite. The columns mutation suite deliberately introduces bad changes and passes only when the assertions catch every mutation.
 
-本项目基于 **MIT 许可证**开源，你可以自由使用、修改和分发，只需保留原始版权与许可声明。
+Dependencies are pinned in the lockfile. `.npmrc` uses `legacy-peer-deps=true` because upstream's CodeMirror versions conflict with the Obsidian npm package's exact peer declaration. Runtime editor modules remain external to the generated bundle.
 
-Copyright (c) 2026 MarcBolo
+`npm run test:legacy-parity` and `npm run test:update` retain the historical parity harness. That harness needs `scripts/legacy-main.cjs`, which the specified upstream revision does not contain. It is not part of the default suite, and a missing reference is never treated as a pass. Other historical repro scripts are retained for investigation.
 
-许可证全文见 [MIT License](https://opensource.org/licenses/MIT)。
+International document fixtures remain Unicode test data, represented by escapes. Their content and character positions are preserved so the parser is still tested with non-English notes. Test descriptions and source prose are English.
 
+## License and attribution
+
+MIT License. Original copyright: Marco Bolo, 2026. Original plugin author: MarcBolo. The original `LICENSE` is unchanged. English fork commissioned by Eme and prepared by Codex on 2026-10-14.

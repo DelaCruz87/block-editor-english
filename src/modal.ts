@@ -2,7 +2,7 @@ import { TEXT } from './strings';
 import { Modal } from 'obsidian';
 import type { App } from 'obsidian';
 
-/** 破坏性操作的通用确认框 */
+/** Universal confirmation box for destructive operations */
 export class ConfirmModal extends Modal {
   constructor(
     app: App,
@@ -32,7 +32,7 @@ export class ConfirmModal extends Modal {
   }
 }
 
-/** 收款码等图片的放大预览：把 Data URI 铺满弹窗，便于手机扫码。Esc / 点击遮罩关闭。 */
+/** Enlarged preview of images such as payment codes: fill the pop-up window with Data URI to facilitate scanning with mobile phones. Esc / Click the mask to close. */
 export class ImagePreviewModal extends Modal {
   constructor(
     app: App,

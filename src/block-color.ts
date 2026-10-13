@@ -4,38 +4,35 @@ import type { DecorationSet } from '@codemirror/view';
 import { Prec, StateField } from '@codemirror/state';
 import type { Extension, Range, Text as EditorText } from '@codemirror/state';
 import type BlockEditorPlugin from './main';
-// 复用分栏背景的同一套双值结构：仅浅色自动推导深色、可显式覆盖
+// Reuse the same set of double-value structures for column backgrounds: only light colors automatically derive dark colors, and can be explicitly overridden
 import { normalizeColBg, pickContrastText } from './col-bg';
 import type { ColBg } from './col-bg';
 import { safeDecoCompute } from './cm6-deco-guard';
 
 /**
- * 块颜色标记语法（写在块首行行尾）：
- * - 旧语法 `%% block-color:<light> %%`：仅浅色，深色主题下由
- *   col-bg 的 deriveDarkColor 自动推导（hex 浅色）或回退浅色（命名色）；
- * - 新语法 `%% block-color:<light>|<dark> %%`：竖线分隔，dark 为深色主题
- *   显式覆盖，缺省 / 非法时按旧语法自动推导。
- */
+ * Block color marking syntax (written at the beginning and end of the block):
+ * - Old syntax `%% block-color:<light> %%`: light only, dark theme by
+ * col-bg's deriveDarkColor automatically derives (hex light color) or falls back to light color (named color);
+ * - New syntax `%% block-color:<light>|<dark> %%`: vertical bar separation, dark is the dark theme
+ * Explicit override, default/automatic derivation according to old syntax when illegal. */
 export const BLOCK_COLOR_RE = /%%\s*block-color:\s*([^%]+?)\s*%%/;
 
 /**
- * 宽松匹配：Obsidian 阅读模式把 `%%...%%` 渲染为 HTML 注释节点时，
- * comment.nodeValue 可能是 `%% block-color:red %%`（保留分隔符）、
- * ` block-color:red `（分隔符被剥离），或不对称残留（如 `block-color:red%%`）。
- * 该正则兼容以上所有形态：不要求 `block-color` 前有 `%%`、允许尾部残留
- * `%%` 与空白（`(?:%%\s*)?$`），保证空格边界与分隔符剥离不影响匹配。
- */
+ * Loose matching: When Obsidian reading mode renders `%%...%%` as an HTML comment node,
+ * comment.nodeValue may be `%% block-color:red %%` (delimiter reserved),
+ * ` block-color:red ` (delimiters stripped), or asymmetric residue (like `block-color:red%%`).
+ * This regular expression is compatible with all the above forms: `block-color` is not required to be preceded by `%%`, and tail residues are allowed.
+ * `%%` and whitespace (`(?:%%\s*)?$`) ensure that whitespace boundaries and delimiter stripping do not affect matching. */
 const BLOCK_COLOR_COMMENT_RE = /block-color:\s*([^%]+?)\s*(?:%%\s*)?$/;
 
 /**
- * HTML span 承载形态：`<span data-block-color="red"></span>` 写在块末尾
- * （设置入口写回产物）。属性值格式与 %% 语法体一致（`red` / `#f1f3f5` /
- * `#f1f3f5|#2a2a2a`），兼容属性顺序变化与单/双引号；写回产物恒为闭合空
- * span，因此正则要求闭合标签，避免误吞未闭合的手写 HTML。
- */
+ * HTML span carrying form: `<span data-block-color="red"></span>` written at the end of the block
+ * (Set the entry to write back the product). The attribute value format is consistent with the %% syntax body (`red` / `#f1f3f5` /
+ * `#f1f3f5|#2a2a2a`), compatible with attribute order changes and single/double quotes; the write-back product is always closed and empty
+ * span, so regular tags are required to be closed to avoid accidentally swallowing unclosed handwritten HTML. */
 export const BLOCK_COLOR_SPAN_RE = /<span\b[^>]*\bdata-block-color=["']([^"']+)["'][^>]*>\s*<\/span>/gi;
 
-/** 块颜色标记预设色板（选色浮层展示；与分栏背景预设风格协调） */
+/** Block color mark preset color palette (color selection floating layer display; coordinated with the column background preset style) */
 const BLOCK_COLOR_PALETTE = [
   '#f1f3f5',
   '#ffe8e8',
@@ -47,7 +44,7 @@ const BLOCK_COLOR_PALETTE = [
   '#e6fcf5',
 ];
 
-/** 常用 CSS / Obsidian 颜色名白名单（脏值不写回文档） */
+/** Commonly used CSS / Obsidian color name whitelist (dirty values are not written back to the document) */
 const NAMED_COLORS = new Set([
   'red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'gray', 'grey',
   'brown', 'black', 'white', 'cyan', 'teal', 'indigo', 'violet', 'magenta',
@@ -58,7 +55,7 @@ const NAMED_COLORS = new Set([
   'lightyellow', 'lightpink',
 ]);
 
-/** 校验并规范化颜色：支持 hex（#rgb / #rrggbb / #rrggbbaa）与常用颜色名；非法返回 null */
+/** Verify and normalize colors: support hex (#rgb / #rrggbb / #rrggbbaa) and common color names; if illegal, return null */
 export function normalizeBlockColor(raw: string): string | null {
   const v = raw.trim().toLowerCase();
   if (/^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/.test(v)) return v;
@@ -69,13 +66,12 @@ export function normalizeBlockColor(raw: string): string | null {
 const HEX_RE = /^#[0-9a-f]{3,8}$/;
 
 /**
- * 解析块颜色标记值 → 双值 ColBg（复用 col-bg 的 normalizeColBg）：
- * - 旧语法 `#f1f3f5`：仅浅色，hex 由 deriveDarkColor 自动推导深色；
- *   命名色浅色无法 HSL 推导，dark 置 null（CSS 主题作用域回退浅色）。
- * - 新语法 `#f1f3f5|#2a2a2a`：dark 显式覆盖（仅接受 hex，与分栏 bg-dark=
- *   一致）；dark 缺省 / 非法（含命名色）时回退自动推导。
- * - 浅色非法返回 null。
- */
+ * Parse block color tag value → double value ColBg (reuse col-bg's normalizeColBg):
+ * - Old syntax `#f1f3f5`: only light colors, hex automatically derives dark colors by deriveDarkColor;
+ * The named color light cannot be deduced by HSL, and dark is set to null (CSS theme scope falls back to light color).
+ * - New syntax `#f1f3f5|#2a2a2a`: dark explicit override (only accepts hex, with column bg-dark=
+ * consistent); fallback to automatic derivation when dark is default/illegal (including named colors).
+ * - Light illegal returns null. */
 export function parseBlockColorValue(raw: string): ColBg | null {
   const v = raw.trim();
   if (!v) return null;
@@ -85,16 +81,15 @@ export function parseBlockColorValue(raw: string): ColBg | null {
   const darkRaw = (parts[1] ?? '').trim();
   const dark = darkRaw ? normalizeBlockColor(darkRaw) : null;
   const lightIsHex = HEX_RE.test(light);
-  // hex 浅色：dark 为 hex 显式覆盖，否则交给 normalizeColBg 自动推导
+  // hex light color: dark is explicitly overwritten by hex, otherwise it is automatically deduced by normalizeColBg
   if (lightIsHex) return normalizeColBg(light, dark);
-  // 命名色浅色：deriveDarkColor 仅支持 hex，dark 保留显式 hex，否则由 CSS 回退浅色
+  // Named color light color: deriveDarkColor only supports hex, dark retains explicit hex, otherwise light color is fallback by CSS
   return dark && HEX_RE.test(dark) ? { light, dark } : { light, dark: null };
 }
 
 /**
- * 源文本是否含块颜色标记（span 承载 `data-block-color=` 与存量 `%% block-color:` 两种形态）。
- * 注意必须同时检测两种形态：只查 `block-color:` 会漏掉 span 形态（用 `=` 而非 `:`）。
- */
+ * Whether the source text contains block color tags (span carries two forms: `data-block-color=` and stock `%% block-color:`).
+ * Note that both forms must be detected at the same time: only checking `block-color:` will miss the span form (use `=` instead of `:`). */
 export function hasBlockColorMarker(source: string): boolean {
   BLOCK_COLOR_SPAN_RE.lastIndex = 0;
   const hit = BLOCK_COLOR_SPAN_RE.test(source);
@@ -103,9 +98,8 @@ export function hasBlockColorMarker(source: string): boolean {
 }
 
 /**
- * 取源文本中第一个块颜色标记的双值颜色（无 / 非法返回 null）。
- * 用于「元素自身行范围内含标记」时的直接兜底上色。
- */
+ * Get the double value color of the first block color tag in the source text (none/illegal returns null).
+ * Used for direct coloring when "the element's own row range contains tags". */
 export function firstBlockColor(source: string): ColBg | null {
   BLOCK_COLOR_SPAN_RE.lastIndex = 0;
   const sm = BLOCK_COLOR_SPAN_RE.exec(source);
@@ -115,14 +109,13 @@ export function firstBlockColor(source: string): ColBg | null {
 }
 
 /**
- * 把双值颜色写入元素内联 CSS 变量（实时预览 CM6 装饰与阅读模式
- * applyBlockColorToDom 共用；命名色不做对比色计算，由 CSS 回退默认正文色）：
- * - --be-block-color-light / --be-block-color-dark：两主题下背景色（无 dark
- *   时不设变量，styles.css 主题作用域回退 light）
- * - --be-block-color-text-light / --be-block-color-text-dark：对应主题下
- *   按 YIQ 选的正文对比色（仅 hex 计算）
- * styles.css 中 `--be-block-color` 默认取 light，body.theme-dark 下取 dark。
- */
+ * Write double value color to element inline CSS variable (live preview CM6 decoration and reading mode
+ * Common to applyBlockColorToDom; named colors are not calculated as contrasting colors, and CSS falls back to the default text color):
+ * - --be-block-color-light / --be-block-color-dark: background color under two themes (without dark
+ * When no variable is set, styles.css theme scope falls back to light)
+ * - --be-block-color-text-light / --be-block-color-text-dark: under the corresponding theme
+ * Text contrast color selected by YIQ (only hex calculation)
+ * `--be-block-color` in styles.css defaults to light, and body.theme-dark defaults to dark. */
 export function setBlockColorVars(el: HTMLElement, bg: ColBg | null): void {
   const set = (name: string, v: string | null): void => {
     if (v) el.style.setProperty(name, v);
@@ -137,12 +130,12 @@ export function setBlockColorVars(el: HTMLElement, bg: ColBg | null): void {
 }
 
 interface BlockColorState {
-  /** 首次扫描是否已完成（create 阶段拿不到文档，首个事务必须强制扫描一次） */
+  /** Whether the first scan has been completed (the document cannot be obtained in the create phase, and the first transaction must be scanned once) */
   initialized: boolean;
   decorations: DecorationSet;
 }
 
-/** 块颜色 CM6 装饰的诊断（命令面板 / 回归脚本读取；对齐 columnsField 的 lastDiagnostics 模式） */
+/** Diagnostics for block color CM6 decoration (Command Palette/Regression Script Reading; lastDiagnostics mode for aligned columnsField) */
 const blockColorDiagnostics: {
   note: string;
   lastScan: { lines: number; hits: number; skipped: number };
@@ -152,21 +145,20 @@ export function getBlockColorDiagnostics(): typeof blockColorDiagnostics {
 }
 
 /**
- * 全量扫描文档生成块颜色装饰（创建初始化 / 文档变更共用入口）。
- * 两种形态：
- * - 存量 `%% block-color:<color> %%`：写在块首行行尾；
- * - 新 `<span data-block-color="..."></span>`：写在块末行（元素承载，
- *   阅读模式直接上色）。属性值格式与 %% 语法体一致（含 `light|dark` 双值）。
- * 防御：from/to 一律钳制到 0..doc.length，非法区间跳过并记诊断日志，
- * 避免异常装饰使 CM6 抛错冒泡。
- */
+ * Fully scanned document generation block color decoration (shared entrance for creation initialization/document change).
+ *Two forms:
+ * - Stock `%% block-color:<color> %%`: written at the beginning and end of the block;
+ * - New `<span data-block-color="..."></span>`: written on the last line of the block (element carrying,
+ * Direct coloring in reading mode). The attribute value format is consistent with the %% syntax body (including `light|dark` double value).
+ * Defense: from/to are always clamped to 0..doc.length, illegal intervals are skipped and diagnostic logs are recorded.
+ * Avoid exception decoration causing CM6 errors to bubble up. */
 function computeBlockColorDecorations(doc: EditorText): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   const diag = { lines: doc.length, hits: 0, skipped: 0 };
   const pushColor = (from: number, to: number, raw: string, lineFrom: number): void => {
-    // 行边界钳制：越界 / 非法区间跳过并记诊断（防御语法树 / 文档状态异常）
-    // lineFrom 必须为有限数值且落在 0..doc.length 内（CM6 消费 tip 会把
-    // line decoration 应用到 doc.lineAt(lineFrom) 对应的行，越界会 lineAt 崩）。
+    // Line boundary clamping: out-of-bounds/illegal interval skipping and recording diagnosis (defense syntax tree/document status abnormality)
+    // lineFrom must be a finite value and fall within 0..doc.length (CM6 consumer tip will
+    // Line decoration is applied to the line corresponding to doc.lineAt(lineFrom). If it goes out of bounds, lineAt will collapse).
     if (
       !Number.isFinite(from) ||
       !Number.isFinite(to) ||
@@ -184,14 +176,14 @@ function computeBlockColorDecorations(doc: EditorText): DecorationSet {
     const bg = parseBlockColorValue(raw);
     if (!bg?.light) return;
     diag.hits++;
-    // 标记本体隐藏（LP 中 %% 注释默认灰字、span 标签会显示原文，都不可见化）
+    // Hide the mark body (%% comments in LP are gray by default, and span tags will display the original text, both of which are invisible)
     ranges.push(Decoration.mark({ attributes: { style: 'display:none' } }).range(from, to));
-    // 整行背景色（line 装饰作用于 .cm-line，块内多行各自上色，视觉一致）
-    // 双主题：内联只写 --be-block-color-light/-dark 两套具体值，主题切换由
-    // styles.css 的 .cm-line / body.theme-dark .cm-line 作用域完成（与分栏
-    // 背景同一模式）；dark 缺省（命名色浅色）时不设 dark 变量，CSS 回退 light。
-    // CM6 要求 Decoration.line 的 range 必须是零长度单点（from === to），
-    // 传 (line.from, line.to) 非零区间会抛 "Line decoration ranges must be zero-length"。
+    // The background color of the entire line (line decoration acts on .cm-line, multiple lines in the block are colored individually, and the vision is consistent)
+    // Dual themes: Inline only writes two sets of specific values --be-block-color-light/-dark, and the theme is switched by
+    // .cm-line / body.theme-dark .cm-line scope completion for styles.css (with columns
+    // The same mode as the background); the dark variable is not set by default (named light color), and CSS falls back to light.
+    // CM6 requires that the range of Decoration.line must be a zero-length single point (from === to),
+    // Passing (line.from, line.to) a non-zero range will throw "Line decoration ranges must be zero-length".
     const light = bg.light;
     const dark = bg.dark;
     const lightHex = HEX_RE.test(light);
@@ -206,54 +198,53 @@ function computeBlockColorDecorations(doc: EditorText): DecorationSet {
   };
   for (let i = 0; i < doc.lines; i++) {
     const line = doc.line(i + 1);
-    // 存量 %% 形态（块首行行尾）：命中后跳过本行 span，避免同块双装饰
+    // Stock %% form (first line and end of block): skip this line span after hit to avoid double decoration in the same block
     const m = BLOCK_COLOR_RE.exec(line.text);
     if (m) {
       const from = line.from + (m.index ?? 0);
       pushColor(from, from + m[0].length, m[1], line.from);
       continue;
     }
-    // 新 span 形态（块末行）：行内可存在多个 span，逐个处理
+    // New span form (last line of block): There can be multiple spans in a line, and they are processed one by one
     BLOCK_COLOR_SPAN_RE.lastIndex = 0;
     for (const sm of line.text.matchAll(BLOCK_COLOR_SPAN_RE)) {
       const idx = sm.index ?? 0;
       pushColor(line.from + idx, line.from + idx + sm[0].length, sm[1], line.from);
     }
   }
-  // mark（from,to）与 line（from,from）可能同起点，RangeSet 假定输入已按
-  // (from, to) 排序，先排序避免零长度 line 与 mark 顺序错乱影响渲染
+  // mark(from,to) and line(from,from) may have the same starting point. RangeSet assumes that the input has been pressed
+  // (from, to) sorting, sort first to avoid zero-length line and mark order disorder affecting rendering
   ranges.sort((a, b) => a.from - b.from || a.to - b.to);
   blockColorDiagnostics.lastScan = { lines: diag.lines, hits: diag.hits, skipped: diag.skipped };
   return Decoration.set(ranges, true);
 }
 
 /**
- * H5 实时预览装饰：给带 `%% block-color:<color> %%` 标记的行上背景色，
- * 同时用 mark 装饰隐藏注释本体（避免灰色注释文字残留行尾）。
- * 与分栏 widget（columnsField）并存：分栏内部行被 widget 替换后不显示，
- * 源码模式 / 阅读模式由 postProcessor 覆盖。
+ * H5 Live Preview decoration: add background color to rows marked with `%% block-color:<color> %%`,
+ * At the same time, use mark decoration to hide the comment body (to avoid gray comment text remaining at the end of the line).
+ * Coexisting with the column widget (columnsField): the rows inside the column are not displayed after being replaced by the widget.
+ * Source mode/reading mode are covered by postProcessor.
  *
- * 重开文档失效修复：StateField.create 阶段 Obsidian 可能尚未把文档装入
- * state（create 拿到空文档），旧实现 create 返回空装饰且 update 只在
- * docChanged 时重扫——若重开后首事务不携带 docChanged，装饰永远为空，
- * 表现为实时预览失效 + 注释灰字（block-color:xxx）暴露在块尾。
- * 修复：update 中「未初始化」或「docChanged」都全量重扫（对齐 columnsField
- * 的 initialized 模式），保证任意初始化路径下首个事务即完成装饰计算。
- */
+ * Reopening document failure fix: Obsidian may not have loaded the document yet during the StateField.create phase
+ * state (create gets an empty document), the old implementation create returns empty decoration and update only
+ * Rescan when docChanged - if the first transaction after reopening does not carry docChanged, the decoration will always be empty.
+ * The Live Preview is invalid + the gray text of the comment (block-color:xxx) is exposed at the end of the block.
+ * Fix: "Uninitialized" or "docChanged" in update are all rescanned (aligned columnsField
+ * initialized mode), ensuring that the first transaction under any initialization path completes the decoration calculation. */
 export const blockColorField = StateField.define<BlockColorState>({
   create: () => {
     return { initialized: false, decorations: Decoration.none };
   },
   update(value, tr) {
-    // 未初始化（create 阶段拿不到文档）或文档变更时全量重扫；
-    // 其余事务（选区 / 滚动 / 配置）不重建，避免每次击键全文档扫描
+    // Not initialized (the document cannot be obtained during the create phase) or the entire document is rescanned when the document is changed;
+    // Remaining transactions (selection/scrolling/configuration) are not rebuilt, avoiding full document scanning on every keystroke
     try {
       if (value.initialized && !tr.docChanged) return value;
       const next: BlockColorState = { initialized: true, decorations: computeBlockColorDecorations(tr.state.doc) };
       return next;
     } catch (e) {
-      // CM6 防御：扫描异常不冒泡（对齐 columnsField 的 lastDiagnostics 模式），
-      // 保留旧装饰并记诊断，避免装饰异常拖垮整个编辑器
+      // CM6 Defense: Scan exceptions do not bubble up (align columnsField's lastDiagnostics mode),
+      // Keep old decorations and remember diagnostics to avoid decoration exceptions from bringing down the entire editor
       blockColorDiagnostics.note = e instanceof Error ? e.message : String(e);
       return value;
     }
@@ -271,42 +262,40 @@ export const blockColorField = StateField.define<BlockColorState>({
 });
 
 export function blockColorExtension(ctx: BlockEditorPlugin): Extension {
-  // 与 columnsExtension 同级最高优先级，避免被原生注释装饰压掉
+  // The same level as columnsExtension has the highest priority to avoid being overwhelmed by native annotation decorations.
   return Prec.highest([blockColorField]);
 }
 
-/** 阅读模式可上色的块级标签（文本节点向上回溯的停靠点） */
+/** Colorable block-level labels in reading mode (stops for text nodes to trace upwards) */
 const BLOCK_TAGS = new Set([
   'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
   'LI', 'BLOCKQUOTE', 'PRE', 'TD', 'TH',
 ]);
 
-/** 阅读模式块颜色标记链路：告警日志前缀（便于开发者控制台过滤） */
+/** Reading mode block color marking link: alarm log prefix (facilitates developer console filtering) */
 const LOG_TAG = '[be-block-color]';
 
 /**
- * 阅读模式回放：扫描渲染 DOM 中的 `%% block-color:<color> %%` 标记，
- * 给最近的块级容器上背景色并移除标记。
+ * Reading mode playback: scan the `%% block-color:<color> %%` mark in the rendered DOM,
+ * Give the nearest block-level container a background color and remove the mark.
  *
- * 注意：Obsidian 阅读模式在 Markdown→HTML 阶段会把 `%%...%%` 转换为
- * HTML 注释节点（<!-- ... -->），而不是文本节点，因此 TreeWalker 必须
- * 同时监听 SHOW_TEXT 与 SHOW_COMMENT 两种节点类型；comment.nodeValue
- * 可能保留也可能剥掉 `%%` 分隔符，两种形态都要兼容。
- */
+ * Note: Obsidian reading mode will convert `%%...%%` to
+ * HTML comment nodes (<!-- ... -->), not text nodes, so TreeWalker must
+ * Monitor two node types SHOW_TEXT and SHOW_COMMENT at the same time; comment.nodeValue
+ * The `%%` delimiter may be retained or stripped, and both forms must be compatible. */
 /**
- * 把颜色上到目标最近的块级容器（span 元素形态与文本/注释形态共用）：
- * 返回是否实际应用（false = 无块级容器 / 已在 done / root 非块标签）。
- * 块容器守卫与旧逻辑一致：允许 root 自身为块标签时直接上色 root；
- * 上色前先 setBlockColorVars（写 --be-block-color-light/-dark 变量），
- * 再打 data-block-color 属性，背景/对比色由 styles.css 主题作用域消费。
- */
+ * Move the color to the block-level container closest to the target (span element form is shared with text/comment form):
+ * Returns whether it is actually applied (false = no block-level container / already done / root non-block tag).
+ * The block container guard is consistent with the old logic: allowing root to be directly colored when it is a block label;
+ * SetBlockColorVars (write --be-block-color-light/-dark variables) before coloring,
+ * Then set the data-block-color attribute, and the background/contrast color is consumed by the styles.css theme scope. */
 function applyColorToBlock(
   node: HTMLElement,
   bg: ColBg,
   done: Set<HTMLElement>,
   root: HTMLElement
 ): boolean {
-  // 窄化 ColBg.light（string | null）：调用方已确保非空，此处防御并让 TS 收窄
+  // Narrow ColBg.light(string|null): caller has ensured non-null, defend here and let TS narrow
   if (!bg.light) return false;
   let el: HTMLElement | null = node;
   while (el && el !== root && !BLOCK_TAGS.has(el.tagName)) {
@@ -322,20 +311,19 @@ function applyColorToBlock(
 }
 
 /**
- * 阅读模式回放：三种形态共存兼容。
- * 1) 新形态：`<span data-block-color="..."></span>` 元素承载（块末行写回产物），
- *    直接按元素扫描（querySelectorAll），属性值即颜色；
- * 2) 存量形态：`%% block-color:<color> %%` 文本节点；
- * 3) 存量形态变体：Obsidian 把 `%%...%%` 渲染为 HTML 注释节点（<!-- -->）。
- * 文本/注释形态走 TreeWalker(SHOW_TEXT | SHOW_COMMENT) 双正则匹配；
- * 元素形态优先处理，done 集合同块去重，三种形态可共存不重复上色。
- */
+ * Reading mode playback: three modes coexist and are compatible.
+ * 1) New form: `<span data-block-color="..."></span>` element bearer (write-back product at the end of the block),
+ * Scan directly by element (querySelectorAll), the attribute value is the color;
+ * 2) Stock form: `%% block-color:<color> %%` text node;
+ * 3) Stock form variant: Obsidian renders `%%...%%` into HTML comment nodes (<!-- -->).
+ * Text/comment form uses TreeWalker(SHOW_TEXT | SHOW_COMMENT) double regular matching;
+ * The element form is given priority, and the done collection is deduplicated in the same block. The three forms can coexist without repeated coloring. */
 export function applyBlockColorToDom(root: HTMLElement): void {
   const done = new Set<HTMLElement>();
 
-  // 1) 新形态：扫 [data-block-color] 元素承载。
-  // 块级容器自身也可能带该属性（本函数上色结果 / 用户手写），跳过块级
-  // 元素只处理行内承载，避免把已上色的容器当新标记重复处理。
+  // 1) New form: Scan [data-block-color] element to carry.
+  // The block-level container itself may also have this attribute (coloring result of this function / user handwriting), skipping the block-level
+  // Elements only process inline containers to avoid repeatedly processing colored containers as new tags.
   const carriers = Array.from(root.querySelectorAll<HTMLElement>('[data-block-color]'));
   for (const carrier of carriers) {
     if (BLOCK_TAGS.has(carrier.tagName)) continue;
@@ -346,7 +334,7 @@ export function applyBlockColorToDom(root: HTMLElement): void {
     applyColorToBlock(carrier, bg, done, root);
   }
 
-  // 2)+3) 存量形态：TreeWalker 扫文本 / 注释节点。
+  // 2)+3) Stock form: TreeWalker scans text/annotation nodes.
   const walker = document.createTreeWalker(
     root,
     NodeFilter.SHOW_TEXT | NodeFilter.SHOW_COMMENT
@@ -356,14 +344,14 @@ export function applyBlockColorToDom(root: HTMLElement): void {
     const isComment = node.nodeType === Node.COMMENT_NODE;
     const raw = isComment ? node.nodeValue ?? '' : node.textContent ?? '';
     if (raw.length < 4) continue;
-    // 分别尝试两个正则（匹配语义与原 `??` 等价）
+    // Try two regular expressions respectively (the matching semantics are equivalent to the original `??`)
     const m = BLOCK_COLOR_RE.exec(raw) ?? BLOCK_COLOR_COMMENT_RE.exec(raw);
     if (!m) continue;
     const bg = parseBlockColorValue(m[1]);
     if (!bg?.light) continue;
     const parent = node.parentElement;
     if (parent && applyColorToBlock(parent, bg, done, root)) {
-      // 文本节点需要移除标记原文；注释节点本身不可见，无需清理
+      // The text node needs to be removed to mark the original text; the comment node itself is not visible and does not need to be cleaned.
       if (!isComment) {
         const textNode = node as Text;
         const cleaned = textNode.textContent ?? '';
@@ -373,15 +361,14 @@ export function applyBlockColorToDom(root: HTMLElement): void {
   }
 }
 
-/** 源文本驱动回放的块级候选：在 BLOCK_TAGS 基础上补 tr（表格行标记整行上色）。 */
+/** Block-level candidate for source text-driven playback: add tr based on BLOCK_TAGS (table row mark whole row color). */
 export const SOURCE_BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6, li, blockquote, pre, td, th, tr';
 
 /**
- * 源文本行 / 渲染文本 → 归一化文本锚点：去掉块前缀（引用 / 标题 / 列表 / 任务框）
- * 与内联 Markdown 语法（强调 / 行内代码 / 链接 / 表格竖线），并移除全部空白，
- * 便于与渲染后的 textContent 做「前缀 / 后缀」比对。两侧都走同一归一化，
- * 因此对正文里出现的这些符号保持一致，不会单侧失配。
- */
+ * Source text line/rendered text → normalized text anchors: remove block prefixes (quote/title/list/taskbox)
+ * With inline Markdown syntax (emphasis / inline code / links / table vertical bars), and remove all whitespace,
+ * Facilitates "prefix/suffix" comparison with the rendered textContent. Both sides undergo the same normalization,
+ * Therefore, these symbols appearing in the text should be consistent and there will be no one-sided mismatch. */
 function normalizeAnchor(raw: string): string {
   let s = raw;
   s = s.replace(/^[\s>]+/, '');
@@ -400,29 +387,28 @@ function normalizeAnchor(raw: string): string {
 interface SourceColorEntry {
   light: string;
   bg: ColBg;
-  /** 归一化后的行文本锚点（空串 = 标记独占一行，匹配空块） */
+  /** Normalized line text anchor (empty string = tag occupies one line, matches empty block) */
   anchor: string;
-  /** true = %% 存量形态写在块首行（匹配块文本开头）；false = span 写在块末行（匹配结尾） */
+  /** true = %% The stock form is written in the first line of the block (matches the beginning of the block text); false = span is written in the last line of the block (matches the end) */
   atStart: boolean;
 }
 
 /**
- * 阅读模式「源文本驱动」回放（方案 1）：以 ctx.getSectionInfo(el) 拿到的段落
- * 源文本为准解析标记，再按「文本锚点」把颜色落到渲染后的块级元素上。
+ * Reading mode "source text driven" playback (Option 1): paragraphs obtained with ctx.getSectionInfo(el)
+ * Parse the mark based on the source text, and then click "Text Anchor" to drop the color on the rendered block-level element.
  *
- * 动机：Obsidian 阅读模式会用自身的 Markdown 渲染器从源文本重建 DOM，自定义
- * data-* 载体与 %% 注释在重建后可能被丢弃，DOM 形态的 applyBlockColorToDom 便
- * 扫不到标记；源文本不受该过程影响。
+ * Motivation: Obsidian reading mode will use its own Markdown renderer to reconstruct the DOM from the source text, custom
+ * data-* vectors and %% comments may be discarded after reconstruction, and applyBlockColorToDom in DOM form will
+ * Marks cannot be scanned; the source text is not affected by this process.
  *
- * 匹配规则：源文本按出现顺序、渲染块按文档顺序单调推进；在「连续相邻」的命中
- * 候选里取最深者（祖先在文档序上先于后代，最深 = 最近的块级容器），既不把颜色
- * 错落到外层容器，也能跳过中间无标记的块。返回实际上色数（供诊断 / 测试）。
- */
+ * Matching rules: source text advances monotonically in order of appearance, and rendering blocks advance monotonically in document order; in "continuously adjacent" hits
+ * Take the deepest candidate (the ancestor precedes the descendant in document order, the deepest = the nearest block-level container), neither changing the color
+ * If you fall into the outer container, you can also skip the unmarked blocks in the middle. Returns the actual color number (for diagnostics/testing). */
 export function applyBlockColorFromSource(el: HTMLElement, source: string): number {
   if (!source) return 0;
   const entries: SourceColorEntry[] = [];
   for (const raw of source.split('\n')) {
-    // span 形态（块末行）：行内可存在多个
+    // span form (last line of block): there can be multiple in the line
     BLOCK_COLOR_SPAN_RE.lastIndex = 0;
     let hit = false;
     for (const m of raw.matchAll(BLOCK_COLOR_SPAN_RE)) {
@@ -432,7 +418,7 @@ export function applyBlockColorFromSource(el: HTMLElement, source: string): numb
       hit = true;
     }
     if (hit) continue;
-    // 存量 %% 形态（块首行）
+    // Stock %% form (first line of block)
     const mm = BLOCK_COLOR_RE.exec(raw);
     if (mm) {
       const bg = parseBlockColorValue(mm[1]);
@@ -456,7 +442,7 @@ export function applyBlockColorFromSource(el: HTMLElement, source: string): numb
     for (let i = from; i < candidates.length; i++) {
       const c = candidates[i];
       if (done.has(c)) {
-        // 已上色的元素：命中段内视为结束，未命中段内跳过继续找
+        // Colored elements: The hit section is considered to be the end, and the missed section is skipped and the search continues.
         if (found) break;
         continue;
       }
@@ -468,8 +454,8 @@ export function applyBlockColorFromSource(el: HTMLElement, source: string): numb
         : t === '';
       if (ok) {
         found = true;
-        // 取相邻命中段中的「最深」候选（祖先在文档序上先于后代）：li>p、tr>td
-        // 等嵌套下，后代即最近的块级容器，与 DOM 回放的「最近祖先」语义一致
+        // Take the "deepest" candidate among adjacent hit segments (ancestors precede descendants in document order): li>p, tr>td
+        // After nesting, the descendant is the nearest block-level container, which is consistent with the "nearest ancestor" semantics of DOM playback.
         if (t.length <= bestLen) {
           bestLen = t.length;
           best = c;
@@ -490,9 +476,8 @@ export function applyBlockColorFromSource(el: HTMLElement, source: string): numb
 }
 
 /**
- * 选色浮层（块菜单 / 命令面板共用）：
- * 预设色板 + 原生取色器 + 自定义 hex + 清除；onPick(null) 表示清除标记。
- */
+ * Color selection floating layer (common to block menu/command panel):
+ * Default color palette + native color picker + custom hex + clear; onPick(null) means clear mark. */
 export function openBlockColorPicker(opts: {
   x: number;
   y: number;
@@ -533,7 +518,7 @@ export function openBlockColorPicker(opts: {
   }
   picker.appendChild(swatches);
 
-  // 原生取色器 + hex 输入（参照分栏背景选色的交互习惯）
+  // Native color picker + hex input (refer to the interactive habits of column background color selection)
   const customRow = createEl('div');
   customRow.className = 'block-editor-col-picker-custom';
   const colorInput = createEl('input');

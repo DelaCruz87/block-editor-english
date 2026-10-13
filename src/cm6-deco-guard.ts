@@ -4,29 +4,28 @@ import type { DecorationSet } from '@codemirror/view';
 import type { EditorState, Range } from '@codemirror/state';
 
 /**
- * CM6 装饰 range 归一化守卫（防 lineAt 越界逃逸的统一出口）。
+ * CM6 decorates range normalized guard (unified exit to prevent lineAt cross-border escape).
  *
- * 背景：CM6 内核在消费 decorations facet（applyTransaction → computeSlot →
- * view 更新期 buildDecorations / posAtCoords）时会对每个 DecorationSet 做
- * 行映射（lineAt / lineInner）。若 set 中存在 from/to 越界（负 / 超过
- * doc.length / NaN）或 from > to 的非法 range，CM6 消费期会抛
- * `Cannot read properties of undefined (reading 'length')`，且该阶段在
- * StateField.update 的 try-catch 之外，无法被插件兜住。唯一可行方案是在
- * decorations.compute 回调返回前对 DecorationSet 做一次合法性归一化，
- * 从源头杜绝非法 range 进入 CM6 消费期。
+ * Background: CM6 kernel is consuming decorations facet (applyTransaction → computeSlot →
+ * View update period buildDecorations / posAtCoords) will be done for each DecorationSet
+ * Line mapping (lineAt / lineInner). If there is from/to in the set that is out of bounds (negative/over
+ * doc.length / NaN) or an illegal range from > to, the CM6 consumption period will throw
+ * `Cannot read properties of undefined (reading 'length')`, and this stage is in
+ * Outside of the try-catch of StateField.update, it cannot be caught by plug-ins. The only feasible solution is to
+ * Do a legality normalization on DecorationSet before decorations.compute callback returns.
+ * Prevent illegal ranges from entering the CM6 consumption period from the source.
  *
- * 本守卫只做数值归一化（clamp + 丢弃非法），不改变装饰语义：
- * - 全部 range 合法时原样返回（零拷贝零开销）；
- * - 遍历用 RangeSet.iter() 全量扫描（between 只回调与 [0,docLength]
- *   相交的 range，完全越界的 range 会漏检，必须全量遍历）：
- *   - 整段越界（from > docLength 或 to < 0）→ 整段丢弃；
- *   - 部分越界（from < 0 或 to > docLength）→ clamp 到 [0, docLength]；
- *   - !Number.isFinite / from > to → 整段丢弃（RangeSet 结构上不会出现，
- *     防御性兜底）。
- * - line decoration（from === to 的单点）与 mark/replace 统一按上述规则；
- *   零长度单点越界时直接丢弃（CM6 会把 line decoration 应用到行上，
- *   越界单点会在行映射期 lineAt 崩）。
- */
+ * This guard only performs numerical normalization (clamp + discard is illegal) and does not change the decoration semantics:
+ * - All ranges are returned as they are when they are legal (zero copy and zero overhead);
+ * - Traverse using RangeSet.iter() to scan the entire range (between only callbacks and [0,docLength]
+ * Intersecting ranges and completely out-of-bounds ranges will be missed and must be fully traversed):
+ * - The entire paragraph is out of bounds (from > docLength or to < 0) → the entire paragraph is discarded;
+ * - partial out of bounds (from < 0 or to > docLength) → clamp to [0, docLength];
+ * - !Number.isFinite / from > to → discard the entire segment (does not appear in the RangeSet structure,
+ * Defensive cover).
+ * - Line decoration (single point from === to) and mark/replace are unified according to the above rules;
+ * Zero-length single points are directly discarded when they cross the boundary (CM6 will apply line decoration to the line,
+ * Out-of-bounds single points will crash lineAt during line mapping). */
 export function guardDecorations(set: DecorationSet, docLength: number): DecorationSet {
   if (set === Decoration.none || !set || typeof (set as unknown as { iter?: unknown }).iter !== 'function') {
     return set;
@@ -44,18 +43,18 @@ export function guardDecorations(set: DecorationSet, docLength: number): Decorat
         continue;
       }
       if (from > len || to < 0) {
-        // 整段在文档外 → 丢弃
+        // The entire paragraph is outside the document → discard
         bad = true;
         iter.next();
         continue;
       }
       if (from >= 0 && to <= len) {
-        // 合法：原样保留（重造 Range 保证结构一致；line 单点 from===to 安全）
+        // Legal: keep it as it is (rebuild Range to ensure consistent structure; line single point from===to is safe)
         kept.push(value.range(from, to));
         iter.next();
         continue;
       }
-      // 部分越界：clamp 到 [0, len]
+      // Partial out of bounds: clamp to [0, len]
       const nf = Math.max(0, from);
       const nt = Math.min(len, to);
       if (nf > nt) {
@@ -68,7 +67,7 @@ export function guardDecorations(set: DecorationSet, docLength: number): Decorat
       iter.next();
     }
   } catch {
-    // RangeSet 迭代或重造异常（结构损坏 / 装饰类型限制）：丢弃整个 set
+    // RangeSet iteration or reconstruction exception (structural corruption/decoration type restrictions): discard the entire set
     return Decoration.none;
   }
   if (!bad) return set;
@@ -76,12 +75,11 @@ export function guardDecorations(set: DecorationSet, docLength: number): Decorat
 }
 
 /**
- * decorations.compute 回调安全包装：compute 回调在 CM6 事务应用期
- * （computeSlot）执行，异常会直接冒泡到 dispatch。统一 try-catch +
- * range 归一化，保证任何异常都不逃逸、任何非法 range 都不进入消费期。
- * 依赖字段值异常 / 文档长度异常时降级返回 Decoration.none（本次不渲染），
- * 下一次事务自动重算恢复。
- */
+ * decorations.compute callback safety wrapper: compute callback is used during CM6 transaction application
+ * (computeSlot) execution, exceptions will bubble up directly to dispatch. Unify try-catch +
+ * Range normalization ensures that any exceptions will not escape and any illegal range will not enter the consumption period.
+ * When the dependent field value is abnormal/the document length is abnormal, it is downgraded and returns Decoration.none (not rendered this time).
+ * Automatic recalculation and recovery of the next transaction. */
 export function safeDecoCompute(
   compute: (state: EditorState) => DecorationSet,
   log: (msg: string, err?: unknown) => void = () => {}

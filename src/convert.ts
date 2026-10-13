@@ -14,10 +14,10 @@ import { deriveDarkColor, parseColBgMeta } from './col-bg';
 import type { ColBg } from './col-bg';
 import { getIndent, getLines } from './util';
 
-/** 分栏外壳标记行：`> [!multi-column]`（宽度参数 `|NN-NN` 可选） */
+/** Column shell mark row: `> [!multi-column]` (width parameter `|NN-NN` optional) */
 const COL_START_RE = /^>\s*\[!multi-column(?:\|[^\]]*)?\]\s*$/;
 
-/** mermaid 图类型声明首词（合法 mermaid 围栏内容必须以其中之一开头，允许前置 %% 注释） */
+/** The first word of the mermaid diagram type declaration (the legal mermaid fence content must start with one of them, and the preceding %% comment is allowed) */
 const MERMAID_KINDS = new Set([
   'graph', 'flowchart', 'sequenceDiagram', 'classDiagram', 'stateDiagram',
   'stateDiagram-v2', 'erDiagram', 'gantt', 'pie', 'quadrantChart',
@@ -26,9 +26,9 @@ const MERMAID_KINDS = new Set([
   'packet-beta', 'kanban', 'example',
 ]);
 
-/** 判断内容是否像合法的 mermaid 图（跳过空行与 %% 注释行，首个有效 token 需为图类型声明）。
- *  用于「转换为 mermaid」前的拦截：普通文本 / 空内容包成围栏会被 mermaid 渲染器抛
- *  UnknownDiagramError。 */
+/** Determine whether the content looks like a legal mermaid diagram (skip blank lines and %% comment lines, the first valid token must be a diagram type declaration).
+ * Used for interception before "converting to mermaid": ordinary text/empty content wrapped into fences will be thrown by the mermaid renderer
+ * UnknownDiagramError. */
 export function isMermaidContent(content: string): boolean {
   for (const line of content.split('\n')) {
     const t = line.trim();
@@ -38,36 +38,36 @@ export function isMermaidContent(content: string): boolean {
   }
   return false;
 }
-/** 分栏结构分隔行：仅 `>` 的引用行 */
+/** Column structure separated rows: only reference rows of `>` */
 const COL_SEP_RE = /^>\s*$/;
-/** 任意引用行（分栏区间边界与外壳回溯用） */
+/** Any reference line (used for column range boundaries and shell backtracking) */
 const QUOTE_RE = /^>\s?/;
 
-/** 分栏结构解析结果（convert.ts 文本命令共用） */
+/** Column structure parsing results (common to convert.ts text commands) */
 interface ParsedColumns {
-  /** 外壳行号 / 分栏末行号（写回替换范围） */
+  /** Shell line number / column last line number (write back the replacement range) */
   shellStart: number;
   shellEnd: number;
-  /** 每栏内容（已剥引用前缀，空栏为空串） */
+  /** Content of each column (reference prefix stripped, empty columns are empty strings) */
   segments: string[];
-  /** 各栏宽度百分比（无元数据时为空数组） */
+  /** Percentage of width of each column (empty array when there is no metadata) */
   widths: number[];
-  /** 每栏背景色（双色模型：light 浅色 / dark 深色，无背景为 null） */
+  /** Background color of each column (two-color model: light / dark, no background is null) */
   bgs: (ColBg | null)[];
-  /** 二维行：每行的栏数（空数组 = 单行） */
+  /** 2D rows: number of columns per row (empty array = single row) */
   rows: number[];
-  /** 外壳外观参数（gap / valign / radius / border） */
+  /** Shell appearance parameters (gap/valign/radius/border) */
   opts: ColumnsOpts;
-  /** 各栏栏头绝对行号（定位当前块所在栏） */
+  /** The absolute line number of each column header (locating the column where the current block is located) */
   colLines: number[];
 }
 
-/** 由各栏文本构建分栏 markdown（组合为分栏与编辑态写回共用）。
- *  bgs[i] 为第 i 栏的背景（ColBg），为空/null 时不写 `|bg=` 参数；
- *  浅色写 `bg=#xxxxxx`；仅当深色为显式覆盖值（≠ 自动推导）时才追加
- *  `bg-dark=#yyyyyy`（自动推导值由读取端按同一算法复现，保持旧单值格式）。
- *  rowEnds 为二维行的行末栏索引（如 [1,3] 表示 0-1 / 2-3 两行），空数组 = 单行。
- *  opts 为外壳外观参数（gap / valign / radius / border）。 */
+/** Construct column markdown from the text in each column (combined into columns and shared by edit state write-back).
+ * bgs[i] is the background of column i (ColBg). If it is empty/null, do not write the `|bg=` parameter;
+ * Write `bg=#xxxxxx` in light color; append only if dark color is an explicit override value (≠ automatically deduced)
+ * `bg-dark=#yyyyyy` (the automatically derived value is reproduced by the reading end according to the same algorithm, maintaining the old single value format).
+ * rowEnds is the row end column index of a two-dimensional row (such as [1,3] means 0-1 / 2-3 two rows), empty array = single row.
+ *opts are shell appearance parameters (gap/valign/radius/border). */
 export function buildColumnsMarkdown(
   segments: string[],
   widths?: number[],
@@ -76,8 +76,8 @@ export function buildColumnsMarkdown(
   opts?: ColumnsOpts
 ): string {
   const n = segments.length;
-  // 宽度非均分时写入元数据（单行 `|60-40`；多行按行分组 `|60-40/50-50`），
-  // 供实时预览 widget 恢复栏宽；多行时每行按各自栏数判断是否均分
+  // Metadata is written when the width is not evenly divided (single row `|60-40`; multiple rows grouped by row `|60-40/50-50`),
+  // Provides Live Preview widget to restore the column width; when there are multiple rows, each row will be judged according to the number of its own columns to determine whether it is evenly divided.
   const params: string[] = [];
   if (widths && widths.length === n) {
     let needsWidth = false;
@@ -110,7 +110,7 @@ export function buildColumnsMarkdown(
       }
     }
   }
-  // H1 外观参数：gap / valign / radius / border（显式设置才写回，与 bg 语义一致）
+  // H1 appearance parameters: gap / valign / radius / border (written back only after explicit setting, consistent with bg semantics)
   if (opts?.gap != null) params.push(`gap=${opts.gap}`);
   if (opts?.valign) params.push(`valign=${opts.valign}`);
   if (opts?.radius != null) params.push(`radius=${opts.radius}`);
@@ -120,10 +120,10 @@ export function buildColumnsMarkdown(
   segments.forEach((seg, i) => {
     if (i > 0) {
       out.push('>');
-      // 二维行边界：上一栏是行末 → 写 `>> [!colrow]` 行标记；标记后必须再补一条
-      // 第 1 层引用分隔行 `>`。否则 `>> [!colrow]` 与下一行首栏的 `>> [!col]` 同属
-      // 一个第 2 层引用块，Obsidian 会把该栏当作 colrow 的内容，阅读模式下被 colrow
-      // 的隐藏规则（height:0 + 子元素 display:none）吞掉，表现为「下一行第一栏丢失」。
+      // Two-dimensional line boundary: the previous column is the end of the line → write `>> [!colrow]` line mark; another line must be added after the mark
+      // Level 1 reference delimiter line `>`. Otherwise, `>> [!colrow]` belongs to the same category as `>> [!col]` in the first column of the next line.
+      // A level 2 reference block. Obsidian will treat this column as the content of colrow. It is colrowed in reading mode.
+      // The hidden rule (height:0 + child element display:none) is swallowed, which is manifested as "the first column of the next line is lost".
       if (rowEnds?.includes(i - 1)) {
         out.push('>> [!colrow]');
         out.push('>');
@@ -132,7 +132,7 @@ export function buildColumnsMarkdown(
     const bg = bgs?.[i];
     if (bg && bg.light) {
       const colParams = [`bg=${bg.light}`];
-      // 显式覆盖的深色才落库；自动推导值不写（读取端按同一算法复现）
+      // Dark colors that are explicitly overwritten are only dropped into the library; automatically derived values are not written (reproduced by the same algorithm on the reading end)
       if (bg.dark && bg.dark !== deriveDarkColor(bg.light)) colParams.push(`bg-dark=${bg.dark}`);
       out.push(`>> [!col|${colParams.join('|')}]`);
     } else {
@@ -143,48 +143,46 @@ export function buildColumnsMarkdown(
   return out.join('\n');
 }
 
-/** 嵌套列表转分栏的切分结果（纯文本计算，便于离线断言） */
+/** Segmentation results of converting nested lists into columns (plain text calculation, convenient for offline assertion) */
 export interface ListColumnsPlan {
-  /** 每栏内容（已剥公共基础缩进），元素即栏内多行文本 */
+  /** The content of each column (common basic indentation has been stripped), the element is the multi-line text in the column */
   segments: string[];
   /**
-   * 分栏之外的引导段（已剥公共缩进，通常是 level=1 时的父项行）。
-   * 父项是统领所有子项的引入语，**不应塞进某一栏**——那会在视觉上暗示
-   * 它只属于那一栏。调用方应把它写在分栏之前。
-   */
+   * The leading paragraph outside the column (common indentation stripped, usually the parent line when level=1).
+   * The parent is the introductory word that governs all children and should not be crammed into a column - that would visually imply
+   * It only belongs in that column. The caller should write this before the column. */
   lead?: string;
-  /** 切分结果为何不可用（供菜单提示；`segments` 为空时才有值） */
+  /** Why the segmentation result is not available (for menu prompts; `segments` has a value only when it is empty) */
   reason?: 'no-list' | 'need-two' | 'multi-parent';
 }
 
-/** 列表项行判定：`缩进 + 列表符号 + 空格`。数字/点/横线/加号/星号都算。 */
+/** List item row determination: `indent + List symbols + space`. Numbers/dots/dashes/plus signs/asterisk all count. */
 const LIST_ITEM_RE = /^(\s*)(?:[-*+]|\d+[.)])\s+/;
 
-/** 取行缩进宽度 */
+/** Get line indent width */
 function indentWidth(line: string): number {
   return (line.match(/^(\s*)/) || ['', ''])[1].length;
 }
 
 /**
- * 把嵌套列表按缩进层级切成多栏（`wrapListToColumns` 的纯计算部分）。
+ * Split the nested list into multiple columns according to the indentation level (the pure calculation part of `wrapListToColumns`).
  *
- * `level` 语义（切点 = 缩进恰等于该层的列表项）：
- * - `0`「按父项」：最浅层每个列表项各起一栏，其下所有后代行跟随该栏。
- * - `1`「按子项」：**要求整段只有 1 个父项**，其每个直接子项各起一栏，
- *   更深的子行跟随所属子项；父项行**不并入任何一栏**，而是作为
- *   `lead` 引导段由调用方写在分栏之前。多父项时返回 `multi-parent`
- *   —— 那种形态的语义本就歧义，宁可不转换。
+ * `level` semantics (split point = indent exactly equal to list items at this level):
+ * - `0` "By parent": Each list item in the shallowest level has its own column, and all descendant rows below it follow this column.
+ * - `1` "By child": **requires that the entire paragraph has only one parent**, and each of its direct children has its own column.
+ * Deeper child rows follow the corresponding children; parent rows are not merged into any column** but are treated as
+ * `lead` boot section is written by the caller before the column. Returns `multi-parent` when there are multiple parents
+ * --The semantics of that form are inherently ambiguous, so we would rather not convert them.
  *
- * 与 `columnsSegmentCount` 同一语义：**代码围栏内的行不参与切点判定**，
- * 避免列表项内嵌代码（缩进往往更深）被误判为更深层级而切错栏。
- */
+ * The same semantics as `columnsSegmentCount`: **The lines within the code fence do not participate in the split point determination**,
+ * Prevent the code embedded in the list item (the indentation is often deeper) from being misjudged as a deeper level and cutting into the wrong column. */
 export function planListColumns(
   lines: string[],
   level = 0
 ): ListColumnsPlan | null {
   const isItem = (l: string): boolean => LIST_ITEM_RE.test(l);
 
-  // 收集列表项下标与出现过的缩进层级
+  // Collect list item subscripts and indentation levels that have occurred
   const itemIdx: number[] = [];
   for (let i = 0; i < lines.length; i++) if (isItem(lines[i])) itemIdx.push(i);
   if (!itemIdx.length) return { segments: [], reason: 'no-list' };
@@ -198,19 +196,19 @@ export function planListColumns(
   const cutIndent = indents[Math.min(level, indents.length - 1)];
   const baseIndent = indents[0];
 
-  // level=1 要求单父项：多父项时语义歧义，拒绝转换（避免默默丢内容）
+  // level=1 requires a single parent: semantic ambiguity when there are multiple parents, and conversion is refused (to avoid silently losing content)
   let head: string[] = [];
   if (level > 0 && cutIndent !== baseIndent) {
     const parents = itemIdx.filter((i) => indentWidth(lines[i]) === baseIndent);
     if (parents.length > 1) return { segments: [], reason: 'multi-parent' };
-    // 父项行到第一个切点之间的所有行（含更深层）作为分栏前的引导段
+    // All lines between the parent line and the first tangent point (including deeper levels) serve as the leading paragraph before the column.
     const firstCut = itemIdx.find((i) => indentWidth(lines[i]) === cutIndent);
     for (let i = 0; i < (firstCut ?? lines.length); i++) {
       if (lines[i].trim() !== '') head.push(lines[i]);
     }
   }
 
-  // 按切点分段：命中切点开新栏，其余行跟随当前栏
+  // Segment by cut point: Hit the cut point to open a new column, and the remaining lines will follow the current column.
   const groups: string[][] = [];
   let cur: string[] | null = null;
   let fenceCh: string | null = null;
@@ -229,17 +227,17 @@ export function planListColumns(
       if (cur) cur.push(line);
       continue;
     }
-    // 切点：缩进恰等于切分层级的列表项。首个切点开第一栏，之后每个切点开新栏
+    // Cut point: The indentation is exactly equal to the list item of the cut level. The first cut point opens the first column, and each subsequent cut point opens a new column.
     if (isItem(line) && indentWidth(line) === cutIndent) {
       groups.push((cur = []));
     }
-    if (!cur) continue; // 切点之前的行（父项标题区）已单独收集
+    if (!cur) continue; // Rows before the split point (parent title area) have been collected separately
     cur.push(line);
   }
 
   if (groups.length < 2) return { segments: [], reason: 'need-two' };
 
-  // 剥掉公共基础缩进，栏内列表从顶格开始（相对层级完整保留）
+  // The common basic indentation is stripped off, and the list in the column starts from the top cell (the relative hierarchy is kept intact)
   const dedent = (s: string): string =>
     s
       .split('\n')
@@ -252,12 +250,12 @@ export function planListColumns(
       .replace(/\s+$/, '');
 
   const segments = groups.map((g) => dedent(g.join('\n')));
-  // 父项行作为分栏前的引导段独立返回，**不并入任何一栏**
+  // The parent row is returned independently as the leading section before the column, **not merged into any column**
   const lead = head.length ? dedent(head.join('\n')) : '';
   return lead ? { segments, lead } : { segments };
 }
 
-/** 块类型识别与「转换为」 */
+/** Block type recognition and "convert to" */
 export class BlockConverter {
   constructor(private ctx: BlockEditorPlugin) {}
 
@@ -273,7 +271,7 @@ export class BlockConverter {
     const src = block.type;
     const total = editor.lineCount();
 
-    // 已经是同一种「包壳」块：代码块只换语言标记，表格 / 公式无需处理
+    // It is already the same kind of "wrapped" block: only the language tags are changed for the code block, and the tables/formulas do not need to be processed.
     if (src === type && ['code', 'table', 'math'].includes(type)) {
       if (type === 'code') {
         const line = editor.getLine(start);
@@ -282,15 +280,15 @@ export class BlockConverter {
       return;
     }
 
-    // 代码块 / 公式块 / 表格 -> 其它类型：先拆掉外壳，再按目标类型把整段内容
-    // 重排（包壳 / 前缀应用到全部行），避免只操作首行的单行分支让多行内容悬空
+    // Code block / formula block / table -> other types: first remove the shell, and then convert the entire content according to the target type
+    // Rearrange (encapsulation/prefix applied to all lines) to avoid operating single-line branches on the first line only and leaving multiple lines of content dangling.
     if (src === 'code' || src === 'math' || src === 'table') {
       const end = Math.min(block.end, total - 1);
       const inner =
         src === 'table'
           ? this.tableToText(editor, start, end)
           : getLines(editor, start + 1, end - 1).join('\n');
-      // mermaid 目标：内容须为合法图语法，否则提示并终止（避免生成非法围栏）
+      // Mermaid goal: the content must be in legal graph syntax, otherwise it will prompt and terminate (to avoid generating illegal fences)
       if (type === 'mermaid' && !isMermaidContent(inner)) {
         new Notice(TEXT.message0200);
         return;
@@ -303,7 +301,7 @@ export class BlockConverter {
       return;
     }
 
-    // 需要包壳的目标类型
+    // Target type that needs to be wrapped
     const wraps: Partial<Record<TurnIntoType, [string, string]>> = {
       code: ['```' + lang, '```'],
       mermaid: ['```mermaid', '```'],
@@ -312,7 +310,7 @@ export class BlockConverter {
     const wrap = wraps[type];
     if (wrap) {
       const content = this.readContent(editor, start);
-      // mermaid 目标：普通文本 / 空内容包成围栏会被渲染器抛 UnknownDiagramError，拦截提示
+      // Mermaid goal: If ordinary text/empty content is wrapped into a fence, the renderer will throw an UnknownDiagramError and intercept the prompt.
       if (type === 'mermaid' && !isMermaidContent(content)) {
         new Notice(TEXT.message0201);
         return;
@@ -361,7 +359,7 @@ export class BlockConverter {
       quote: '> ',
       toggle: '> [!note]- ',
     };
-    // Callout 支持子菜单传入具体类型（lang），缺省 note
+    // Callout supports submenu to pass in specific type (lang), the default is note
     const prefix = type === 'callout' ? '> [!' + (lang || 'note') + '] ' : prefixes[type];
     if (prefix === undefined) return;
 
@@ -370,13 +368,13 @@ export class BlockConverter {
     if (newLine !== line) editor.setLine(start, newLine);
   }
 
-  // 多选批量转换：自下而上逐块应用，避免行号失效
+  // Multi-select batch conversion: apply block by block from bottom to top to avoid row number invalidation
   convertRanges(editor: Editor, ranges: BlockRange[], type: TurnIntoType, lang = ''): void {
     const sorted = [...ranges].sort((a, b) => b.start - a.start);
     for (const r of sorted) this.convertBlock(editor, r, type, lang);
   }
 
-  // 把表格压成一行文字：丢掉分隔行，单元格用空格连起来
+  // Convert the table into one line of text: discard the separated lines and connect the cells with spaces
   tableToText(editor: Editor, start: number, end: number): string {
     const cells: string[] = [];
     for (let i = start; i <= end; i++) {
@@ -390,8 +388,8 @@ export class BlockConverter {
     return cells.join(' ');
   }
 
-  // 拆壳后的多行 inner 按目标类型整体重排：包壳 / 前缀应用到全部行，
-  // 避免代码块 / 公式块 / 表格转换时只有首行被处理、其余行悬空
+  // The multi-line inner after unpacking is rearranged as a whole according to the target type: the wrapping/prefix is applied to all lines,
+  // Avoid code block/formula block/table conversion where only the first row is processed and the remaining rows are left hanging
   private applyWrapOrPrefix(inner: string, type: TurnIntoType, lang: string): string {
     if (type === 'code') return '```' + lang + '\n' + inner + '\n```';
     if (type === 'mermaid') return '```mermaid\n' + inner + '\n```';
@@ -417,7 +415,7 @@ export class BlockConverter {
       case 'h4':
       case 'h5':
       case 'h6':
-        // 首行作标题，其余行作为正文段落（保持多行不丢）
+        // The first line is used as the title, and the remaining lines are used as body paragraphs (keep multiple lines intact)
         return '#'.repeat(Number(type[1])) + ' ' + lines[0] +
           (rest.length ? '\n' + rest.join('\n') : '');
       case 'ul':
@@ -439,7 +437,7 @@ export class BlockConverter {
     }
   }
 
-  // 光标所在块直接转换（命令面板用，不依赖手柄）
+  // The block where the cursor is located is directly converted (used in the command panel, does not rely on the handle)
   convertCurrentBlock(editor: Editor, type: TurnIntoType): void {
     const cursor = editor.getCursor();
     const block = this.ctx.detector.getBlockAtLine(editor, cursor.line);
@@ -451,7 +449,7 @@ export class BlockConverter {
     this.convertBlock(editor, ctxBlock, type);
   }
 
-  // 取块首行内容（去掉缩进与块前缀）
+  // Get the first line of the block (remove the indent and block prefix)
   readContent(editor: Editor, lineIndex: number): string {
     const line = editor.getLine(lineIndex);
     return this.stripBlockPrefix(line.slice(getIndent(line).length));
@@ -481,7 +479,7 @@ export class BlockConverter {
     return match ? match[1].trim() : '';
   }
 
-  // 折叠块当前状态：`[!type]-` 折叠 / `[!type]+` 展开；非折叠块返回 null
+  // The current status of the collapsed block: `[!type]-` collapsed / `[!type]+` expanded; non-collapsed block returns null
   foldStateOf(block: BlockContext): 'collapsed' | 'expanded' | null {
     const s = block.editor.getLine(block.start).replace(/^\s*/, '');
     const m = s.match(/^>\s*\[![\w-]+\]([+-])\s/);
@@ -489,7 +487,7 @@ export class BlockConverter {
     return m[1] === '-' ? 'collapsed' : 'expanded';
   }
 
-  // 折叠块展开态切换：把参与操作的每个折叠块首行 `-` 与 `+` 互换（单步撤销）
+  // Folding block expanded state switching: swap the first line `-` and `+` of each folding block participating in the operation (single-step undo)
   toggleFoldState(block: BlockContext): void {
     const editor = block.editor;
     const ranges = this.ctx.selection.actionRanges(block);
@@ -508,15 +506,15 @@ export class BlockConverter {
     this.ctx.handle.hideHandle();
   }
 
-  // ---- 分栏（multi-column callout）----
+  // ----Column (multi-column callout)----
 
-  // 块是否为分栏容器
+  // Whether the block is a column container
   isColumnsBlock(editor: Editor, block: BlockRange): boolean {
     return COL_START_RE.test(editor.getLine(block.start));
   }
 
-  // 块是否位于某个分栏区间内部（首行不是外壳标记本身，但向上能回溯到外壳）。
-  // 用于防止对分栏内部内容执行「添加分栏 / 组合为分栏」时截断原分栏结构。
+  // Whether the block is inside a column interval (the first line is not the shell mark itself, but goes back to the shell).
+  // Used to prevent the original column structure from being truncated when performing "Add Column/Combine into Columns" on the content inside the column.
   insideColumns(editor: Editor, block: BlockRange): boolean {
     if (this.isColumnsBlock(editor, block)) return false;
     for (let i = block.start; i >= 0; i--) {
@@ -527,8 +525,8 @@ export class BlockConverter {
     return false;
   }
 
-  // 组合分栏前预览可切段数（区间按空行切段，每段一栏；≥2 才有意义）。
-  // 代码围栏 / 数学块内部的空行不算切段点。
+  // Preview the number of segments that can be cut before combining and dividing into columns (intervals are cut into blank lines, with one column for each segment; ≥ 2 is meaningful).
+  // Empty lines inside code fences/math blocks do not count as segmentation points.
   columnsSegmentCount(block: BlockContext): number {
     const editor = block.editor;
     const ranges = this.ctx.selection.actionRanges(block);
@@ -565,8 +563,8 @@ export class BlockConverter {
     return count;
   }
 
-  // 组合为分栏：区间整体按空行切段，每段包成一栏（单步撤销）。
-  // 代码围栏 / 数学块内部的空行不切段，避免多行代码块被拆散。
+  // Combine into columns: The entire range is cut into segments by blank lines, and each segment is wrapped into one column (single-step undo).
+  // Blank lines inside code fences/math blocks are not cut into segments to prevent multi-line code blocks from being broken up.
   wrapBlockToColumns(block: BlockContext): void {
     const editor = block.editor;
     const ranges = this.ctx.selection.actionRanges(block).slice().sort((a, b) => a.start - b.start);
@@ -605,7 +603,7 @@ export class BlockConverter {
 
     const out = buildColumnsMarkdown(segments.map((seg) => seg.join('\n')));
 
-    // 前后贴空行，保证 callout 与相邻块独立
+    // Paste blank lines before and after to ensure that the callout is independent of adjacent blocks.
     const total = editor.lineCount();
     const prefix = start > 0 && editor.getLine(start - 1).trim() !== '' ? [''] : [];
     const suffix = end < total - 1 && editor.getLine(end + 1).trim() !== '' ? [''] : [];
@@ -620,11 +618,10 @@ export class BlockConverter {
   }
 
   /**
-   * 列表转分栏的作用范围：多选时用选区，否则把光标所在的**整个同级列表**
-   * 纳入范围（向上找同缩进的列表项起点、向下并入其所有子项）。
+   * The scope of converting the list into columns: use the selection when making multiple selections, otherwise the **entire list of the same level** where the cursor is located will be
+   * Incorporate into the scope (find the starting point of the same indented list item upwards and merge all its sub-items downwards).
    *
-   * 不这样做的话，光标停在单个子项上时范围只有一行 → 切不开栏，菜单项永远置灰。
-   */
+   * If you don't do this, the range will only be one line when the cursor is parked on a single sub-item → the column cannot be cut, and the menu item will always be grayed out. */
   private listColumnRange(block: BlockContext): { start: number; end: number } {
     const sel = this.ctx.selection.selection;
     if (sel && sel.editor === block.editor && this.ctx.selection.isInSelection(block) && sel.ranges.length > 1) {
@@ -632,8 +629,8 @@ export class BlockConverter {
       return { start: rs[0].start, end: rs[rs.length - 1].end };
     }
     const editor = block.editor;
-    // 向上：越过所有更浅的祖先列表项，找到该列表的顶层项作为起点。
-    // 光标停在任意深度的子项上时，范围都覆盖「整个列表」而不是单个子项。
+    // Up: Go past all shallower ancestor list items and find the top-level item of the list as a starting point.
+    // When the cursor is parked on a child item at any depth, the scope covers the "entire list" instead of a single child item.
     let start = block.start;
     let base = indentWidth(editor.getLine(block.start));
     for (let i = block.start - 1; i >= 0; i--) {
@@ -642,26 +639,25 @@ export class BlockConverter {
       if (m) {
         const ind = m[1].length;
         if (ind < base) {
-          // 更浅的祖先列表项：它就是本列表的顶层，纳入范围并以其缩进继续向上
+          // A shallower ancestor list item: it is the top level of this list, included in the scope and continues upward with its indentation
           start = i;
           base = ind;
         } else if (ind === base) {
-          // 同级项：位于顶层，继续向上找该列表真正的起点
+          // Sibling items: Located at the top level, continue upward to find the real starting point of the list
           start = i;
         }
-        // ind > base：更深的子项，属于当前项，不影响起点
+        // ind > base：deeper children，Belongs to current item，Does not affect the starting point
       } else if (line.trim() === '') break;
-      else if (indentWidth(line) >= base) continue; // 缩进更深的续行
-      else break; // 顶格正文：列表到此为止
+      else if (indentWidth(line) >= base) continue; // Indent deeper continuation lines
+      else break; // Top text: The list ends here
     }
     return { start, end: block.end };
   }
 
   /**
-   * 嵌套列表可切出的栏数（供菜单置灰判断）。
-   * `by='parent'` 按最浅层列表项数，`by='child'` 按一层子项数。
-   * 不足 2 栏返回 0，表示不可转换。
-   */
+   * The number of columns that can be cut out of the nested list (for judgment when the menu is grayed out).
+   * `by='parent'` is based on the number of the shallowest list items, `by='child'` is based on the number of sub-items on the first level.
+   * If there are less than 2 columns, return 0, indicating that it cannot be converted. */
   listColumnCount(block: BlockContext, by: 'parent' | 'child' = 'parent'): number {
     const r = this.listColumnRange(block);
     const plan = planListColumns(
@@ -672,11 +668,10 @@ export class BlockConverter {
   }
 
   /**
-   * 嵌套列表转分栏：按父项（`parent`）或按一层子项（`child`）各切一栏，
-   * 产物复用 `buildColumnsMarkdown`，与「组合为分栏」同样前后贴空行（单步撤销）。
+   * Convert the nested list to columns: cut into one column each by parent item (`parent`) or by one layer of subitems (`child`).
+   * The product reuses `buildColumnsMarkdown`, and pastes blank lines before and after (single-step undo) in the same way as "combine into columns".
    *
-   * 已有分栏内不允许再套一层；栏数不足 2 时提示并终止。
-   */
+   * It is not allowed to add another layer to the existing column; when the number of columns is less than 2, it will prompt and terminate. */
   wrapListToColumns(block: BlockContext, by: 'parent' | 'child' = 'parent'): void {
     const editor = block.editor;
     if (this.isColumnsBlock(editor, block) || this.insideColumns(editor, block)) {
@@ -704,8 +699,8 @@ export class BlockConverter {
     const total = editor.lineCount();
     const prefix = r.start > 0 && editor.getLine(r.start - 1).trim() !== '' ? [''] : [];
     const suffix = r.end < total - 1 && editor.getLine(r.end + 1).trim() !== '' ? [''] : [];
-    // 引导段（level=1 时的父项）写在分栏**之前**并与分栏间留空行：
-    // 它统领所有子项，塞进某一栏会在视觉上误导归属，也会让首栏明显更重。
+    // The boot section (the parent when level=1) is written **before** the column and leaves a blank line between it and the column:
+    // It leads all the subsections, and cramming it into one column visually misleads the attribution and makes the first column noticeably heavier.
     const lead = plan.lead ? [...plan.lead.split('\n'), ''] : [];
     const text = [...prefix, ...lead, ...out.split('\n'), ...suffix].join('\n');
 
@@ -717,7 +712,7 @@ export class BlockConverter {
     this.ctx.handle.hideHandle();
   }
 
-  // 取消分栏：剥掉外壳与栏标记，还原为普通块（单步撤销）
+  // Cancel column division: peel off the shell and column markers and restore to normal blocks (single-step undo)
   unwrapColumns(block: BlockContext): void {
     const editor = block.editor;
     if (!this.isColumnsBlock(editor, block)) {
@@ -743,7 +738,7 @@ export class BlockConverter {
         cur = [];
         continue;
       }
-      // H2 二维行：colrow 是行分隔标记，取消分栏时把行断开为独立段落块
+      // H2 two-dimensional lines: colrow is a line separation mark. When canceling column division, the lines are broken into independent paragraph blocks.
       if (/^>\s*>\s*\[!colrow(?:\|[^\]]*)?\]/.test(line)) {
         if (cur && cur.length) columns.push(cur);
         cur = null;
@@ -775,7 +770,7 @@ export class BlockConverter {
     this.ctx.handle.hideHandle();
   }
 
-  // 在分栏末尾追加一个空栏，光标落入新栏内容行
+  // Append an empty column at the end of the column, and the cursor falls on the content line of the new column
   addColumn(block: BlockContext): void {
     const editor = block.editor;
     editor.replaceRange('\n>\n>> [!col]\n>>', {
@@ -787,10 +782,10 @@ export class BlockConverter {
     this.ctx.handle.hideHandle();
   }
 
-  // 在当前块下方插入一个两栏空分栏空壳，光标落入第一栏内容行
+  // Insert a two-column empty shell below the current block, and the cursor falls into the first column content line
   addEmptyColumns(block: BlockContext): void {
     const editor = block.editor;
-    // 紧邻下方是内容行时补一个空行，保证 callout 独立结束
+    // If there is a content line immediately below, add a blank line to ensure that the callout ends independently.
     const hasNext = block.end + 1 < editor.lineCount();
     const nextLine = hasNext ? editor.getLine(block.end + 1) : '';
     const suffix = hasNext && nextLine.trim() !== '' ? '\n' : '';
@@ -803,8 +798,8 @@ export class BlockConverter {
     this.ctx.handle.hideHandle();
   }
 
-  // H2：在分栏末尾追加一行（栏数与首行一致，含 `>> [!colrow]` 行标记），
-  // 供块菜单「追加一行」与源码态使用；实时预览编辑态走 widget 内 addRow。
+  // H2: Append a line at the end of the column (the number of columns is the same as the first line, including the `>> [!colrow]` line mark),
+  // It is used in the block menu "Add a Row" and the source code state; in the Live Preview editing state, use addRow in the widget.
   appendColumnRow(block: BlockContext): void {
     const editor = block.editor;
     if (!this.isColumnsBlock(editor, block)) {
@@ -818,7 +813,7 @@ export class BlockConverter {
       if (/^>\s*>\s*\[!col(?:\|[^\]]*)?\]/.test(l)) firstRowCols++;
     }
     const perRow = Math.max(firstRowCols, 1);
-    // 行标记 + 每栏空壳（栏间 `>` 分隔），追加在分栏末尾
+    // Row mark + empty shell for each column (`>` separates the columns), appended at the end of the column
     const rowText =
       '\n>> [!colrow]\n>>\n>' +
       Array.from({ length: perRow }, () => '\n>> [!col]\n>>').join('\n>');
@@ -829,9 +824,9 @@ export class BlockConverter {
     this.ctx.handle.hideHandle();
   }
 
-  // ---- H2 分栏行列编辑增强（文本命令，供块菜单入口）----
+  // ----H2 column and column editing enhancements (text commands, block menu entry)----
 
-  /** 定位分栏区间并解析结构：分栏块自身或内部块均可（内部块向上回溯外壳行） */
+  /** Locate the column interval and parse the structure: the column block itself or the internal block (the internal block traces back the shell row upwards) */
   private parseColumnsAt(editor: Editor, block: BlockRange): ParsedColumns | null {
     let shellStart = block.start;
     if (!COL_START_RE.test(editor.getLine(block.start))) {
@@ -846,7 +841,7 @@ export class BlockConverter {
       }
       if (shellStart === -1) return null;
     }
-    // 分栏末行 = 外壳行后最后一个引用行
+    // Column last line = the last quoted line after the shell line
     let shellEnd = shellStart;
     for (let i = shellStart + 1; i < editor.lineCount(); i++) {
       if (!QUOTE_RE.test(editor.getLine(i))) break;
@@ -855,7 +850,7 @@ export class BlockConverter {
     return this.parseColumnsRange(editor, shellStart, shellEnd);
   }
 
-  /** 把分栏区间解析为结构（栏内容 / 宽度 / 背景 / 行结构 / 外观参数），解析失败返回 null */
+  /** Parse the column interval into a structure (column content/width/background/row structure/appearance parameters), and return null if the parsing fails */
   private parseColumnsRange(
     editor: Editor,
     shellStart: number,
@@ -872,7 +867,7 @@ export class BlockConverter {
       const line = lines[i];
       if (i === 0) continue;
       if (COL_SEP_RE.test(line)) continue;
-      // H2 二维行：colrow 是行分隔标记
+      // H2 two-dimensional row: colrow is a row separation mark
       if (/^>\s*>\s*\[!colrow(?:\|[^\]]*)?\]/.test(line)) {
         if (cur !== null) segments.push(cur.join('\n'));
         cur = null;
@@ -896,9 +891,9 @@ export class BlockConverter {
     }
     if (cur !== null) segments.push(cur.join('\n'));
     if (!segments.length) return null;
-    // 背景数与栏数对齐（异常结构不携带背景）
+    // The background number is aligned with the column number (the abnormal structure does not carry the background)
     if (bgs.length !== segments.length) bgs.length = 0;
-    // 二维行：按 colrow 行标记分组统计每行栏数（无 colrow 时单行）
+    // Two-dimensional rows: count the number of columns in each row grouped by colrow row markers (single row without colrow)
     let rows: number[] = [];
     if (rowMarks.length) {
       let start = 0;
@@ -913,7 +908,7 @@ export class BlockConverter {
       rows.push(colRels.length - start);
       if (rows.some((r) => r <= 0)) rows = [];
     }
-    // 外壳宽度与外观参数（与 scanRegions 语义一致）
+    // Shell width and appearance parameters (same semantics as scanRegions)
     let widths: number[] = [];
     const opts: ColumnsOpts = {};
     const meta = lines[0].match(/\[!multi-column\|([^\]]*)\]/);
@@ -947,7 +942,7 @@ export class BlockConverter {
     };
   }
 
-  /** 当前块所在栏索引（按栏头行号定位，默认首栏） */
+  /** Index of the column where the current block is located (positioned by column number, default to first column) */
   private columnIndexOf(p: ParsedColumns, line: number): number {
     let idx = 0;
     for (let k = 0; k < p.colLines.length; k++) {
@@ -957,7 +952,7 @@ export class BlockConverter {
     return idx;
   }
 
-  /** 栏 colIdx 所在行号（单行时恒 0） */
+  /** The row number where column colIdx is located (constantly 0 for a single row) */
   private rowIndexOf(rows: number[], colIdx: number): number {
     if (!rows.length) return 0;
     let acc = 0;
@@ -968,13 +963,13 @@ export class BlockConverter {
     return rows.length - 1;
   }
 
-  /** 行 r 的全局栏区间 [start, end) */
+  /** Global column interval [start, end) of row r */
   private rowRange(rows: number[], r: number): [number, number] {
     const start = rows.slice(0, r).reduce((a, b) => a + b, 0);
     return [start, start + rows[r]];
   }
 
-  /** 每行栏数 → buildColumnsMarkdown 的行末栏索引（[1,3] 表示 0-1 / 2-3 两行） */
+  /** Number of columns per line → end-of-line column index of buildColumnsMarkdown ([1,3] represents two lines of 0-1 / 2-3) */
   private rowsToEnds(rows: number[]): number[] | undefined {
     if (!rows.length) return undefined;
     const ends: number[] = [];
@@ -986,7 +981,7 @@ export class BlockConverter {
     return ends.length ? ends : undefined;
   }
 
-  /** 按解析结构整体重写分栏区间（单步撤销），返回生成文本（供光标定位） */
+  /** Rewrite the column interval as a whole according to the analysis structure (single-step undo), and return the generated text (for cursor positioning) */
   private writeColumns(editor: Editor, p: ParsedColumns): string {
     const rowEnds = this.rowsToEnds(p.rows);
     const hasOpts = Object.keys(p.opts).length > 0;
@@ -1006,7 +1001,7 @@ export class BlockConverter {
     return out;
   }
 
-  /** 光标落入新栏内容行（colIdx 为写回后栏序号，0-based） */
+  /** The cursor falls into the new column content line (colIdx is the column number written back, 0-based) */
   private focusColumn(editor: Editor, p: ParsedColumns, colIdx: number, out: string): void {
     const outLines = out.split('\n');
     let seen = 0;
@@ -1022,7 +1017,7 @@ export class BlockConverter {
     editor.focus();
   }
 
-  /** 拆分当前栏：原栏保留前半，新栏承接后半（切点取当前块所在行），宽度对半、背景沿用 */
+  /** Split the current column: keep the first half of the original column, and take over the second half of the new column (the cutting point is the row of the current block), half the width, and use the background */
   splitColumn(block: BlockContext): void {
     const editor = block.editor;
     const p = this.parseColumnsAt(editor, block);
@@ -1032,12 +1027,12 @@ export class BlockConverter {
     }
     const i = this.columnIndexOf(p, block.start);
     const lines = (p.segments[i] ?? '').split('\n');
-    // 切点：当前块在栏内的相对行（至少保留原栏首行；栏内仅 1 行时新栏为空）
+    // Cutting point: The relative row of the current block in the column (at least the first row of the original column is retained; when there is only 1 row in the column, the new column is empty)
     const rel = Math.max(0, block.start - (p.colLines[i] + 1));
     const mid = Math.max(1, Math.min(rel, lines.length - 1 || 1));
     const left = lines.slice(0, mid).join('\n');
     const right = lines.slice(mid).join('\n');
-    // 无宽度元数据时先按均分补齐，保证拆后写回精确（与 widget 对半语义一致）
+    // When there is no width metadata, it is first filled in by equal division to ensure accurate writing back after splitting (consistent with the widget half-and-half semantics)
     if (!p.widths.length) {
       const avg = Math.round((100 / p.segments.length) * 10) / 10;
       p.widths = p.segments.map(() => avg);
@@ -1053,7 +1048,7 @@ export class BlockConverter {
     this.focusColumn(editor, p, i + 1, out);
   }
 
-  /** 合并当前栏与右侧相邻栏：内容按顺序拼接、宽度合并；行末栏禁止跨行合并 */
+  /** Merge the current column and the adjacent column on the right: the content is spliced in order and the width is merged; cross-row merging of the end column is prohibited */
   mergeColumn(block: BlockContext): void {
     const editor = block.editor;
     const p = this.parseColumnsAt(editor, block);
@@ -1084,7 +1079,7 @@ export class BlockConverter {
     this.writeColumns(editor, p);
   }
 
-  /** 在当前栏与下一栏之间插入一个空栏，后续栏宽按既有分配策略重排（与 widget addColumnAt 一致） */
+  /** Insert an empty column between the current column and the next column, and subsequent column widths are rearranged according to the existing allocation strategy (consistent with widget addColumnAt) */
   insertColumn(block: BlockContext): void {
     const editor = block.editor;
     const p = this.parseColumnsAt(editor, block);
@@ -1093,7 +1088,7 @@ export class BlockConverter {
       return;
     }
     const i = this.columnIndexOf(p, block.start);
-    // 新栏占 100/n，旧栏按比例缩小；无宽度元数据时整块均分
+    // The new column occupies 100/n, and the old column is reduced proportionally; when there is no width metadata, the entire block is divided evenly
     const n = p.segments.length + 1;
     const newW = Math.round((100 / n) * 10) / 10;
     const scale = (100 - newW) / 100;
@@ -1110,7 +1105,7 @@ export class BlockConverter {
     this.focusColumn(editor, p, i + 1, out);
   }
 
-  /** 整行上移 / 下移：交换相邻两行的栏内容、宽度与背景，保持各栏宽度与行结构 */
+  /** Move the entire row up/down: Swap the column content, width and background of two adjacent rows, maintaining the width and row structure of each column */
   moveColumnRow(block: BlockContext, dir: -1 | 1): void {
     const editor = block.editor;
     const p = this.parseColumnsAt(editor, block);
@@ -1147,7 +1142,7 @@ export class BlockConverter {
     this.writeColumns(editor, p);
   }
 
-  /** 分栏内部块的菜单状态：当前栏索引与各操作可用性（不在分栏内返回 null） */
+  /** Menu status of the block inside the column: current column index and availability of each operation (returns null if not in the column) */
   columnsMenuState(
     editor: Editor,
     block: BlockRange
@@ -1169,28 +1164,27 @@ export class BlockConverter {
   }
 
   /**
-   * H4 贴边快速分栏：把拖动块 A（可多选）与目标块 B 合成两栏分栏。
-   * side=-1 时 A 在左栏（拖到 B 左边缘），side=1 时 A 在右栏（拖到 B 右边缘）。
-   * 目标为分栏外壳 / 分栏内部块时返回 false（调用方回退普通插入，避免截断分栏结构）。
-   */
+   * H4 edge quick column splitting: combine drag block A (multiple selections possible) and target block B into two columns.
+   * When side=-1, A is in the left column (drag to the left edge of B), and when side=1, A is in the right column (drag to the right edge of B).
+   * Return false when the target is a column shell/column internal block (the caller falls back to normal insertion to avoid truncating the column structure). */
   wrapToEdgeColumns(editor: Editor, a: BlockRange[], b: BlockRange, side: -1 | 1): boolean {
     if (!a.length) return false;
-    // 拖动区间与目标区间相交（含相等）时拒绝：合成按 min/max 取范围会吞掉中间内容
+    // Reject when the dragging interval intersects (including equality) with the target interval: the synthesis takes the range according to min/max, which will swallow the middle content
     if (a.some((r) => r.start <= b.end && b.start <= r.end)) return false;
-    // 目标不能是分栏外壳或分栏内部块（拖进分栏内部会截断结构）
+    // The target cannot be a column shell or a column internal block (dragging inside a column will truncate the structure)
     if (this.isColumnsBlock(editor, b) || this.insideColumns(editor, b)) return false;
     const rs = [...a].sort((x, y) => x.start - y.start);
     const lines: string[] = [];
     for (const r of rs) lines.push(...getLines(editor, r.start, r.end));
     const bLines = getLines(editor, b.start, b.end);
-    // 目标块整块为空行时拒绝：会生成一个空栏，无意义
+    // Reject when the entire target block is a blank line: an empty column will be generated, which is meaningless.
     if (bLines.every((l) => l.trim() === '')) return false;
-    // 合成两栏：左侧 = 左栏文本，右侧 = 右栏文本（宽缺省 50-50）
+    // Combine two columns: left = left column text, right = right column text (width default 50-50)
     const left = side === -1 ? lines : bLines;
     const right = side === -1 ? bLines : lines;
     const out = buildColumnsMarkdown([left.join('\n'), right.join('\n')]);
 
-    // 前后贴空行，保证 callout 与相邻块独立（与 wrapBlockToColumns 一致）
+    // Paste blank lines before and after to ensure that the callout is independent of adjacent blocks (consistent with wrapBlockToColumns)
     const start = Math.min(rs[0].start, b.start);
     const end = Math.max(rs[rs.length - 1].end, b.end);
     const total = editor.lineCount();
@@ -1207,18 +1201,18 @@ export class BlockConverter {
     return true;
   }
 
-  /** 解析块首行的颜色标记（无标记 / 颜色非法返回 null；span 形态写在块末行，
-   *  首行无 %% 时回溯末行再解析 span） */
+  /** Parse the color mark of the first line of the block (no mark/illegal color returns null; the span form is written in the last line of the block,
+   * When there is no %% in the first line, trace back to the last line and then parse the span) */
   blockColorOf(block: BlockContext): string | null {
     const first = this.parseBlockColor(block.editor.getLine(block.start));
     if (first) return first;
-    // span 承载形态写回在块末行（单行块时首行即末行，已被上面命中）
+    // The span carrying form is written back to the last line of the block (in the case of a single-line block, the first line is the last line and has been hit by the above)
     if (block.end > block.start) return this.parseBlockColor(block.editor.getLine(block.end));
     return null;
   }
 
-  /** 解析单行文本中的块颜色标记（无 / 非法返回 null；双值语法取浅色；
-   *  兼容存量 %% 形态与 span 元素承载形态） */
+  /** Parse the block color mark in a single line of text (none/illegal returns null; double value syntax takes light color;
+   * Compatible with stock %% form and span element carrying form) */
   parseBlockColor(line: string): string | null {
     const m = BLOCK_COLOR_RE.exec(line) ?? BLOCK_COLOR_SPAN_RE.exec(line);
     if (!m) return null;
@@ -1226,13 +1220,12 @@ export class BlockConverter {
   }
 
   /**
-   * 给当前块打颜色标记：在块末行行尾写入空元素
-   * `<span data-block-color="<color>"></span>` 承载（阅读模式元素形态直接上色），
-   * 替换旧的行尾 `%% block-color:<color> %%` 写回形态；已有标记（%% 或 span）
-   * 均替换颜色值。存量 `%%...%%` 不迁移存量文档，但写回时清理避免同块双标记。
-   * 颜色属性值格式与 %% 语法体一致（支持手写 `light|dark` 双主题覆盖深色）。
-   * 分栏 callout 内写回不阻断，但提示阅读模式仅实时预览生效。
-   */
+   * Color mark the current block: write empty elements at the end of the line at the end of the block
+   * `<span data-block-color="<color>"></span>` carries (reading mode element shape is directly colored),
+   * Replace old line ending `%% block-color:<color> %%` write back form; already marked (%% or span)
+   * All replace color values. The existing `%%...%%` does not migrate the existing documents, but cleans them when writing back to avoid double marking of the same block.
+   * The color attribute value format is consistent with the %% syntax body (supports handwritten `light|dark` dual themes covering dark colors).
+   * Write-back within the column callout is not blocked, but it prompts that the reading mode only takes effect in Live Preview. */
   setBlockColor(block: BlockContext, color: string): void {
     const editor = block.editor;
     const norm = normalizeBlockColor(color);
@@ -1240,11 +1233,11 @@ export class BlockConverter {
       new Notice(TEXT.message0223 + color);
       return;
     }
-    // 块首行存量 %% 标记：写回 span 时一并清理（避免同块双标记重复上色）
+    // The %% mark in the first row of the block: clean it up when writing back the span (to avoid repeated coloring of double marks in the same block)
     const first = editor.getLine(block.start);
     const firstNext = first.replace(BLOCK_COLOR_RE, '').replace(/[ \t]+$/u, '');
     if (firstNext !== first) editor.setLine(block.start, firstNext);
-    // 目标行 = 块末行：替换已有 span 后追加（单行块时首行可能已被上面清理）
+    // Target line = the last line of the block: replace the existing span and append (the first line may have been cleaned up above in the case of a single-line block)
     const endIdx = block.end;
     const endLine = editor.getLine(endIdx);
     const next =
@@ -1253,8 +1246,8 @@ export class BlockConverter {
         .replace(BLOCK_COLOR_RE, '')
         .replace(/[ \t]+$/u, '') + `<span data-block-color="${norm}"></span>`;
     editor.setLine(endIdx, next);
-    // 分栏 callout 内：提示阅读模式受 Obsidian 渲染限制仅实时预览生效
-    // （建议改用分栏 bg 元数据 |bg= 做整栏配色）；提示不阻断写回
+    // Within the column callout: Prompt reading mode is limited by Obsidian rendering and only Live Preview takes effect
+    // (It is recommended to use column-by-column bg metadata |bg= to color the entire column); the prompt does not block writeback
     if (this.insideColumns(editor, block)) {
       new Notice(
         TEXT.message0224,
@@ -1264,7 +1257,7 @@ export class BlockConverter {
     this.ctx.handle.hideHandle();
   }
 
-  /** 清除当前块的颜色标记（span 形态或存量 %% 形态；无标记时提示） */
+  /** Clear the color mark of the current block (span form or stock %% form; prompt when there is no mark) */
   clearBlockColor(block: BlockContext): void {
     const editor = block.editor;
     let found = false;

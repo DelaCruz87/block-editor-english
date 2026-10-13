@@ -14,7 +14,7 @@ import { pickBlock, pickFile, pickNote, pickNoteWithBlocks } from './picker';
 import { enabledInsertIds, resolveSnippet } from './insert-actions';
 import { slashTrigger, filterSlashItems } from './slash-trigger';
 
-/** 子序列模糊匹配：前缀 > 连续子串 > 分散子序列；词首与连续命中加分，不匹配返回 -1 */
+/** Subsequence fuzzy matching: prefix > continuous subsequence > scattered subsequence; extra points for initial and continuous hits, and -1 for no match */
 function fuzzyScore(text: string, query: string): number {
   if (!query) return 0;
   if (text.startsWith(query)) return 100;
@@ -34,17 +34,16 @@ function fuzzyScore(text: string, query: string): number {
   return score;
 }
 
-/** 插入类动作的展示名（选择器占位文案用） */
+/** The display name of the insertion type action (for selector placeholder copy) */
 const TITLE_OF = new Map<string, string>(INSERT_ACTIONS.map(([id, title]) => [id, title]));
 
 /**
- * 合并「转换块类型」与「插入内容」两类斜杠条目并排序（导出供回归测试）。
- *  - inline：行内触发时只保留插入类，避免行内误触整块转换
- *  - settings：用于剔除在设置里被关掉的插入命令（传 null 表示全部启用）
+ * Merge and sort the slash entries of "Convert Block Type" and "Insert Content" (export for regression testing).
+ * - inline: Only the insertion class is retained when triggered inline to avoid accidentally triggering the entire conversion inline
+ * - settings: used to exclude insert commands that are turned off in settings (pass null to enable all)
  *
- * 注意：过滤必须在排序**之前**完成。曾经写成「空查询返回过滤后的 pool、
- * 非空查询从未过滤的 items 里排序」，导致行内只要打了查询词就会泄漏转换类。
- */
+ * NOTE: Filtering must be done ** before sorting **. It was once written as "The empty query returns the filtered pool,
+ * Non-empty queries are sorted from unfiltered items", causing the conversion class to be leaked as long as the query words are entered in the row. */
 export function buildSlashItems(
   query: string,
   inline = false,
@@ -71,9 +70,8 @@ export function buildSlashItems(
 }
 
 /**
- * 斜杠「插入类」动作执行器：按 INSERT_SPECS 的 kind 分派，插入内容但不改块类型。
- * 所有分支都经 insertAt —— 唯一的位置钳制与光标落点出口。
- */
+ * Slash "insert class" action executor: dispatched according to the kind of INSERT_SPECS, insert content without changing the block type.
+ * All branches are passed through insertAt - the only exit for position clamping and cursor landing point. */
 export class BlockInserter {
   constructor(private ctx: BlockEditorPlugin) {}
 
@@ -107,7 +105,7 @@ export class BlockInserter {
         return;
 
       case 'blockref':
-        // 两级选择：先挑笔记，再挑该笔记里的一个块 ID
+        // Two-level selection: first select a note, then select a block ID in the note
         pickNoteWithBlocks(this.ctx.app, (file: TFile) => {
           pickBlock(this.ctx.app, file, (blockId: string) => {
             this.insertAt(editor, pos, this.linkTo(file, '#^' + blockId, spec.embed));
@@ -120,7 +118,7 @@ export class BlockInserter {
     }
   }
 
-  /** 生成笔记链接：交给 Obsidian 生成，自动跟随「使用 Wikilinks」设置与相对路径 */
+  /** Generate note links: leave it to Obsidian to generate, automatically following the "Use Wikilinks" settings and relative paths */
   private linkTo(file: TFile, subpath: string, embed: boolean): string {
     const source = this.ctx.app.workspace.getActiveFile()?.path ?? '';
     const link = this.ctx.app.fileManager.generateMarkdownLink(file, source, subpath || undefined);
@@ -128,16 +126,15 @@ export class BlockInserter {
   }
 
   /**
-   * 在 pos 处插入文本并落光标。
-   * @param caret 光标相对插入起点的偏移；省略或越界时落在插入文本末尾
-   */
+   * Insert text at pos and drop the cursor.
+   * @param caret The offset of the cursor relative to the insertion starting point; when omitted or out of bounds, it falls at the end of the inserted text */
   private insertAt(
     editor: Editor,
     pos: EditorPosition,
     text: string,
     caret?: number
   ): void {
-    // 选择器打开期间文档不应变化；仍钳制一次，避免越界
+    // The document should not change while the selector is open; it is still clamped once to avoid going out of bounds.
     const line = Math.min(pos.line, editor.lineCount() - 1);
     const ch = Math.min(pos.ch, editor.getLine(line).length);
     editor.replaceRange(text, { line, ch });
@@ -147,13 +144,13 @@ export class BlockInserter {
   }
 }
 
-/** 斜杠命令：输入 / 唤起「转换 / 插入」建议。
- *  - `/` 前全是空白（行首 / 缩进 / 列表符后）：全部条目（转换块类型 + 插入附件）
- *  - 其余位置（行内，如 `文字/图`、`sdfs /`）：只给附件插入 4 项
- *  路径形态（C:/ 、https://）、链接 / 行内代码 / 行内数学、
- *  代码块 / 公式块 / 表格 / frontmatter 内一律不触发。 */
+/** Slash command: type / to invoke "Convert/Insert" suggestions.
+ * - All blanks before `/` (beginning of line/indentation/after column character): all entries (conversion block type + insert attachment)
+ * - The remaining positions (inline, such as `text/Figure`, `sdfs /`): only insert 4 items for attachments
+ * Path form (C:/, https://), link/inline code/inline mathematics,
+ * Will not trigger within code block/formula block/table/frontmatter. */
 export class SlashSuggest extends EditorSuggest<SlashItem> {
-  /** 一次性诊断开关：只打第一条，避免每次输入都刷屏 */
+  /** One-time diagnostic switch: only enter the first entry to avoid refreshing the screen every time you enter */
   private static logged = false;
 
   constructor(private ctx: BlockEditorPlugin) {
@@ -161,11 +158,10 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
   }
 
   /**
-   * 从建议上下文**实时**判定是否行内触发，不用实例字段记录。
-   * 理由：实例字段依赖 onTrigger 一定早于 getSuggestions 执行，一旦 Obsidian 复用
-   * 上一次会话或回调顺序变化，就会读到上一轮的脏值（表现为「行内却给出了全部条目」）。
-   * 这里拿 end.ch 之前的文本重跑一次 slashTrigger，结果与触发时刻必然一致。
-   */
+   * Determine whether to trigger inline from the suggestion context **real time** without using instance field records.
+   * Reason: The instance field depends on onTrigger must be executed earlier than getSuggestions, once Obsidian is reused
+   * The last time the session or callback order changes, the dirty values ​​of the previous round will be read (shown as "all entries are given in the line").
+   * Here, take the text before end.ch and re-run slashTrigger. The result must be consistent with the trigger moment. */
   private isInlineContext(sugg: {
     editor: Editor;
     start: EditorPosition;
@@ -185,14 +181,14 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
     const before = editor.getLine(cursor.line).slice(0, cursor.ch);
     const t = slashTrigger(before);
     if (!t) return null;
-    // 行内开关独立：踩到误触发可只关行内，保留行首斜杠
+    // The in-line switch is independent: if you step on the false trigger, you can only turn off the in-line switch and keep the leading slash in the line.
     if (t.inline && !this.ctx.settings.slashInlineCommands) return null;
 
-    // 属性区（frontmatter）不打搅
+    // Do not disturb the attribute area (frontmatter)
     const fmEnd = this.ctx.detector.getFrontmatterEnd(editor);
     if (fmEnd !== -1 && cursor.line <= fmEnd) return null;
 
-    // 容器块内不打搅：代码块（旧行为）+ 公式块 / 表格（行内插入会破版，宁可漏）
+    // Do not disturb the container block: code block (old behavior) + formula block / table (inline insertion will break the version, it is better to leak)
     if (this.ctx.detector.findContainerAt(editor, cursor.line)) return null;
 
     return {
@@ -216,7 +212,7 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
         const line = context.editor.getLine(context.start.line);
         before = line.slice(Math.max(0, context.end.ch - 24), context.end.ch);
       } catch {
-        /* 忽略：诊断字段读不到不影响功能 */
+        /* ignore：If the diagnostic field cannot be read, it does not affect the function. */
       }
       console.log('[block-editor] slash:', {
         before,
@@ -230,8 +226,8 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
   }
 
   renderSuggestion(item: SlashItem, el: HTMLElement): void {
-    // 条目多（转换类 30+ 项），单列会把弹窗拉得很长 → 容器改 3 列网格。
-    // Obsidian 未公开 suggest 容器引用，只能从条目元素上溯一层，加类幂等。
+    // There are many items (30+ items in the conversion class), and a single column will make the pop-up window very long → Change the container to a 3-column grid.
+    // Obsidian does not expose the suggest container reference. It can only trace up one level from the entry element and add idempotent classes.
     const container = el.parentElement;
     if (container && !container.classList.contains('block-editor-slash-grid')) {
       container.classList.add('block-editor-slash-grid');
@@ -245,17 +241,17 @@ export class SlashSuggest extends EditorSuggest<SlashItem> {
     if (!sugg) return;
     const editor = sugg.editor;
 
-    // 先删掉输入的 "/xxx"
+    // First delete the entered "/xxx"
     editor.replaceRange('', sugg.start, sugg.end);
 
-    // 插入类动作：不改块类型，交给执行器（行内同样适用，插入点就是 /xxx 处）
+    // Insertion action: Do not change the block type and hand it over to the executor (the same applies within the line, the insertion point is /xxx)
     if (item.kind === 'insert') {
       this.ctx.inserter.run(item.id, editor, sugg.start);
       return;
     }
 
-    // 兜底：行内模式理论上不会出现转换类条目（buildSlashItems 已过滤），
-    // 真出现了也不能执行——光标在行中间却改写整块是破坏性操作
+    // Bottom line: In theory, there will be no conversion items in inline mode (buildSlashItems has been filtered).
+    // Even if it does appear, it cannot be executed - rewriting the entire block while the cursor is in the middle of the line is a destructive operation.
     if (this.isInlineContext(sugg)) return;
 
     const lineIndex = sugg.start.line;

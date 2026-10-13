@@ -15,18 +15,18 @@ import { safeDecoCompute } from './cm6-deco-guard';
 import { buildColLayout, buildCombinedChanges, buildExtractInsertText, columnToPlainBlock, resolveExtractLine, shouldUnwrapAfterExtract } from './columns-droptarget';
 import type { ColLayoutInfo } from './columns-droptarget';
 
-/** 调试日志：评审要求避免 console 日志，保留 no-op 维持调用点 */
+/** Debug logs: Review requirements avoid console logs and retain no-op to maintain call points */
 function colLog(..._args: unknown[]): void {}
 
-/** 代码围栏起始行（``` 或 ~~~，3 个及以上）；围栏状态机与扫描循环共用，避免逐行重复构造 */
+/** Code fence starting line (``` or ~~~, 3 or more); the fence state machine is shared with the scan loop to avoid line-by-line repeated construction */
 const FENCE_RE = /^\s*(`{3,}|~{3,})/;
-/** hex 颜色（#rgb / #rrggbb / #rrggbbaa），选色输入校验用 */
+/** hex color (#rgb / #rrggbb / #rrggbbaa), used for color selection input verification */
 const HEX_COLOR_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
-/** 处于编辑态的 widget 集合：切换标签页 / 关闭文档时 blur 可能不触发，需兜底写回 */
+/** Widget collection in editing state: blur may not be triggered when switching tabs/closing the document, so you need to write back in detail */
 const editingWidgets = new Set<ColumnsWidget>();
 
-/** 把所有仍在编辑态的栏内容写回文档（active-leaf-change / quit / onunload 调用） */
+/** Write all column contents still in editing state back to the document (active-leaf-change / quit / onunload call) */
 export function flushEditingColumns(): void {
   for (const w of [...editingWidgets]) {
     w.flushEdit();
@@ -34,62 +34,62 @@ export function flushEditingColumns(): void {
   }
 }
 
-/* ===== 分栏编辑态 ⇄ Obsidian 编辑器命令 桥接 =====
+/* ===== Column editing state ⇄ Obsidian editor command bridge =====
  *
- * 问题：在分栏中做文本编辑操作时，动作不会落到分栏，而是落到分栏外面的文档：
- *   - 快捷键 / 右键「文本格式」加粗、高亮等：标记语法写到分栏外（分栏下一行）；
- *   - 右键「剪切 / 粘贴」：内容被 CM 编辑器接管（落到文档而非分栏）；
- *   - 右键「全选」：选中整篇文档而不是分栏内容。
+ * Problem: When performing a text editing operation in a column, the action will not fall to the column, but to the document outside the column:
+ * - Shortcut key/right-click "Text Format" to bold, highlight, etc.: markup syntax is written outside the column (the next line of the column);
+ * - Right-click "Cut/Paste": the content is taken over by the CM editor (falls into the document instead of the column);
+ * - Right-click "Select All": select the entire document instead of the column content.
  *
- * 根因：分栏编辑态是普通 <textarea>，而它位于 CM6 的 .cm-content 内部：
- *   1) 格式命令：快捷键与「文本格式」菜单最终都调用 Obsidian 的
- *      Editor.toggleMarkdownFormatting(format)，该方法作用于 CM 编辑器选区，
- *      而 textarea 的文本并不在 CM 文档里 → 语法落到分栏外。
- *   2) 剪切/粘贴：Obsidian 在 window 上监听 paste/cut，其"原生编辑元素"判定
- *      只覆盖 <input> 与 contentEditable（<textarea> 不在列），于是从 textarea
- *      冒泡上去的剪贴板事件被接管，作用到 CM 编辑器。
- *   3) 全选：菜单项由 Editor.setSelection(整篇范围) 实现，同样作用于 CM 编辑器。
+ * Root cause: The column editing state is a normal <textarea>, and it is located inside .cm-content of CM6:
+ * 1) Format commands: shortcut keys and the "Text Format" menu eventually call Obsidian's
+ * Editor.toggleMarkdownFormatting(format), this method acts on the CM editor selection,
+ * The text of the textarea is not in the CM document → the syntax falls outside the columns.
+ * 2) Cut/paste: Obsidian listens for paste/cut on window, and its "native editing element" determination
+ * Only covers <input> and contentEditable (<textarea> is not listed), so from textarea
+ * The clipboard event that bubbles up is taken over and applied to the CM editor.
+ * 3) Select all: The menu item is implemented by Editor.setSelection (whole article scope), which also works on the CM editor.
  *
- * 修复：把这几条路径分别在各自收敛点重定向到分栏 textarea——
- *   1) Editor.toggleMarkdownFormatting → 改写 textarea 选区（标记对）；
- *   2) textarea 上的 copy/cut/paste 事件 stopPropagation（仅阻止向上冒泡，
- *      不 preventDefault），交回浏览器对 textarea 的原生剪贴板行为；
- *   3) Editor.setSelection 收到"整篇范围"请求时改为选中 textarea 全文；
- *   4) 命令型 API（getSelection / replaceSelection / replaceRange / getRange /
- *      getCursor / setCursor / posToOffset / offsetToPos / somethingSelected）→
- *      落到 textarea，使第三方插件的"插入模板 / 包裹选区"等增强命令作用于分栏。
- * 上述补丁作用于 Editor 原型（全局）：均按「调用方即该栏所属编辑器」收敛，
- * 其他分屏编辑器的同名调用不受影响、回落原实现。
- * 编辑态结束时解除目标，行为恢复为原生。
- * 不支持：补全 / 联想类（EditorSuggest 与 CM6 扩展需要真实编辑器视图）、以及
- * 直接用 editor.cm 操作 CM6 的插件——textarea 没有 CM6 运行时，无法桥接。 */
+ * Fix: Redirect these paths to column textarea at their respective convergence points--
+ * 1) Editor.toggleMarkdownFormatting → rewrite textarea selection (mark pair);
+ * 2) copy/cut/paste event stopPropagation on textarea (only prevents upward bubbling,
+ * does not preventDefault), returns the browser's native clipboard behavior for textarea;
+ * 3) Editor.setSelection changes to select the full text of the textarea when receiving the "whole range" request;
+ * 4) Command API (getSelection/replaceSelection/replaceRange/getRange/
+ *getCursor/setCursor/posToOffset/offsetToPos/somethingSelected) →
+ * Dropped into textarea to enable enhanced commands such as "Insert Template/Wrap Selection" of third-party plug-ins to work on columns.
+ * The above patches apply to the Editor prototype (global): all converge according to "The caller is the editor to which this column belongs".
+ * Calls with the same name in other split-screen editors are not affected and fall back to the original implementation.
+ * When the editing state ends, the target is released and the behavior returns to native.
+ * Not supported: completion/association classes (EditorSuggest and CM6 extensions require real editor views), and
+ * Directly use editor.cm to operate the CM6 plug-in - textarea cannot be bridged without CM6 running. */
 
-/** 当前正在编辑的分栏 textarea 及其所属 Obsidian 编辑器（进入编辑态登记，
- *  退出/失焦注销）。Editor 原型补丁是全局的：必须记下所属编辑器，使桥接只对
- *  该编辑器的调用生效，否则其他分屏的编辑器调用同名 API 会被误重定向进本栏。 */
+/** The column textarea currently being edited and its Obsidian editor (enter the editing state to register,
+ *Exit/out of focus logout). Editor prototype patch is global: the editor to which it belongs must be recorded so that the bridge is only for
+ * The call to this editor takes effect, otherwise other split-screen editors that call the API with the same name will be redirected to this column by mistake. */
 let columnEditTarget: { ta: HTMLTextAreaElement; owner: unknown } | null = null;
 
-/** 登记 / 注销分栏编辑目标（由 ColumnsWidget 的编辑态生命周期调用）；
- *  owner 为该栏所属的 Obsidian 编辑器实例；取不到时传 null（不按所属收敛）。 */
+/** Register/unregister the column editing target (called by the editing life cycle of ColumnsWidget);
+ * owner is the Obsidian editor instance to which the column belongs; if it cannot be obtained, pass null (no convergence according to ownership). */
 export function setColumnEditTarget(ta: HTMLTextAreaElement | null, owner: unknown = null): void {
   columnEditTarget = ta ? { ta, owner } : null;
 }
 
-/** 当前可用的分栏编辑目标（已脱离 DOM 的旧实例视为无效） */
+/** Currently available column editing targets (old instances that have left the DOM are considered invalid) */
 function activeColumnTarget(): { ta: HTMLTextAreaElement; owner: unknown } | null {
   const t = columnEditTarget;
   return t && t.ta.isConnected ? t : null;
 }
 
-/** 调用方是否就是登记该栏的编辑器。owner 未知（null）时一律接管，
- *  保证取不到归属信息时功能不退化。 */
+/** Whether the caller is the editor who registered this column. When owner is unknown (null), it will be taken over.
+ * Ensure that the function does not degrade when the attribution information cannot be obtained. */
 function isTargetEditor(target: { owner: unknown }, self: unknown): boolean {
   return target.owner == null || target.owner === self;
 }
 
-/** textarea 原生编辑事件守卫：阻止 copy/cut/paste 与 Mod+A 冒泡到编辑器层。
- *  仅 stopPropagation（不 preventDefault），浏览器对 textarea 的原生剪贴板 /
- *  全选行为不受影响。 */
+/** textarea native editing event guard: prevent copy/cut/paste and Mod+A from bubbling to the editor layer.
+ * Only stopPropagation (not preventDefault), the browser's native clipboard for textarea /
+ * Select all behavior is not affected. */
 function guardTextareaEditing(ta: HTMLTextAreaElement): void {
   for (const type of ['copy', 'cut', 'paste']) {
     ta.addEventListener(type, (e) => e.stopPropagation());
@@ -99,27 +99,27 @@ function guardTextareaEditing(ta: HTMLTextAreaElement): void {
   });
 }
 
-/** 编辑态 textarea 行数跟随内容：textarea 不原生自适应，`rows` 决定其固有高度。
- *  作为未挂载（拿不到 scrollHeight）时的兜底固有高度。 */
+/** The number of lines of the textarea in the editing state follows the content: the textarea is not natively adaptive, and `rows` determines its inherent height.
+ * As the inherent height of the pocket when it is not mounted (scrollHeight cannot be obtained). */
 function syncTextareaRows(ta: HTMLTextAreaElement): void {
   const lines = Math.max(2, ta.value.split('\n').length);
   if (ta.rows !== lines) ta.rows = lines;
 }
 
-/** 让编辑态 textarea 高度贴合内容（textarea 不原生自适应）。
- *  分栏是 column flex 容器、textarea 用 flex:0 0 auto，故这里的显式高度即是
- *  该栏的高度来源，进而决定整行（row）高度——保证编辑态整块以内容最多的栏为准，
- *  而不是被 min-height 截成约 3 行。未挂载时拿不到 scrollHeight，跳过（此时
- *  由 syncTextareaRows 的固有高度兜底）。 */
+/** Make the editable textarea highly adaptable to the content (textarea is not natively adaptive).
+ * The column is a column flex container, and the textarea uses flex:0 0 auto, so the explicit height here is
+ * The source of the height of the column determines the height of the entire row - ensure that the entire block in the editing state is based on the column with the most content.
+ * instead of being truncated by min-height into about 3 lines. When not mounted, scrollHeight cannot be obtained and skipped (at this time
+ * Covered by the inherent height of syncTextareaRows). */
 function autosizeTextarea(ta: HTMLTextAreaElement): void {
   if (!ta.isConnected) return;
   ta.setCssStyles({ height: 'auto' });
   const h = ta.scrollHeight;
-  // 无排版环境（如 jsdom / 元素不可见）scrollHeight 为 0：保持 auto，由 rows 决定固有高度
+  // No typesetting environment (such as jsdom / element is invisible) scrollHeight is 0: keep auto, and the inherent height is determined by rows
   if (h > 0) ta.style.height = h + 'px';
 }
 
-/** format 参数（与 Obsidian 编辑器命令一致）→ 行内标记对 */
+/** format parameter (consistent with Obsidian editor command) → inline markup pair */
 const FORMAT_MARKERS: Record<string, [string, string]> = {
   bold: ['**', '**'],
   italic: ['*', '*'],
@@ -129,10 +129,10 @@ const FORMAT_MARKERS: Record<string, [string, string]> = {
   comment: ['%%', '%%'],
 };
 
-/** 把标记对应用到 textarea 选区：已包裹则取消；有选区则包裹；无选区插入并把光标放中间 */
+/** Apply mark pairs to the textarea selection: cancel if it is wrapped; wrap if there is a selection; insert if there is no selection and put the cursor in the middle */
 function applyMarkerToTextarea(ta: HTMLTextAreaElement, open: string, close: string): void {
-  // 显示值中的行内标记可能是不可见字符（sentinel）：先还原为真实字符再判断/包裹
-  // （等长替换，选区下标不变）；收尾再按光标位置重新隐藏
+  // The inline mark in the displayed value may be an invisible character (sentinel): first restore it to the real character and then judge/wrap it
+  // (Replace with equal length, the selection subscript remains unchanged); at the end, press the cursor position to hide again
   const v = desentinelize(ta.value);
   const s = ta.selectionStart;
   const e = ta.selectionEnd;
@@ -150,13 +150,13 @@ function applyMarkerToTextarea(ta: HTMLTextAreaElement, open: string, close: str
     ta.value = v.slice(0, s) + open + close + v.slice(e);
     ta.selectionStart = ta.selectionEnd = s + open.length;
   }
-  // 复用 textarea 的 input 监听同步 widget 内存文本（文档写回仍在失焦时进行）
+  // Reuse the textarea's input to monitor the synchronized widget memory text (the document writeback is still performed when it is out of focus)
   ta.dispatchEvent(new Event('input', { bubbles: true }));
   ta.focus({ preventScroll: true });
   syncMarkerDisplay(ta);
 }
 
-/** Obsidian 位置（line/ch，均 0 基）→ 文本偏移；越界钳制到文本末尾 */
+/** Obsidian position (line/ch, both 0-based) → text offset; out-of-bounds clamping to the end of the text */
 function posToOffsetIn(text: string, pos: { line?: number; ch?: number } | null | undefined): number {
   if (!pos || typeof pos.line !== 'number') return 0;
   const lines = text.split('\n');
@@ -167,7 +167,7 @@ function posToOffsetIn(text: string, pos: { line?: number; ch?: number } | null 
   return off + ch;
 }
 
-/** 文本偏移 → Obsidian 位置（line/ch，均 0 基） */
+/** text offset → Obsidian position (line/ch, both 0 base) */
 function offsetToPosIn(text: string, offset: number): { line: number; ch: number } {
   const off = Math.max(0, Math.min(offset, text.length));
   const head = text.slice(0, off);
@@ -176,8 +176,8 @@ function offsetToPosIn(text: string, offset: number): { line: number; ch: number
   return { line, ch };
 }
 
-/** 把 [from, to) 替换为 text 应用到栏内 textarea（命令型 API 桥接用）：
- *  写入真实字符 + 光标落在插入内容之后 + 复用 input 监听同步内存文本与高度。 */
+/** Replace [from, to) with text and apply it to the column textarea (for command API bridging):
+ * Write real characters + The cursor falls after the inserted content + Multiplex input to monitor the synchronized memory text and height. */
 function applyTextToTextarea(ta: HTMLTextAreaElement, from: number, to: number, text: string): void {
   const v = desentinelize(ta.value);
   const a = Math.max(0, Math.min(from, v.length));
@@ -185,28 +185,28 @@ function applyTextToTextarea(ta: HTMLTextAreaElement, from: number, to: number, 
   ta.value = v.slice(0, a) + text + v.slice(b);
   const caret = a + text.length;
   ta.setSelectionRange(caret, caret);
-  // 复用 textarea 的 input 监听同步 widget 内存文本（文档写回仍在失焦时进行）
+  // Reuse the textarea's input to monitor the synchronized widget memory text (the document writeback is still performed when it is out of focus)
   ta.dispatchEvent(new Event('input', { bubbles: true }));
   ta.focus({ preventScroll: true });
   syncMarkerDisplay(ta);
 }
 
-/** 已打过补丁的 Editor 原型（避免重复包装同一原型） */
+/** Patched Editor prototype (to avoid wrapping the same prototype repeatedly) */
 const patchedEditorProtos = new WeakSet<object>();
-/** 原型补丁记录：卸载时用于还原，避免插件卸载后仍改写 Editor 原型行为 */
+/** Prototype patch record: used for restoration when uninstalling to avoid rewriting the Editor prototype behavior after the plug-in is uninstalled */
 const editorProtoPatches: {
   proto: Record<string, unknown>;
   origFormat: unknown;
   origSetSelection: unknown;
   patchedSetSelection: boolean;
-  /** 命令型 API 桥接的 {方法名, 原实现}，卸载时逐条还原 */
+  /** {method name, original implementation} of command API bridge, restored one by one when uninstalling */
   extra?: { name: string; orig: unknown }[];
 }[] = [];
 
-/** 桥接处理器返回该值 = 本次调用不归桥接管，交回原实现 */
+/** The bridge processor returns this value = This call will not be taken over by the bridge and will be returned to the original implementation. */
 const BRIDGE_MISS = Symbol('column-bridge-miss');
 
-/** setSelection 请求是否恰为「全选整篇文档」（Obsidian 编辑器菜单「全选」的实现方式） */
+/** The setSelection request is exactly "select the entire document" (the implementation of "select all" in the Obsidian editor menu) */
 function isWholeDocSelection(editor: unknown, from: unknown, to: unknown): boolean {
   const f = from as { line?: number; ch?: number } | null;
   const t = to as { line?: number; ch?: number } | null;
@@ -220,7 +220,7 @@ function isWholeDocSelection(editor: unknown, from: unknown, to: unknown): boole
   }
 }
 
-/** 安装编辑器命令桥接（幂等；需要有活动的编辑器实例才能取到原型） */
+/** Install editor command bridge (idempotent; requires an active editor instance to get the prototype) */
 export function installColumnsFormatBridge(app: App): void {
   const editor = (app.workspace.activeEditor as { editor?: unknown } | null)?.editor;
   if (!editor) return;
@@ -237,7 +237,7 @@ export function installColumnsFormatBridge(app: App): void {
     }
     return (origFormat as (f: string) => unknown).call(this, format);
   };
-  // 右键菜单「全选」：编辑器收到"整篇范围"选区请求时改为选中分栏 textarea 全文
+  // Right-click menu "Select All": When the editor receives a "whole article range" selection request, it selects the full text area of the column instead.
   const origSetSelection = proto.setSelection;
   const patchedSetSelection = typeof origSetSelection === 'function';
   if (patchedSetSelection) {
@@ -252,13 +252,13 @@ export function installColumnsFormatBridge(app: App): void {
     };
   }
 
-  // ===== 命令型 API 桥接 =====
-  // 第三方插件的「编辑增强」多经 Editor API 操作"当前编辑器"（插入模板、包裹选区、
-  // 定位改写等）。栏内编辑是普通 textarea，不是 CM6 视图，这些调用原本落到分栏外面
-  // 的文档上。此处把文本视图重定向到栏内 textarea（仅编辑态生效，未编辑时一律回落
-  // 原实现）；位置/偏移一律在"该栏文本"坐标系内解释。
-  // 边界：文档级 API（getValue/setValue/getLine/lineCount 等）不改，仍指向真实文档；
-  // 直接用 editor.cm（CM6 视图）或 EditorSuggest（补全/联想）的插件不走此桥。
+  // ===== Command API Bridge =====
+  // The "Editing Enhancement" of third-party plug-ins can operate the "current editor" through the Editor API (inserting templates, wrapping selections,
+  // Positioning rewrite, etc.). In-column editing is a normal textarea, not a CM6 view. These calls originally fell outside the column.
+  // on the document. Here, the text view is redirected to the textarea in the column (only takes effect in the editing state, and will fall back when not edited)
+  // Original implementation); position/offset are always interpreted in the coordinate system of "text in this column".
+  // Boundary: The document-level API (getValue/setValue/getLine/lineCount, etc.) does not change and still points to the real document;
+  // Directly use editor.cm (CM6 view) or EditorSuggest (completion/association) plug-ins without taking this bridge.
   const extra: { name: string; orig: unknown }[] = [];
   const patchMethod = (
     name: string,
@@ -309,7 +309,7 @@ export function installColumnsFormatBridge(app: App): void {
     const off =
       which === 'from' || which === 'anchor'
         ? ta.selectionStart
-        : ta.selectionEnd; // 默认（含 'to' / 'head'）取选区末端
+        : ta.selectionEnd; // Default (including 'to' / 'head') selects the end of the region
     return offsetToPosIn(desentinelize(ta.value), off);
   });
   patchMethod('setCursor', (ta, args) => {
@@ -336,7 +336,7 @@ export function installColumnsFormatBridge(app: App): void {
   editorProtoPatches.push({ proto, origFormat, origSetSelection, patchedSetSelection, extra });
 }
 
-/** 还原 installColumnsFormatBridge 对 Editor 原型的改写（插件卸载时调用） */
+/** Restore the rewrite of Editor prototype by installColumnsFormatBridge (called when the plug-in is uninstalled) */
 export function uninstallColumnsFormatBridge(): void {
   for (const p of editorProtoPatches) {
     p.proto.toggleMarkdownFormatting = p.origFormat;
@@ -348,15 +348,15 @@ export function uninstallColumnsFormatBridge(): void {
 }
 
 
-/** 分栏外壳标记行（支持任意层引用前缀；宽度参数 `|NN-NN` 可选，缺失时均分） */
+/** Column shell mark rows (supports any layer reference prefix; the width parameter `|NN-NN` is optional, evenly divided when missing) */
 const COL_START_RE = /^((?:>\s*)+)\[!multi-column(?:\|[^\]]*)?\][^\n]*$/;
-/** 任意引用行 */
+/** Any quoted line */
 const QUOTE_RE = /^>\s?/;
-/** 宽匹配：诊断用 */
+/** Wide match: for diagnostic purposes */
 const COL_LOOSE_RE = /\[!multi-column(?:\|[^\]]*)?\]/;
 
-/** 分栏外壳外观参数（H1）：gap 栏间距 / valign 垂直对齐 / radius 圆角 / border 边框。
- *  仅显式设置的项生效（缺省回退 body 上的设置默认值 CSS 变量）。 */
+/** Column shell appearance parameters (H1): gap column spacing / valign vertical alignment / radius rounded corner / border border.
+ * Only explicitly set items take effect (default fallback for setting default CSS variables on body). */
 export interface ColumnsOpts {
   gap?: number;
   valign?: 'top' | 'center' | 'bottom' | 'stretch';
@@ -365,39 +365,39 @@ export interface ColumnsOpts {
 }
 
 interface ColumnsRegion {
-  /** 起始标记行号（0-based） */
+  /**Start mark line number (0-based) */
   startLine: number;
-  /** 末行行号（0-based） */
+  /** Last line number (0-based) */
   endLine: number;
-  /** 起始标记行 from（widget 定位键） */
+  /** Starting tag line from (widget positioning key) */
   startPos: number;
-  /** 末行 to（块替换范围） */
+  /** Last line to (block replacement range) */
   endPos: number;
-  /** endPos 是否吞掉了末尾换行（写回时插入文本需补换行） */
+  /** endPos whether the end newline is swallowed (newlines need to be added when inserting text back) */
   hasBreak: boolean;
-  /** 各栏宽度百分比（来自标记元数据；多行时按行顺序扁平存放） */
+  /** Percentage of width of each column (from tag metadata; if there are multiple rows, they are stored flat in row order) */
   widths?: number[];
-  /** 每栏背景色（双色模型：light 浅色 / dark 深色，无背景为 null；长度与 segments 一致） */
+  /** Background color of each column (two-color model: light / dark, null if no background; length consistent with segments) */
   bgs?: (ColBg | null)[];
-  /** 外壳外观参数（来自 multi-column 元数据；H1） */
+  /** Shell appearance parameters (from multi-column metadata; H1) */
   opts?: ColumnsOpts;
-  /** 二维行：每行的栏数（存在 `>> [!colrow]` 行标记时为多行，空数组 = 单行） */
+  /** Two-dimensional row: number of columns in each row (multiple rows when `>> [!colrow]` row mark exists, empty array = single row) */
   rows?: number[];
-  /** 每栏的 markdown 文本 */
+  /** markdown text for each column */
   segments: string[];
 }
 
 interface ColumnsState {
-  /** 首次计算是否已完成（create 拿不到文档，首次事务必须强制计算） */
+  /** Whether the first calculation has been completed (create cannot get the document, the first transaction must be forced to calculate) */
   initialized: boolean;
   regions: ColumnsRegion[];
   decorations: DecorationSet;
 }
 
-/** 强制重算装饰（编辑器首次挂载或设置切换时 StateField 需要补算） */
+/** Forced recalculation of decorations (StateField needs to be recalculated when the editor is first mounted or settings are switched) */
 const forceRecompute = StateEffect.define<null>();
 
-/** 最近一次构建的状态（诊断命令读取） */
+/** The status of the latest build (read by diagnostic command) */
 const lastDiagnostics: {
   regions: number;
   markerLines: number;
@@ -409,7 +409,7 @@ export function getColumnsDiagnostics(): typeof lastDiagnostics {
   return { ...lastDiagnostics, segmentsPreview: [...lastDiagnostics.segmentsPreview] };
 }
 
-/** 统计一行开头引用前缀层数（`>> > 文本` → 3；`> 文本` → 1；无前缀 → 0） */
+/** Count the number of reference prefix levels at the beginning of a line (`>> > text` → 3; `> text` → 1; no prefix → 0) */
 function countQuoteDepth(text: string): number {
   const m = text.match(/^(?:>\s*)+/);
   if (!m) return 0;
@@ -418,18 +418,18 @@ function countQuoteDepth(text: string): number {
   return depth;
 }
 
-/** 按引用深度剥前缀：只剥到栏级（colDepth 层），保留栏内相对前缀。
- *  有栏时 colDepth = 外壳层数 + 1（`>>`），无栏时 = 外壳层数（`>`）。
- *  `>>> [!note]`（栏级 2）→ 保留 `> [!note]`；`>> 文本` → `文本`；
- *  代码块内以 `>` 开头的行（`>> > code`）→ 保留 `> code`，不误剥。 */
+/** Strip prefixes by reference depth: strip only to the column level (colDepth layer), retaining relative prefixes within the column.
+ * When there is a column, colDepth = the number of shell layers + 1 (`>>`), when there is no column = the number of shell layers (`>`).
+ * `>>> [!note]` (column level 2) → reserved `> [!note]`; `>> text` → `text`;
+ * The lines starting with `>` in the code block (`>> > code`) → retain `> code` and do not strip them by mistake. */
 function stripToColLevel(text: string, colDepth: number): string {
   const m = text.match(/^(?:>\s*)+/);
   if (!m) return text;
   const depth = countQuoteDepth(text);
   if (depth <= colDepth) return text.slice(m[0].length);
   const keep = depth - colDepth;
-  // 找到要保留的第一个 `>`（第 depth - keep + 1 个），保留它到前缀末尾的原样片段，
-  // 以保留原有空格格式（`>>> ` → `> `），避免拼接时丢失空格
+  // Find the first `>` to keep (th depth - keep + 1), keep it intact to the end of the prefix,
+  // to retain the original space format (`>>> ` → `> `) to avoid losing spaces during splicing
   const firstKeep = depth - keep + 1;
   let startIdx = -1;
   let seen = 0;
@@ -446,33 +446,32 @@ function stripToColLevel(text: string, colDepth: number): string {
   return kept + text.slice(m[0].length);
 }
 
-/** 计算分栏区间 endPos 与是否吞掉末尾换行（H6 增量平移复用；语义与原 push 完全一致） */
+/** Calculate the endPos of the column interval and whether to swallow the end newline (H6 incremental translation multiplexing; the semantics are exactly the same as the original push) */
 function computeEndPos(
   doc: { lines: number; length: number; line(n: number): { from: number; to: number; text: string } },
   endLine: number
 ): { endPos: number; hasBreak: boolean } {
   const hasBreak = endLine + 1 < doc.lines;
   let endPos: number;
-  let replacedBreak = false; // endPos 是否吞掉了末尾换行（写回时插入文本需补换行）
+  let replacedBreak = false; // endPos has swallowed the newline at the end (newline needs to be added when inserting text when writing back)
   if (hasBreak && (endLine + 2 < doc.lines || doc.line(endLine + 2).text !== '')) {
-    // 分栏后仍有内容行：吞掉分栏末行换行，止于下一行行首
+    // There are still lines of content after the column division: swallow the last line of the column and wrap it, ending at the beginning of the next line
     endPos = doc.line(endLine + 2).from;
     replacedBreak = true;
   } else if (hasBreak) {
-    // 分栏后仅剩末尾空行（方案一）：不吞末尾换行位，末尾空行留在 widget 外可停靠
+    // After the column is divided, only the last blank line remains (Option 1): Do not swallow the last line break bit, and the last blank line remains outside the widget and can be docked.
     endPos = doc.length - 1;
   } else {
-    // 分栏即文档最后一行（Obsidian 编辑器 doc 末尾总有 \n，此分支实际不触发）
+    // The column is the last line of the document (there is always \n at the end of the Obsidian editor doc, and this branch is not actually triggered)
     endPos = doc.line(endLine + 1).to;
   }
   return { endPos, hasBreak: replacedBreak };
 }
 
 /**
- * 扫描文档中的分栏区间（代码围栏内的标记不生效）。
- * 深度无关：栏头 = 区间内任何含 [!col] 的引用行；内容剥掉全部引用前缀。
- * stats 可选：顺带统计包含分栏标记字样的行数（诊断用），避免第二遍全行遍历。
- */
+ * Scan the column interval in the document (marks within the code fence are not effective).
+ * Depth-independent: Column header = any reference line containing [!col] in the range; the content is stripped of all reference prefixes.
+ * stats optional: Count the number of rows containing column mark words (for diagnosis) to avoid the second full row traversal. */
 function scanRegions(
   doc: {
     lines: number;
@@ -484,7 +483,7 @@ function scanRegions(
   return scanRegionsIn(doc, stats, 0, doc.lines - 1);
 }
 
-/** 回溯区间起点上方至多 300 行，判断起点是否位于未闭合代码围栏内 */
+/** Backtrack up to 300 lines above the starting point of the interval to determine whether the starting point is within the unclosed code fence */
 function findOpenFence(
   doc: { lines: number; line(n: number): { from: number; to: number; text: string } },
   startLine: number
@@ -504,9 +503,9 @@ function findOpenFence(
   return fenceCh;
 }
 
-/** 区间扫描：仅在 [startLine, endLine] 内查找分栏外壳（H6 增量重扫）。
- *  围栏状态回溯：区间起点可能落在未闭合代码围栏内，向上回溯至多 300 行统计
- *  未闭合围栏，避免围栏内的示例分栏文本被误识别（覆盖常见场景）。 */
+/** Interval scan: only find column shells within [startLine, endLine] (H6 incremental rescan).
+ * Fence status backtracking: The starting point of the interval may fall within the unclosed code fence, and up to 300 lines of statistics can be traced back.
+ * The fence is not closed to prevent the sample column text within the fence from being misrecognized (covering common scenarios). */
 function scanRegionsIn(
   doc: {
     lines: number;
@@ -523,15 +522,15 @@ function scanRegionsIn(
 
   const push = (endLine: number) => {
     if (start === -1) return;
-    // 外壳引用深度：`> [!multi-column]` → 1，嵌套在其它 callout 内时更深。
-    // 栏级深度 = 外壳深度 + 1（子栏 `[!col]` 比外壳多一层引用）；
-    // 无 col 的整块结构内容直接挂在外壳下，栏级 = 外壳深度。
+    // Shell reference depth: `> [!multi-column]` → 1, deeper when nested in other callouts.
+    // Column level depth = shell depth + 1 (subcolumn `[!col]` has one more reference than the shell);
+    // The entire structure content without col is hung directly under the shell, column level = shell depth.
     const shellDepth = countQuoteDepth(doc.line(start + 1).text);
     const dividers: number[] = [];
     const rowMarks: number[] = [];
     const bgs: (ColBg | null)[] = [];
-    // 识别栏头与行标记时同步感知代码围栏：围栏内出现的 `[!col]` / `[!colrow]`
-    // 文本（如代码示例）不视为新栏 / 新行
+    // Synchronously sense code fences when identifying column headers and row marks: `[!col]` / `[!colrow]` appearing within the fence
+    // Text (such as code examples) is not treated as a new column/line
     let divFence: string | null = null;
     for (let i = start + 1; i <= endLine; i++) {
       const text = doc.line(i + 1).text;
@@ -552,18 +551,18 @@ function scanRegionsIn(
       }
       if (/\[!col(?:\|[^\]]*)?\]/.test(text)) {
         dividers.push(i);
-        // 解析每栏背景色元数据：`> [!col|bg=#ffe8e8]` → ColBg（仅 bg 时深色自动推导）
+        // Parse the background color metadata of each column: `> [!col|bg=#ffe8e8]` → ColBg (dark color is automatically derived only when bg is used)
         const m = text.match(/\[!col\|([^\]]*)\]/);
         bgs.push(parseColBgMeta(m ? m[1] : ''));
       }
     }
-    // 二维行切分：有 colrow 时按行分组（行内再按栏头切段）；
-    // 无 colrow 时整块为单行（向后兼容老笔记）。
+    // Two-dimensional row segmentation: group by row when colrow is present (cut into segments by column header within the row);
+    // Without colrow, the entire block is a single line (backwards compatible with old notes).
     const rowBounds = rowMarks.length ? [start, ...rowMarks, endLine + 1] : [start, endLine + 1];
     const segments: string[] = [];
     const rows: number[] = [];
-    // 有 col 子栏时跳过行内 k=0 段（行首到第一个 col 之间的结构空白行，非栏）；
-    // 无 col 时整行（k=0）即唯一内容段。
+    // When there is a col sub-column, skip the k=0 segment in the row (the structural blank row between the beginning of the row and the first col, not the column);
+    // Without col, the entire row (k=0) is the only content segment.
     const colDepth = shellDepth + (dividers.length > 0 ? 1 : 0);
     for (let ri = 0; ri < rowBounds.length - 1; ri++) {
       const rowStart = rowBounds[ri];
@@ -573,8 +572,8 @@ function scanRegionsIn(
       const firstSeg = rowDivs.length > 0 ? 1 : 0;
       for (let k = firstSeg; k < bounds.length - 1; k++) {
         const lines: string[] = [];
-        // 感知代码围栏：围栏内行同样按栏级剥前缀（保留相对部分），
-        // 避免代码块内以 `>` 开头的行被当作引用剥光。
+        // Aware code fence: lines within the fence also strip prefixes by column level (retaining the relative part),
+        // Avoid lines starting with `>` within a code block from being stripped as references.
         let segFence: string | null = null;
         for (let i = bounds[k] + 1; i < bounds[k + 1]; i++) {
           const text = doc.line(i + 1).text;
@@ -591,34 +590,34 @@ function scanRegionsIn(
           lines.push(stripped);
         }
         while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
-        // 每栏段即使为空也保留为 segments 元素（空字符串）：
-        // 新增的空栏（`> [!col]` 后无内容）必须参与 widget 栏数，
-        // 否则 widget 栏数 < 文档实际栏数，新栏在实时预览不可见。
-        // 段尾空行清理逻辑保留在上一行 while 中。
+        // Each column segment is retained as a segments element (an empty string) even if it is empty:
+        // The newly added empty column (no content after `> [!col]`) must be added to the number of widget columns.
+        // Otherwise, the number of widget columns < the actual number of columns in the document, the new columns will not be visible in the Live Preview.
+        // The blank line cleaning logic at the end of the paragraph remains in the previous line while.
         segments.push(lines.join('\n'));
       }
       rows.push(bounds.length - 1 - firstSeg);
     }
-    // 有 col 子栏（哪怕全空）或存在非空内容段时才渲染 widget：
-    // 孤立 multi-column 标记（无任何 col 且无内容）不渲染，避免替换标记行干扰编辑（与原行为一致）。
+    // The widget is only rendered when there is a col subcolumn (even if it is completely empty) or there is a non-empty content segment:
+    // Isolated multi-column tags (without any col and no content) are not rendered to avoid replacing the tag rows from interfering with editing (consistent with the original behavior).
     if (segments.length && (dividers.length > 0 || segments.some((s) => s.trim() !== ''))) {
-      // 范围约定与 Obsidian 渲染块一致：分栏后仍有内容行时吞掉末尾换行
-      // （[标记行首, 下一行首)）；若止步于本行行尾，会被外层的原生渲染块
-      // 装饰完整包含而被 CM6 丢弃。
-      // 方案一（分栏下方无内容时光标可越过）：分栏为文档最后内容时，endPos
-      // 保留末尾换行位不吞，保证 widget 之后始终有可停靠光标位——分栏后仅剩
-      // 末尾空行时，末尾空行 from === doc.length，替换到该处会让 widget 贴到
-      // 文末，ArrowDown 原地不动、点击也被忽略；改为止于 doc.length - 1
-      // （末尾换行符位），末尾空行留在 widget 外即可停靠。
-      // （H6 提取 computeEndPos，增量平移复用同一语义）
+      // The scope convention is consistent with the Obsidian rendering block: swallow the trailing newline if there are still content lines after the column.
+      // ([mark the beginning of the line, the beginning of the next line)); if it stops at the end of this line, it will be blocked by the outer native rendering block.
+      // Decoration is included entirely and discarded by CM6.
+      // Option 1 (the cursor can be crossed when there is no content below the column): When the column is the last content of the document, endPos
+      // Keep the line break bit at the end without swallowing it to ensure that there is always a dockable cursor bit after the widget - only the remaining line breaks after column splitting
+      // When there is a blank line at the end, the blank line at the end is from === doc.length, and replacing it there will make the widget stick to
+      // At the end of the article, ArrowDown remains in place and clicks are ignored; it is changed to doc.length - 1
+      // (the trailing newline character bit), and the trailing blank line can be docked by leaving it outside the widget.
+      // (H6 extracts computeEndPos, and incremental translation reuses the same semantics)
       const endInfo = computeEndPos(doc, endLine);
-      const endPos = endInfo.endPos; // endPos 是否吞掉了末尾换行（写回时插入文本需补换行）
+      const endPos = endInfo.endPos; // endPos has swallowed the newline at the end (newline needs to be added when inserting text when writing back)
       const replacedBreak = endInfo.hasBreak;
       let widths: number[] | undefined;
       let opts: ColumnsOpts | undefined;
       const meta = doc.line(start + 1).text.match(/\[!multi-column\|([^\]]*)\]/);
       if (meta) {
-        // 宽度参数（多行 `60-40/50-50`，单行 `60-40`）数量与栏段数一致时采用
+        // Used when the number of width parameters (multi-line `60-40/50-50`, single-line `60-40`) is consistent with the number of columns
         const wm = meta[1].match(/^(\d+(?:-\d+)+(?:\/\d+(?:-\d+)+)*)/);
         if (wm) {
           const groups = wm[1].split('/').map((g) => g.split('-').map((x) => Number(x)));
@@ -627,7 +626,7 @@ function scanRegionsIn(
             widths = flat;
           }
         }
-        // H1 外观参数：gap / valign / radius / border（显式设置才消费）
+        // H1 appearance parameters: gap / valign / radius / border (explicitly set before consumption)
         const gapM = meta[1].match(/(?:^|\s)gap=(\d+)(?:\s|$)/);
         const valignM = meta[1].match(/(?:^|\s)valign=(top|center|bottom|stretch)(?:\s|$)/);
         const radiusM = meta[1].match(/(?:^|\s)radius=(\d+)(?:\s|$)/);
@@ -647,10 +646,10 @@ function scanRegionsIn(
         endPos,
         hasBreak: replacedBreak,
         widths,
-        // 有 col 子栏且解析出的 bg 数与栏段数一致时才采用（无 col 的整块结构不带 bg）
+        // It is used only when there is a col sub-column and the number of parsed bg is consistent with the number of column segments (the whole block structure without col does not have bg)
         bgs: dividers.length > 0 && bgs.length === segments.length ? bgs : undefined,
         opts,
-        // 二维行：多行时各行栏数（单行不携带，widget 按栏数均分）
+        // Two-dimensional row: the number of columns in each row when there are multiple rows (not carried in a single row, widgets are divided equally according to the number of columns)
         rows: rowMarks.length > 0 && rows.length > 1 ? rows : undefined,
         segments,
       });
@@ -685,22 +684,22 @@ function scanRegionsIn(
   return regions;
 }
 
-/* ===== 单击定位：渲染快照点击坐标 → 源码字符偏移 =====
+/* ===== Click positioning: render snapshot click coordinates → source code character offset =====
  *
- * 非编辑态是 MarkdownRenderer 输出的 HTML 快照（只读、无光标），编辑态是显示
- * 原始 Markdown 的 <textarea>。两者排版不同（粗体、标题、列表会改变行高与横向
- * 位置），因此"点击坐标 → 源码偏移"只能近似（原生 Obsidian 的精确落点依赖
- * 可见面与可编辑面是同一个 CM6 视图）。做法：
- *   1) 取点击处的文本节点与偏移；点到留白（非文本）或内容区外 → 不进编辑；
- *   2) 去掉源码中的 Markdown 标记得到"纯文本投影"（带回源码下标映射），以点击点
- *      附近的渲染文本为锚点在投影中定位，换算成源码偏移；
- *   3) 锚点定位失败时按点击点在内容区中的垂直比例估源码行首，避免落点跑偏。 */
+ * The non-editing state is the HTML snapshot output by MarkdownRenderer (read-only, no cursor), and the editing state is the display
+ * Original Markdown <textarea>. The layout of the two is different (bold, titles, and lists will change the line height and horizontal direction)
+ * position), so "click coordinates → source code offset" can only be approximated (the exact landing point of native Obsidian depends on
+ * The visible surface and the editable surface are the same CM6 view). Method:
+ * 1) Get the text node and offset at the clicked location; click to a blank space (non-text) or outside the content area → no editing;
+ * 2) Remove the Markdown tag in the source code to obtain "plain text projection" (bringing back the source code subscript mapping) to click the point
+ * The nearby rendered text is the anchor point positioned in the projection, converted into source code offset;
+ * 3) When the anchor point positioning fails, estimate the beginning of the source code line based on the vertical ratio of the click point in the content area to avoid deviation of the landing point. */
 
-/** 非标准 API 的最小声明（Chromium 才有 caretRangeFromPoint，lib.dom 未收录；
- *  注意本文件已 import 了 CodeMirror 的 Range 类型，DOM Range 需写全名） */
+/** Minimal declaration of non-standard API (only Chromium has caretRangeFromPoint, lib.dom is not included;
+ * Note that this file has imported the Range type of CodeMirror, and the full name of the DOM Range must be written) */
 type CaretRangeApi = { caretRangeFromPoint?: (x: number, y: number) => ReturnType<Document['caretRangeFromPoint']> };
 
-/** 环境是否支持坐标 → 文本位置查询（jsdom 等测试环境不支持，需降级） */
+/** Whether the environment supports coordinates → text position query (test environments such as jsdom do not support it and need to be downgraded) */
 function hasCaretApi(doc: Document): boolean {
   return (
     typeof (doc as unknown as CaretRangeApi).caretRangeFromPoint === 'function' ||
@@ -708,7 +707,7 @@ function hasCaretApi(doc: Document): boolean {
   );
 }
 
-/** 点击坐标处的文本节点与节点内偏移 */
+/** Click the text node at the coordinates and offset within the node */
 function caretAtPoint(doc: Document, x: number, y: number): { node: Node; offset: number } | null {
   const r = (doc as unknown as CaretRangeApi).caretRangeFromPoint?.(x, y);
   if (r) return { node: r.startContainer, offset: r.startOffset };
@@ -716,8 +715,8 @@ function caretAtPoint(doc: Document, x: number, y: number): { node: Node; offset
   return p ? { node: p.offsetNode, offset: p.offset } : null;
 }
 
-/** 源码 → 纯文本投影：跳过 Markdown 标记字符（链接/图片的 ](url) 一并跳过）；
- *  map[i] = 投影第 i 个字符在源码中的下标 */
+/** Source code → Plain text projection: Skip Markdown markup characters (the ](url) of links/images are also skipped);
+ * map[i] = projects the subscript of the i-th character in the source code */
 function plainProjection(src: string): { plain: string; map: number[] } {
   const drop = new Set(['*', '_', '~', '=', '`', '#', '>', '[', ']', '|']);
   let plain = '';
@@ -738,7 +737,7 @@ function plainProjection(src: string): { plain: string; map: number[] } {
   return { plain, map };
 }
 
-/** 忽略空白归一化：norm = 去空白文本，idx[k] = norm[k] 在原串中的下标 */
+/** Ignore whitespace normalization: norm = remove whitespace text, idx[k] = norm[k] subscript in the original string */
 function looseMap(s: string): { norm: string; idx: number[] } {
   let norm = '';
   const idx: number[] = [];
@@ -751,7 +750,7 @@ function looseMap(s: string): { norm: string; idx: number[] } {
   return { norm, idx };
 }
 
-/** 按点击点在内容区中的垂直比例估源码行首偏移（锚点定位失败 / 媒体命中时兜底） */
+/** Estimate the offset of the source line start based on the vertical ratio of the click point in the content area (anchor positioning failure/cover when media hits) */
 function estimateOffsetByRatio(content: HTMLElement, source: string, y: number): number {
   const rect = content.getBoundingClientRect();
   const ratio = rect.height > 0 ? Math.min(1, Math.max(0, (y - rect.top) / rect.height)) : 0;
@@ -762,27 +761,27 @@ function estimateOffsetByRatio(content: HTMLElement, source: string, y: number):
   return off;
 }
 
-/** 点击命中的非文本节点是否属于嵌入媒体（图片/视频/音频/画布/内嵌文件等）。
- *  这类元素没有文本节点，需按点击位置估算源码偏移进入编辑，不能当作留白跳过。 */
+/** Whether the non-text node hit by the click belongs to embedded media (picture/video/audio/canvas/embedded file, etc.).
+ * This type of element does not have text nodes, and the source code offset needs to be estimated according to the click position to enter editing. It cannot be skipped as a blank space. */
 function hitIsMedia(node: Node, content: HTMLElement): boolean {
   const el = node.nodeType === 1 ? (node as Element) : node.parentElement;
-  // 命中容器本身（点到栏内留白）不算媒体
+  // Hitting the container itself (clicking until the column is blank) does not count as media
   if (!el || el === content) return false;
   const media = el.closest('img, video, audio, canvas, svg, .internal-embed, .media-embed, .file-embed');
   return !!media && (media === content || content.contains(media));
 }
 
-/** 单击坐标 → 源码偏移；返回 null = 点到留白（不进入编辑，避免误触） */
+/** Click coordinates → source code offset; return null = click to blank space (do not enter editing to avoid accidental touches) */
 function sourceOffsetFromPoint(content: HTMLElement, source: string, x: number, y: number): number | null {
   const doc = content.ownerDocument;
   const empty = !source.trim();
-  // 环境无坐标查询能力（jsdom 测试）：无法定位，直接进入编辑（等价旧行为）
+  // The environment has no coordinate query capability (jsdom test): Unable to locate, enter editing directly (equivalent to the old behavior)
   if (!hasCaretApi(doc)) return 0;
   const hit = caretAtPoint(doc, x, y);
-  // 点到留白 / 命中元素节点 / 内容区外：空栏整块可点；命中嵌入媒体（图片/视频等
-  // 无文本节点）时按点击位置估算偏移进入编辑；其余非文本命中（真正留白）不触发。
-  // 注：nodeType 3 = TEXT_NODE、whatToShow 4 = SHOW_TEXT，用字面量避免依赖
-  // Node / NodeFilter 全局（jsdom 等测试环境未挂载这两个全局）
+  // Click to the blank space / hit the element node / outside the content area: the entire empty column can be clicked; hit the embedded media (pictures/videos, etc.)
+  // When there is no text node), the offset is estimated according to the click position to enter editing; other non-text hits (real blank) are not triggered.
+  // Note: nodeType 3 = TEXT_NODE, whatToShow 4 = SHOW_TEXT, use literals to avoid dependencies
+  // Node / NodeFilter global (test environments such as jsdom do not mount these two globals)
   if (!hit || !content.contains(hit.node) || hit.node.nodeType !== 3) {
     if (empty) return 0;
     if (hit && content.contains(hit.node) && hitIsMedia(hit.node, content)) {
@@ -791,14 +790,14 @@ function sourceOffsetFromPoint(content: HTMLElement, source: string, x: number, 
     return null;
   }
 
-  // 点击点在渲染文本中的字符偏移
+  // Character offset of click point in rendered text
   let renderedOffset = hit.offset;
   const walker = doc.createTreeWalker(content, 4);
   for (let n = walker.nextNode(); n && n !== hit.node; n = walker.nextNode()) {
     renderedOffset += n.textContent?.length ?? 0;
   }
 
-  // 以点击点附近的渲染文本为锚点，在源码纯文本投影中定位
+  // Use the rendered text near the click point as the anchor point and position it in the source code plain text projection.
   const rendered = content.textContent ?? '';
   const start = Math.max(0, renderedOffset - 24);
   const needle = rendered.slice(start, renderedOffset + 24);
@@ -808,30 +807,30 @@ function sourceOffsetFromPoint(content: HTMLElement, source: string, x: number, 
     const nn = looseMap(needle);
     const at = nn.norm ? pm.norm.indexOf(nn.norm) : -1;
     if (at >= 0) {
-      // 锚点内点击位置之前的有效字符数 → 投影中的对应位置 → 源码偏移
+      // The number of valid characters before the click position within the anchor point → the corresponding position in the projection → source code offset
       const before = looseMap(needle.slice(0, renderedOffset - start)).norm.length;
       const plainIdx = pm.idx[Math.min(at + before, pm.idx.length - 1)];
       return map[plainIdx] ?? 0;
     }
   }
 
-  // 兜底：按点击点在内容区中的垂直比例估源码行首
+  // Bottom line: Estimate the beginning of the source code line based on the vertical ratio of the click point in the content area
   return estimateOffsetByRatio(content, source, y);
 }
 
-/* ===== 不可见标记（sentinel）：编辑态隐藏行内格式标记 =====
+/* ===== Invisible mark (sentinel): hide inline formatting mark in editing mode =====
  *
- * 目标：编辑态 textarea 的光标不在某个行内格式区间（**加粗** / ==高亮== /
- * ~~删除~~ / `代码` / 斜体）内时，该区间的标记字符不显示，使文本观感与渲染
- * 快照一致，避免行内标记造成"文本偏移"。外观、widget 布局、写回管线均不变。
+ * Target: The cursor of the textarea in the editing state is not in a certain in-line format range (**bold** / ==highlight== /
+ * ~~Delete~~ / `code` / italics), the mark characters in this interval are not displayed, making the text look and feel different from rendering
+ * Consistent snapshots to avoid "text offset" caused by inline markers. The appearance, widget layout, and writeback pipeline remain unchanged.
  *
- * 做法：把标记字符替换为等长的零宽不可见字符（长度不变 ⇒ 选区下标即源码
- * 下标，无需偏移映射表）。只改编辑态 textarea 的 value：
- *   value 显示值 = sentinelize(源码, 光标起, 光标止)
- *   写回 / input / 剪贴板 = desentinelize(value)
- * 光标（或选区）碰触某区间（含首尾）时，该区间标记还原为真实字符显示。 */
+ * Method: Replace the mark characters with zero-width invisible characters of equal length (the length remains unchanged ⇒ The selection subscript is the source code
+ * subscript, no offset map required). Only change the value of the editable textarea:
+ * value display value = sentinelize(source code, cursor start, cursor end)
+ * Write back / input / clipboard = desentinelize(value)
+ * When the cursor (or selection) touches a certain interval (including the beginning and the end), the interval mark will return to the real character display. */
 
-/** 标记字符 → 等长不可见字符（U+2060–U+2064，零宽，仍占一个光标停靠位） */
+/** mark character → equal-length invisible character (U+2060-U+2064, zero width, still occupies one cursor stop) */
 const MARKER_SENTINELS: Record<string, string> = {
   '*': '\u2061',
   '_': '\u2062',
@@ -840,7 +839,7 @@ const MARKER_SENTINELS: Record<string, string> = {
   '`': '\u2060',
 };
 
-/** 不可见字符 → 原标记字符（写回时还原） */
+/** Invisible characters → original marked characters (restored when writing back) */
 const SENTINEL_TO_MARKER: Record<string, string> = {
   '\u2061': '*',
   '\u2062': '_',
@@ -849,24 +848,24 @@ const SENTINEL_TO_MARKER: Record<string, string> = {
   '\u2060': '`',
 };
 
-/** 行内格式标记区间：[start, end) 为整个 span（含首尾标记），pre 为前后标记长度。
- *  内容用 + 语义（至少 1 个非空白字符）⇒ 空对（**** / ____ 等）不参与配对，
- *  既不隐藏也不静默删除，与原生一致。 */
+/** Inline format mark interval: [start, end) is the entire span (including the first and last marks), and pre is the length of the preceding and following marks.
+ * Content with + semantics (at least 1 non-whitespace character) ⇒ empty pairs (**** / ____, etc.) do not participate in matching,
+ * Neither hidden nor silently deleted, consistent with native. */
 type InlinePattern = { pre: number; re: RegExp };
 const INLINE_FORMAT_PATTERNS: InlinePattern[] = [
-  { pre: 3, re: /\*\*\*(?=\S)[^\n]*?\S\*\*\*/g }, // ***粗斜体***
-  { pre: 2, re: /\*\*(?=\S)[^\n]*?\S\*\*/g }, // **加粗**
-  { pre: 1, re: /\*(?=\S)[^*\n]*?\S\*/g }, // *斜体*
-  { pre: 2, re: /(?<!\w)__(?=\S)[^\n]*?\S__(?!\w)/g }, // __加粗__
-  { pre: 1, re: /(?<!\w)_(?=\S)[^_\n]*?\S_(?!\w)/g }, // _斜体_
-  { pre: 2, re: /==(?=\S)[^\n]*?\S==/g }, // ==高亮==
-  { pre: 2, re: /~~(?=\S)[^\n]*?\S~~/g }, // ~~删除线~~
-  { pre: 1, re: /`(?=\S)[^`\n]*?\S`/g }, // `行内代码`
+  { pre: 3, re: /\*\*\*(?=\S)[^\n]*?\S\*\*\*/g }, // ***Bold italic***
+  { pre: 2, re: /\*\*(?=\S)[^\n]*?\S\*\*/g }, // **Bold**
+  { pre: 1, re: /\*(?=\S)[^*\n]*?\S\*/g }, // *italics*
+  { pre: 2, re: /(?<!\w)__(?=\S)[^\n]*?\S__(?!\w)/g }, // __Bold__
+  { pre: 1, re: /(?<!\w)_(?=\S)[^_\n]*?\S_(?!\w)/g }, // _italic_
+  { pre: 2, re: /==(?=\S)[^\n]*?\S==/g }, // ==Highlight==
+  { pre: 2, re: /~~(?=\S)[^\n]*?\S~~/g }, // ~~strikethrough~~
+  { pre: 1, re: /`(?=\S)[^`\n]*?\S`/g }, // `inline code`
 ];
 
 type InlineSpan = { start: number; end: number; pre: number };
 
-/** 收集一行的行内格式区间，去重叠（起点升序、长度降序贪心，长标记优先） */
+/** Collect the inline format range of a line and remove overlaps (starting point ascending order, length descending order greedy, long mark first) */
 function findInlineSpans(line: string): InlineSpan[] {
   const found: InlineSpan[] = [];
   for (const p of INLINE_FORMAT_PATTERNS) {
@@ -888,15 +887,15 @@ function findInlineSpans(line: string): InlineSpan[] {
   return kept;
 }
 
-/** 源码 → 显示值：光标/选区 [activeFrom, activeTo] 未碰触到的格式区间，
- *  其标记字符替换为等长不可见字符（长度为 1:1 ⇒ 选区下标即源码下标） */
+/** Source code → Display value: Cursor/selection [activeFrom, activeTo] untouched format interval,
+ * The mark characters are replaced by invisible characters of equal length (length is 1:1 ⇒ the selection subscript is the source code subscript) */
 function sentinelize(source: string, activeFrom: number, activeTo: number): string {
   const lines = source.split('\n');
   let out = '';
-  let base = 0; // 当前行首在 source 中的偏移
+  let base = 0; // The offset of the beginning of the current line in source
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
-    // marks[i] = 该下标的字符所属的格式区间（仅标记字符本身，不含区间内容）
+    // marks[i] = the format interval to which the subscripted character belongs (only marks the character itself, excluding the interval content)
     const marks: (InlineSpan | null)[] = new Array<InlineSpan | null>(line.length).fill(null);
     for (const sp of findInlineSpans(line)) {
       for (let k = 0; k < sp.pre; k++) {
@@ -921,13 +920,13 @@ function sentinelize(source: string, activeFrom: number, activeTo: number): stri
   return out;
 }
 
-/** 显示值 → 源码：不可见字符还原为原标记字符 */
+/** Display value → Source code: Invisible characters are restored to original mark characters */
 function desentinelize(display: string): string {
   return display.replace(/[\u2060-\u2064]/g, (ch) => SENTINEL_TO_MARKER[ch] ?? ch);
 }
 
-/** 按当前光标/选区刷新 textarea 显示值：需要还原/隐藏的标记与现状不同才写回
- *  （长度不变、写回后恢复选区，避免无谓重建；输入法组合期间由调用方跳过） */
+/** Refresh the textarea display value according to the current cursor/selection: the marks that need to be restored/hidden are written back if they are different from the current status.
+ * (The length remains unchanged, and the selection is restored after writing back to avoid unnecessary reconstruction; it is skipped by the caller during input method combination) */
 function syncMarkerDisplay(ta: HTMLTextAreaElement): void {
   const next = sentinelize(desentinelize(ta.value), ta.selectionStart, ta.selectionEnd);
   if (next === ta.value) return;
@@ -938,14 +937,13 @@ function syncMarkerDisplay(ta: HTMLTextAreaElement): void {
 }
 
 /**
- * 交互式分栏 widget（浏览与编辑合一）：
- *  - 每栏：⠿ 手柄（拖动排序 / 点击弹出命令菜单）+ 渲染内容（单击文本即编辑）
- *  - 栏间：分隔条（拖动调宽）
- *  - 命令菜单：新增栏（当前栏后插入）/ 删除栏（剩 1 栏时禁用）
- * 结构/内容变更直接写回文档（单步撤销）；无需独立编辑模式。
- */
-/** widget 内容签名：内容 / 宽度 / 背景 / 行结构 / 外观参数任一变化即需要重建 widget。
- *  widget 的 get key() 与装饰构建共用，避免两处实现漂移导致缓存判断不一致。 */
+ * Interactive column widget (browsing and editing in one):
+ * - Each column: ⠿ handle (drag to sort / click to pop up the command menu) + render content (click the text to edit)
+ * - Between columns: separator bar (drag to adjust width)
+ * - Command menu: Add column (insert after current column)/Delete column (disabled when 1 column is left)
+ * Structure/content changes are written directly back to the document (single-step undo); no independent editing mode required. */
+/** Widget content signature: Any change in content/width/background/row structure/appearance parameters requires the widget to be rebuilt.
+ * The get key() of the widget is shared with the decoration construction to avoid inconsistent cache judgment caused by the drift of the two implementations. */
 function columnsContentKey(
   segments: string[],
   widths: number[] | undefined,
@@ -966,9 +964,9 @@ function columnsContentKey(
   );
 }
 
-/** 分栏默认外观设置签名：widget 缓存键与 WidgetType.key 共用。设置里改 gap / radius /
- *  valign / border 任一项都会改变该签名，从而强制重建 widget（内联 align-self、
- *  边框宽度等随之刷新），避免复用旧 DOM 导致设置不生效。 */
+/** Column default appearance setting signature: The widget cache key is shared with WidgetType.key. Change gap / radius / in settings
+ * Either valign / border will change the signature, forcing the widget to be rebuilt (inline align-self,
+ * The border width, etc. will be refreshed accordingly) to avoid reusing the old DOM and causing the settings to not take effect. */
 function settingsAppearanceKey(s: BlockEditorSettings): string {
   return `#${s.columnsValign}|${s.columnsGap}|${s.columnsRadius}|${s.columnsBorder}`;
 }
@@ -978,38 +976,38 @@ class ColumnsWidget extends WidgetType {
   widths: number[] = [];
   bgs: (ColBg | null)[] = [];
   opts: ColumnsOpts = {};
-  /** 二维行：每行的栏数（空数组 = 单行） */
+  /** 2D rows: number of columns per row (empty array = single row) */
   rows: number[] = [];
   region: ColumnsRegion;
   private editCol: number | null = null;
-  /** 进入编辑态后要落到 textarea 的光标偏移（单击定位用；渲染完成时消费一次） */
+  /** The cursor offset that will land on the textarea after entering the editing state (used for click positioning; consumed once when rendering is completed) */
   private pendingCaret: number | null = null;
-  /** 编辑态 selectionchange 监听器的生命周期（每次 render 重建、旧监听注销） */
+  /** The life cycle of the edit state selectionchange listener (rebuild each render, old listener is logged out) */
   private editAbort: AbortController | null = null;
   private textareas: HTMLTextAreaElement[] = [];
   private colEls: HTMLElement[] = [];
-  /** 进入编辑态前栏的渲染高度：让 textarea 初始高度与渲染态一致，消除切换跳变 */
+  /** Rendering height of the front bar when entering the editing state: Make the initial height of the textarea consistent with the rendering state and eliminate switching jumps */
   private preEditHeight = 0;
   private root: HTMLElement | null = null;
-  /** 快照渲染挂载用的短生命周期组件：每次 renderInner 重建前 unload，避免
-   *  使用主插件实例作 component（生命周期过长会积累泄漏）。 */
+  /** Short life cycle components for snapshot rendering and mounting: unload before each renderInner rebuild to avoid
+   * Use the main plug-in instance as component (long life cycle will accumulate leaks). */
   private renderChild: Component | null = null;
   private parentView: EditorView | null = null;
   private focusCol = -1;
   private menuEl: HTMLElement | null = null;
   private colorPickerEl: HTMLElement | null = null;
-  /** 需求 B：拖出分栏时的落点插入线（挂在 .cm-editor 上，随拖拽重建/移除） */
+  /** Requirement B: Drop point insertion line when dragging out a column (hung on .cm-editor, rebuilt/removed with dragging) */
   private outLineEl: HTMLElement | null = null;
 
-  /** 内容签名：内容/宽度/背景色/行结构/外观参数变化时装饰层会重建 widget。
-   *  额外纳入分栏默认外观设置（gap/radius/valign/border）：用户在设置里改动时，
-   *  若仅用外壳参数判断会命中缓存、复用旧 DOM，导致内联 alignSelf、边框不更新。 */
+  /** Content signature: The decoration layer will rebuild the widget when the content/width/background color/row structure/appearance parameters change.
+   * Additional inclusion of column default appearance settings (gap/radius/valign/border): when the user changes it in the settings,
+   * If only the shell parameters are used for judgment, the cache will be hit and the old DOM will be reused, resulting in inline alignSelf and the border not being updated. */
   get key(): string {
     return columnsContentKey(this.texts, this.widths, this.bgs, this.rows, this.opts)
       + settingsAppearanceKey(this.ctx.settings);
   }
 
-  /** CM 更新期间禁止 dispatch：事件触发的写回统一延迟到微任务执行 */
+  /** Dispatch is prohibited during CM updates: event-triggered writebacks are uniformly delayed until microtask execution */
   private later(fn: (view: EditorView) => void): void {
     const view = this.parentView;
     if (!view) return;
@@ -1026,7 +1024,7 @@ class ColumnsWidget extends WidgetType {
     private ctx: BlockEditorPlugin,
     region: ColumnsRegion,
     private path: string,
-    /** 所属 Obsidian 编辑器实例：把全局 Editor 原型补丁收敛到本分栏 */
+    /** Belonging Obsidian editor instance: Convergence global Editor prototype patches to this column */
     private ownerEditor: unknown = null
   ) {
     super();
@@ -1043,19 +1041,18 @@ class ColumnsWidget extends WidgetType {
   }
 
   /**
-   * viewport 行高防御（CM6 链 1 根因之一）：
-   * 不实现 estimatedHeight 时，CM6 在初次布局 / 异步渲染完成前把本 block
-   * widget 视为 0 高块，若随后内容高度突变（MarkdownRenderer 异步填充），
-   * 行高映射与实际布局错位，mousedown → posAtCoords 会基于错位映射算出
-   * 越界 pos → doc.lineAt(pos) → lineInner 崩（undefined.length）。
-   * 提供稳定下限估算，让 CM6 初始行高映射留出余量，requestMeasure 修正前
-   * 点击不再越界。
-   */
+   * viewport row height defense (one of the root causes of CM6 chain 1):
+   * When estimatedHeight is not implemented, CM6 will put this block before the initial layout/asynchronous rendering is completed.
+   * The widget is regarded as a 0-height block. If the content height changes subsequently (MarkdownRenderer fills asynchronously),
+   * The row height mapping is misaligned with the actual layout, mousedown → posAtCoords will be calculated based on the misaligned mapping
+   * Out of bounds pos → doc.lineAt(pos) → lineInner collapsed (undefined.length).
+   * Provide stable lower bound estimate to allow margin for CM6 initial row height mapping, before requestMeasure correction
+   * Clicking no longer goes out of bounds. */
   get estimatedHeight(): number {
-    // 每行（横向一组栏）估算高度：栏骨架 64px + 内容估算行数 × 24px 行高。
-    // 取所有栏中最大的文本换行行数（Markdown 渲染会包 ul/li/p 等，实际高度
-    // 通常不小于纯文本估算），宁高勿低：高估只让点击位置略偏不越界，
-    // 低估会让 CM6 行高缓存偏小 → posAtCoords 映射出越界 pos → lineInner 崩。
+    // Estimated height per row (horizontal group of columns): Column skeleton 64px + Estimated number of rows of content × 24px row height.
+    // Get the maximum number of text wrapping lines in all columns (Markdown rendering will include ul/li/p, etc., the actual height
+    // Usually not less than the plain text estimate), err on the side of higher than lower: overestimation only makes the click position slightly off, but not out of bounds.
+    // Underestimation will make the CM6 line height cache too small → posAtCoords maps out of bounds pos → lineInner crashes.
     const rows = this.rows.length ? this.rows.length : 1;
     let maxLines = 1;
     for (const t of this.texts) {
@@ -1066,10 +1063,10 @@ class ColumnsWidget extends WidgetType {
     return Math.max(48, rows * (64 + maxLines * 24));
   }
 
-  /** 单栏内容估算高度：按该栏自身文本行数估算。
-   *  此前用整组估算（最高栏行数）给每栏内容设 min-height，短栏被占位
-   *  高度撑到与最高栏齐平，min-height 优先级高于 align-self，导致
-   *  顶部/居中/底部对齐下短栏无法收缩到内容高。 */
+  /** Estimated height of single column content: Estimated based on the number of lines of text in the column itself.
+   * Previously, the entire set of estimates (the highest number of column lines) was used to set the min-height for each column, and the short columns were occupied.
+   * The height is raised to be flush with the highest column, and min-height has a higher priority than align-self, resulting in
+   * The short column under top/center/bottom alignment cannot shrink to the height of the content. */
   private colContentEstimatedHeight(i: number): number {
     const t = this.texts[i] ?? '';
     let lines = 1;
@@ -1082,29 +1079,28 @@ class ColumnsWidget extends WidgetType {
   }
 
   /**
-   * 供外部（drag.ts）做落点命中用的布局信息：各行的栏 DOM 元素 + 全局下标。
-   * 走 DOM 而非 CM 坐标的原因见 columns-droptarget.ts 顶部说明。
-   */
+   * Layout information for external (drag.ts) to make drop hits: column DOM elements of each row + global subscript.
+   * The reason for using DOM instead of CM coordinates is explained at the top of columns-droptarget.ts. */
   getLayoutInfo(): ColLayoutInfo {
     return buildColLayout(this.colEls, this.rows);
   }
 
-  /** 当前分栏区间的文档行范围（需求 B 判定"紧邻上行/下行"合法落点用） */
+  /** The range of document lines in the current column interval (used by Requirement B to determine the legal landing point of "immediately upstream/downstream") */
   getLineRange(): { start: number; end: number } {
     return { start: this.region.startLine, end: this.region.endLine };
   }
 
-  /** 区间起点在 CM6 文档中的偏移（合并写回时定位 regionFrom） */
+  /** The offset of the starting point of the interval in the CM6 document (positioning regionFrom when merging and writing back) */
   getRegionStartPos(): number {
     return this.region.startPos;
   }
 
-  /** 区间终点在 CM6 文档中的偏移（不含） */
+  /** Offset of interval end point in CM6 document (exclusive) */
   getRegionEndPos(): number {
     return this.region.endPos;
   }
 
-  /** 区间末尾是否吞掉了换行（写回时决定要不要补 '\n'） */
+  /** Whether the newline is swallowed at the end of the interval (it is decided whether to add '\n' when writing back) */
   hasBreak(): boolean {
     return this.region.hasBreak;
   }
@@ -1116,15 +1112,15 @@ class ColumnsWidget extends WidgetType {
     wrap.dataset.regionStart = String(this.region.startPos);
     this.root = wrap;
     widgetByRoot.set(wrap, this);
-    // 注意：toDOM 在 CM6 的 DOM 更新过程中被调用，此时构建尚未完成、读到的
-    // scrollTop 不可信（会被钳到 0）。这里不能走带视口锁定的 render()——否则
-    // 会把「钳后的 0」当成本次锚点还原回去，表现为撤销/重算后整页滚到最上面。
-    // 该路径交给 CM6 自身的滚动锚定处理；需要锁定的操作由调用方 commitDoc 兜住。
+    // Note: toDOM is called during the DOM update process of CM6. At this time, the build has not been completed and the read
+    // scrollTop is not trusted (will be clamped to 0). You cannot use render() with viewport locking here - otherwise
+    // The "0 behind the clamp" will be restored as the current anchor point, which means the entire page will be scrolled to the top after undoing/recalculating.
+    // This path is handed over to CM6's own scroll anchoring processing; operations that require locking are handled by the caller's commitDoc.
     this.renderInner();
     return wrap;
   }
 
-  /** 结构或内容变更后写回文档（单步撤销） */
+  /** Write back the document after the structure or content is changed (single-step undo) */
   private commitDoc(): void {
     const view = this.parentView;
     if (!view) return;
@@ -1136,14 +1132,14 @@ class ColumnsWidget extends WidgetType {
         this.rowEnds,
         Object.keys(this.opts).length ? this.opts : undefined
       ) + (this.region.hasBreak ? '\n' : '');
-    // 幂等检查：区间内容与待写文本一致时不发起 dispatch。
-    // 无条件整 region 替换会触发 Obsidian metadataCache 对该文件链接的
-    // 异步重新解析，放大"编辑分栏后立即切阅读模式"的 embed unresolved
-    // 竞态窗口（阅读模式首次渲染显示加粗文件名回退）。
+    // Idempotent check: dispatch is not initiated when the range content is consistent with the text to be written.
+    // Unconditional whole region replacement will trigger Obsidian metadataCache to link to the file.
+    // Asynchronous re-parsing, zoom in "switch to reading mode immediately after editing the column" embed unresolved
+    // Race window (first render in reading mode displays bold file name fallback).
     const curText = view.state.doc.sliceString(this.region.startPos, this.region.endPos);
     if (curText === text) return;
-    // 视口锁定：写回会触发全量重扫 + widget 重建，CM6 按变更重算视口会让整篇
-    // 文档滚动条跳离当前编辑位置；此处钉住 scrollTop，操作后停留在原位置。
+    // Viewport lock: writing back will trigger a full rescan + widget reconstruction, and CM6’s viewport recalculation according to changes will make the entire article
+    // The document scroll bar jumps away from the current editing position; pin the scrollTop here and stay at the original position after the operation.
     keepViewport(view, () => {
       view.dispatch({
         changes: { from: this.region.startPos, to: this.region.endPos, insert: text },
@@ -1151,7 +1147,7 @@ class ColumnsWidget extends WidgetType {
     });
   }
 
-  /** 每行栏数 → buildColumnsMarkdown 的行末栏索引（[1,3] 表示 0-1 / 2-3 两行） */
+  /** Number of columns per line → end-of-line column index of buildColumnsMarkdown ([1,3] represents two lines of 0-1 / 2-3) */
   private get rowEnds(): number[] | undefined {
     if (!this.rows.length) return undefined;
     const ends: number[] = [];
@@ -1164,9 +1160,8 @@ class ColumnsWidget extends WidgetType {
   }
 
   /**
-   * 当前内存状态对应的分栏 markdown 区间文本（含 hasBreak 的尾随换行）。
-   * 供外部拖拽路径拼装"区间重写 + 区间外插入"的单事务 changes。
-   */
+   * Column markdown interval text corresponding to the current memory state (including the trailing newline of hasBreak).
+   * Provides external drag and drop paths to assemble single transaction changes of "range rewriting + outside range insertion". */
   buildRegionText(): string {
     return (
       buildColumnsMarkdown(
@@ -1180,27 +1175,26 @@ class ColumnsWidget extends WidgetType {
   }
 
   /**
-   * 在指定全局栏位置插入一栏（需求 A：文档块拖入分栏）。
-   * 只改内存状态不写回 —— 写回由调用方合并进单事务，保证单步撤销。
+   * Insert a column at the specified global column position (requirement A: drag the document block into the column).
+   * Only the memory status is changed without writing back - the writing back is merged into a single transaction by the caller, ensuring single-step undo.
    *
-   * @param insertIndex 全局插入下标（0 = 最前，texts.length = 末尾）
-   * @param text        新栏内容（已剥引用前缀的裸 markdown）
-   * @returns 是否插入成功（越界或空内容时 false）
-   */
+   * @param insertIndex global insertion index (0 = first, texts.length = last)
+   * @param text New column content (bare markdown with reference prefix stripped)
+   * @returns Whether the insertion is successful (false when out of bounds or empty content) */
   insertColumnAt(insertIndex: number, text: string): boolean {
     const at = Math.max(0, Math.min(insertIndex, this.texts.length));
     if (!text.trim()) return false;
     const n = this.texts.length + 1;
     const newW = Math.round((100 / n) * 10) / 10;
     const scale = (100 - newW) / 100;
-    // 已有宽度按比例缩小，让新栏占 100/n；无宽度元数据时留给均分兜底
+    // The existing width is scaled down so that the new column takes up 100/n; when there is no width metadata, it is left to be evenly divided.
     if (this.widths.length === this.texts.length) {
       this.widths = this.widths.map((w) => Math.round(w * scale * 10) / 10);
       this.widths.splice(at, 0, newW);
     }
     this.texts.splice(at, 0, text);
     this.bgs.splice(at, 0, null);
-    // 多行分栏：插入点所在行的栏数 +1（不新增行，只加宽该行）
+    // Multiple rows and columns: The number of columns in the row where the insertion point is located +1 (no new rows are added, only the row is widened)
     if (this.rows.length) {
       const r = this.rowIndexOf(at);
       this.rows[r]++;
@@ -1209,13 +1203,12 @@ class ColumnsWidget extends WidgetType {
   }
 
   /**
-   * 移除指定栏并返回其内容（需求 B：栏拖出分栏）。
-   * 只改内存状态不写回 —— 同 insertColumnAt，由调用方合并进单事务。
+   * Remove the specified column and return its content (requirement B: drag the column out of the column).
+   * Only changes the memory status without writing it back - the same as insertColumnAt, merged into a single transaction by the caller.
    *
-   * 宽度按比例分给剩余栏；剩 1 栏时清空宽度元数据（配合调用方降级为取消分栏）。
+   * The width is divided proportionally among the remaining columns; when there is 1 column left, the width metadata is cleared (cooperate with the caller to downgrade to cancel column division).
    *
-   * @returns 被移除栏的文本；下标非法返回 null
-   */
+   * @returns The text of the removed column; if the subscript is illegal, return null */
   removeColumnAt(i: number): string | null {
     if (i < 0 || i >= this.texts.length) return null;
     const removed = this.texts[i];
@@ -1231,21 +1224,20 @@ class ColumnsWidget extends WidgetType {
     if (this.rows.length) {
       const r = this.rowIndexOf(i);
       this.rows[r]--;
-      // 行内栏删光且还有其它行：移除该行（行结构保持 ≥1 行）
+      // The column in the row is deleted and there are other rows: remove the row (the row structure remains ≥1 row)
       if (this.rows[r] <= 0 && this.rows.length > 1) this.rows.splice(r, 1);
     }
     return removed;
   }
 
-  /** 剩余栏数（需求 B 判定是否降级为取消分栏） */
+  /** Number of remaining columns (Requirement B determines whether to downgrade to cancel column division) */
   columnCount(): number {
     return this.texts.length;
   }
 
   /**
-   * 剩余栏全部拼成普通段落文本（降级为取消分栏时用）。
-   * 与 convert.ts 的 unwrapColumns 语义一致：栏间用空行分隔、剥掉引用前缀。
-   */
+   * All remaining columns are spelled into ordinary paragraph text (used when downgrading to cancel column division).
+   * The semantics are consistent with unwrapColumns of convert.ts: columns are separated by blank lines and reference prefixes are stripped off. */
   buildUnwrappedText(): string {
     return this.texts
       .map((t) => t.replace(/\s+$/, ''))
@@ -1253,16 +1245,16 @@ class ColumnsWidget extends WidgetType {
       .join('\n\n');
   }
 
-  /** 重建 widget DOM（交互操作入口专用：菜单/拖拽/进入退出编辑）。
-   *  视口锁定：DOM 重建会改变 widget 实测高度，CM6 重算视口时整篇文档滚动条会
-   *  跳离当前编辑位置；钉住 scrollTop 让视图停在原处。
-   *  仅在「CM6 更新之外」的调用点使用——CM6 更新过程中（toDOM）读到的 scrollTop
-   *  不可信，该路径直接走 renderInner()。 */
+  /** Rebuild the widget DOM (dedicated to the interactive operation entrance: menu/drag/enter and exit editing).
+   * Viewport lock: DOM reconstruction will change the actual measured height of the widget. When CM6 recalculates the viewport, the entire document scroll bar will
+   * Jump away from the current editing position; pin scrollTop to stop the view in place.
+   * Only used at call points "outside CM6 update" - scrollTop read during CM6 update process (toDOM)
+   * Untrustworthy, this path goes directly to renderInner(). */
   private render(): void {
     keepViewport(this.parentView, () => this.renderInner());
   }
 
-  /** 卸载快照渲染挂载的短生命周期组件并置空（widget 重建 / 弃用时调用） */
+  /** Uninstall the short-life cycle components mounted by snapshot rendering and leave them empty (called when the widget is rebuilt/deprecated) */
   private disposeRenderChild(): void {
     if (this.renderChild) {
       try {
@@ -1274,13 +1266,13 @@ class ColumnsWidget extends WidgetType {
     }
   }
 
-  /** widget 被缓存淘汰 / 文档切换 / 开关关闭时调用：卸载快照渲染组件 */
+  /** Called when the widget is eliminated from the cache/document switching/switch is turned off: unload the snapshot rendering component */
   destroy(): void {
     this.disposeRenderChild();
   }
 
-  /** 结构 / 内容变更后的统一收尾：写回文档 + 重建 DOM。
-   *  写回延迟到微任务（CM 更新期间禁止 dispatch）。 */
+  /** Unified finishing after structure/content changes: write back document + rebuild DOM.
+   * Delay writeback to microtasks (disable dispatch during CM updates). */
   private mutate(): void {
     queueMicrotask(() => this.commitDoc());
     this.render();
@@ -1289,9 +1281,9 @@ class ColumnsWidget extends WidgetType {
   private renderInner(): void {
     const wrap = this.root;
     if (!wrap) return;
-    // 重建 DOM 前卸载上一轮快照渲染挂载的短生命周期组件（避免随主插件实例长期存活）
+    // Uninstall the short-life cycle components mounted in the previous round of snapshot rendering before rebuilding the DOM (to avoid long-term survival with the main plug-in instance)
     this.disposeRenderChild();
-    // 重建 DOM 前注销旧编辑态 textarea 的 selectionchange 监听器（避免泄漏/串扰）
+    // Unregister the selectionchange listener of the old edit state textarea before rebuilding the DOM (to avoid leakage/crosstalk)
     if (this.editAbort) {
       this.editAbort.abort();
       this.editAbort = null;
@@ -1302,10 +1294,10 @@ class ColumnsWidget extends WidgetType {
     this.colEls = [];
     this.closeMenu();
     this.closeColorPicker();
-    // 非编辑态渲染时注销格式命令目标（创建 textarea 时会重新登记）
+    // Unregister the format command target when rendering in non-editing state (it will re-register when creating a textarea)
     if (this.editCol === null) setColumnEditTarget(null);
 
-    // 二维行分组：有 rows 时按行渲染（每行一个 flex 行），否则全部栏单行渲染
+    // Two-dimensional row grouping: Render by row when there are rows (one flex row per row), otherwise all columns will be rendered in a single row
     const rowLens = this.rows.length ? this.rows : [this.texts.length];
     let si = 0;
     for (let ri = 0; ri < rowLens.length; ri++) {
@@ -1314,8 +1306,8 @@ class ColumnsWidget extends WidgetType {
       if (ri < rowLens.length - 1) row.classList.add('block-editor-columns-row-mid');
       wrap.appendChild(row);
 
-      // H1 外观参数 → CSS 变量（styles.css 的 var() 消费，子栏继承；
-      // 未设置的项回退 body 上的设置默认值变量）；border 给整行子栏加描边 class
+      // H1 appearance parameters → CSS variables (var() consumption of styles.css, sub-column inheritance;
+      // Unset items fall back to the set default value variable on the body); border adds a stroke to the entire row of sub-columns class
       if (this.opts.gap != null) wrap.style.setProperty('--be-col-gap', this.opts.gap + 'px');
       if (this.opts.valign) wrap.style.setProperty('--be-col-valign', colValignToCss(this.opts.valign));
       if (this.opts.radius != null) wrap.style.setProperty('--be-col-radius', this.opts.radius + 'px');
@@ -1324,7 +1316,7 @@ class ColumnsWidget extends WidgetType {
       const rowLen = rowLens[ri];
       for (let j = 0; j < rowLen; j++, si++) {
         const i = si;
-        // 栏间分隔条（拖拽调宽），行首栏不加
+        // Separator bar between columns (drag to adjust width), no addition to the first column of the row
         if (j > 0) {
           const resizer = createEl('div');
           resizer.className = 'block-editor-col-resizer';
@@ -1335,19 +1327,19 @@ class ColumnsWidget extends WidgetType {
 
         const col = createEl('div');
         col.className = 'block-editor-col-editor';
-        // 权重式弹性宽度：分隔条与 ＋ 按钮占固定空间，栏目按权重分享剩余宽度。
-        // 无宽度元数据时按栏数均分（否则拼出 'undefined 1 0%' 被浏览器丢弃，栏宽退化为内容宽）
+        // Weighted elastic width: The separator bar and + button occupy a fixed space, and the columns share the remaining width according to their weight.
+        // If there is no width metadata, it will be divided evenly by the number of columns (otherwise, 'undefined 1 0%' will be discarded by the browser, and the column width will be reduced to the content width)
         const colWidth = this.widths[i] ?? 100 / this.texts.length;
         col.style.flex = colWidth + ' 1 0%';
-        // 栏的交叉轴对齐直接写内联 align-self，绕开 CSS 变量继承可能失效的问题：
-        // 外壳 valign= 参数优先，否则取设置默认值。
-        // stretch → 栏撑满行高（等高）；flex-start/center/flex-end → 栏高=内容高，按上/中/下对齐。
+        // The cross-axis alignment of the column is directly written inline align-self to avoid the problem that CSS variable inheritance may fail:
+        // The shell valign= parameter takes precedence, otherwise the set default value is used.
+        // stretch → column fills the row height (equal height); flex-start/center/flex-end → column height = content height, aligned according to top/middle/bottom.
         const v = this.opts.valign ?? this.ctx.settings.columnsValign;
         col.style.alignSelf = colValignToCss(v);
-        // 每栏背景色：双色模型 → 内联 --col-bg-light/--col-bg-dark（无背景则移除变量，CSS 兜底透明）
+        // Background color of each column: two-color model → inline --col-bg-light/--col-bg-dark (if there is no background, the variable will be removed, and the CSS will be transparent)
         setColBgVars(col, this.bgs[i]);
 
-        // 拖拽排序手柄：拖动排序，点击（位移小于阈值）弹出命令菜单
+        // Drag the sorting handle: drag to sort, click (displacement is less than the threshold) to pop up the command menu
         const grip = createEl('div');
         grip.className = 'block-editor-col-grip';
         grip.textContent = '⠿';
@@ -1356,22 +1348,22 @@ class ColumnsWidget extends WidgetType {
         col.appendChild(grip);
 
         if (this.editCol === i) {
-          // 编辑态：textarea，失焦写回。
-          // value 为"显示值"：光标不在其中的行内格式标记以等长不可见字符隐藏
-          // （初始 activeFrom/activeTo = -1 ⇒ 全部隐藏，落点设置后由 syncMarkerDisplay 还原）
+          // Editing state: textarea, write back out of focus.
+          // value is "display value": inline formatting tags in which the cursor is not located are hidden with equal length invisible characters
+          // (Initial activeFrom/activeTo = -1 ⇒ All hidden, restored by syncMarkerDisplay after the drop point is set)
           const ta = createEl('textarea');
           ta.className = 'block-editor-col-textarea';
           ta.value = sentinelize(this.texts[i], -1, -1);
           ta.spellcheck = false;
-          // 行数决定固有高度：进入编辑态即按内容行数撑开（否则长内容被截成约 3 行）
+          // The number of lines determines the inherent height: when entering the editing mode, expand according to the number of lines of content (otherwise, long content will be cut into about 3 lines)
           syncTextareaRows(ta);
-          // 登记为编辑器命令目标：Mod+B / 右键「文本格式」等将重定向落到本 textarea；
-          // 同时登记所属编辑器，避免桥接误作用于其他分屏的同名 API 调用
+          // Register as editor command target: Mod+B / right-click "Text Format", etc. to redirect to this textarea;
+          // Register the editor at the same time to prevent the bridge from mistaking API calls with the same name in other split screens.
           setColumnEditTarget(ta, this.ownerEditor);
-          // 剪贴板与全选事件不向上冒泡到 CM6 / Obsidian 编辑器层，交回 textarea 原生处理
+          // Clipboard and select all events do not bubble up to the CM6 / Obsidian editor layer and are returned to textarea native processing
           guardTextareaEditing(ta);
-          // 光标移动（含打字/方向键/点击）时按新位置刷新标记显示；输入法组合期间跳过
-          // （组合期间重建 value 会打断候选），组合结束再补一次
+          // Refresh the mark display according to the new position when the cursor moves (including typing/arrow keys/clicking); skip during input method combination
+          // (Rebuilding the value during combination will interrupt the candidate), and then fill it in again after the combination is completed.
           let composing = false;
           ta.addEventListener('compositionstart', () => {
             composing = true;
@@ -1388,7 +1380,7 @@ class ColumnsWidget extends WidgetType {
             () => {
               if (composing) return;
               if (document.activeElement !== ta) return;
-              // 仅光标态（选区拖拽期间重建 value 会干扰原生拖选，且需求针对光标）
+              // Cursor state only (rebuilding value during selection dragging will interfere with native drag selection, and needs to be specific to the cursor)
               if (ta.selectionStart !== ta.selectionEnd) return;
               syncMarkerDisplay(ta);
             },
@@ -1396,11 +1388,11 @@ class ColumnsWidget extends WidgetType {
           );
           ta.addEventListener('input', () => {
             this.texts[i] = desentinelize(ta.value);
-            // 增删行时同步高度（textarea 不原生自适应）
+            // Synchronize height when adding or deleting rows (textarea is not natively adaptive)
             syncTextareaRows(ta);
             autosizeTextarea(ta);
           });
-          // 显示值含不可见字符：复制/剪切时还原为真实标记写入剪贴板
+          // Display value contains invisible characters: revert to real markup when copying/cutting and writing to clipboard
           ta.addEventListener('copy', (e) => {
             const s = ta.selectionStart;
             const en = ta.selectionEnd;
@@ -1421,7 +1413,7 @@ class ColumnsWidget extends WidgetType {
             syncMarkerDisplay(ta);
           });
           ta.addEventListener('blur', () => {
-            // 失焦可能发生在 CM 更新过程中（DOM 重建触发），写回必须延迟到微任务
+            // Defocus may occur during CM update (triggered by DOM rebuild), writeback must be delayed to microtask
             this.later(() => {
               if (this.editCol === i) {
                 this.texts[i] = desentinelize(ta.value);
@@ -1448,49 +1440,49 @@ class ColumnsWidget extends WidgetType {
           });
           col.appendChild(ta);
           this.textareas.push(ta);
-          // 用渲染态高度初始化 textarea，消除进入编辑态时的高度跳变：
-          // 渲染态内容高约 28px（1 行），textarea CSS min-height 90px，直接替换会跳 ~62px。
+          // Initialize the textarea with the rendering state height to eliminate the height jump when entering the editing state:
+          // The rendered content is about 28px high (1 line), and the textarea CSS min-height is 90px. Direct replacement will jump ~62px.
           if (this.preEditHeight > 0) {
             ta.style.height = this.preEditHeight + 'px';
             ta.style.minHeight = this.preEditHeight + 'px';
           }
         } else {
-          // 渲染态：MarkdownRenderer 快照，单击文本进入该栏编辑（光标落至点击处附近）
+          // Rendering state: MarkdownRenderer snapshot, click the text to enter the column editing (the cursor falls near the click point)
           const content = createEl('div');
           content.className = 'block-editor-col-content';
           content.addEventListener('mousedown', (e) => {
-            // 仅左键单击且无修饰键
+            // Left click only and no modifier keys
             if (e.button !== 0 || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
-            // 链接（含标签 a.tag、嵌入 a.internal-link）：不进入编辑。enterEdit 会重建
-            // DOM，anchor 被移除后 click 不再派发 → 链接失效。此处不 preventDefault、
-            // 不重建，点击交回浏览器 / Obsidian 的链接处理。
+            // Links (including tag a.tag, embedded a.internal-link): do not enter editing. enterEdit will rebuild
+            // DOM, after the anchor is removed, click will no longer be dispatched → the link will become invalid. There is no preventDefault,
+            // Without rebuilding, click the link back to Browser/Obsidian for processing.
             if ((e.target as Element | null)?.closest?.('a')) return;
-            // 已在编辑其他栏：不拦截本次点击，交给 textarea 失焦写回本次编辑（再次点击进入本栏）
+            // Already editing other columns: Do not intercept this click, leave it to textarea to write back to this edit (click again to enter this column)
             if (this.editCol !== null && this.editCol !== i) return;
             const pos = sourceOffsetFromPoint(content, this.texts[i], e.clientX, e.clientY);
-            if (pos === null) return; // 点到留白：不触发，避免误触
+            if (pos === null) return; // Click on the blank space: no trigger, avoid accidental touch
             e.preventDefault();
             this.enterEdit(i, pos);
           });
           col.appendChild(content);
-          // 同步占位高度：按该栏自身行数估算。MarkdownRenderer 是
-          // 异步渲染，填充前 content 若为 0/28px 矮高度，CM6 首次实测会记录矮
-          // 高度 → viewport 行高映射错位 → 点击/滚动时 posAtCoords 算出越界
-          // pos → lineInner 崩（undefined.length）。min-height 撑起与估算一致的
-          // 高度，让首次实测即接近最终值。
-          // 注意必须按栏估算：若用整组最高栏估算，min-height 会压过 align-self，
-          // 顶部/居中/底部对齐下短栏被撑高。
+          // Synchronous placeholder height: estimated based on the number of rows in the column itself. MarkdownRenderer is
+          // Asynchronous rendering, if the content before filling is 0/28px short, the first actual measurement of CM6 will record the short height.
+          // Height → viewport row height mapping misalignment → posAtCoords calculation out of bounds when clicking/scrolling
+          // pos → lineInner collapse(undefined.length). min-height supports the height consistent with the estimate
+          // height, so that the first actual measurement is close to the final value.
+          // Note that it must be estimated by column: if the highest column of the entire group is used for estimation, min-height will overwhelm align-self.
+          // Short columns are raised when top/center/bottom aligned.
           content.style.minHeight = this.colContentEstimatedHeight(i) + 'px';
-          // 空栏：不渲染空内容，加占位类（CSS 提供 min-height 可点区域 + "点击编辑此栏"提示）
+          // Empty column: Do not render empty content, add placeholder class (CSS provides min-height clickable area + "Click to edit this column" prompt)
           if (!this.texts[i] || !this.texts[i].trim()) {
             content.classList.add('block-editor-col-empty');
           } else {
             if (!this.renderChild) this.renderChild = new Component();
             MarkdownRenderer.render(this.ctx.app, this.texts[i], content, this.path, this.renderChild)
               .then(() => {
-                // 多级 requestMeasure：立即 + 下一帧 + 300ms（覆盖异步图片/字体
-                // 加载后的高度变化），确保 viewport 行高缓存尽快收敛到真实高度，
-                // 缩短"实测矮高度 → 内容变高"的错位窗口。
+                // Multi-level requestMeasure: immediately + next frame + 300ms (overrides asynchronous images/fonts
+                // height change after loading), ensure that the viewport row height cache converges to the true height as soon as possible,
+                // Shorten the misalignment window of "measured short height → content becomes taller".
                 const rm = (): void => this.parentView?.requestMeasure();
                 rm();
                 window.requestAnimationFrame(rm);
@@ -1507,33 +1499,33 @@ class ColumnsWidget extends WidgetType {
       }
     }
 
-    // 编辑态高度按内容贴合：此时 DOM 已挂载，可测量 scrollHeight。
-    // 显式高度决定该栏高度，进而让整块高度以内容最多的栏为准。
+    // The editing height is fit according to the content: At this time, the DOM is mounted and the scrollHeight can be measured.
+    // The explicit height determines the height of the column, so that the overall height is based on the column with the most content.
     for (const ta of this.textareas) autosizeTextarea(ta);
 
     if (focusTarget !== null && this.textareas[0]) {
       const ta = this.textareas[0];
-      // preventScroll：聚焦会让浏览器把整个编辑区滚动到 textarea，导致页面跳到别处
+      // preventScroll: Focus will cause the browser to scroll the entire editing area to the textarea, causing the page to jump elsewhere.
       ta.focus({ preventScroll: true });
-      // 单击进入编辑：把光标落到点击处对应的源码偏移（越界钳制）
+      // Click to enter editing: Place the cursor on the source code offset corresponding to the clicked position (out-of-bounds clamping)
       const caret = this.pendingCaret;
       this.pendingCaret = null;
       if (caret !== null) {
-        // 显示值与源码等长 ⇒ 源码偏移即 value 下标
+        // The displayed value is the same length as the source code ⇒ The source code offset is the value subscript
         const p = Math.max(0, Math.min(caret, ta.value.length));
         ta.setSelectionRange(p, p);
       }
-      // 落点确定后按光标位置还原该处的行内标记（其余仍隐藏）
+      // After the landing point is determined, restore the inline mark there according to the cursor position (the rest remains hidden)
       syncMarkerDisplay(ta);
     }
   }
 
-  /** 进入编辑态；caretPos 为光标要落到的源码偏移（单击定位，不传则等同旧行为） */
+  /** Enter the editing state; caretPos is the source code offset where the cursor will land (click to locate, if not passed, it will be the same as the old behavior) */
   private enterEdit(i: number, caretPos: number | null = null): void {
     if (this.editCol !== null) return;
-    // 进入编辑态前确保格式命令桥接已安装（有活动编辑器时才可取得原型）
+    // Make sure the format command bridge is installed before entering the editing state (the prototype can only be obtained when there is an active editor)
     installColumnsFormatBridge(this.ctx.app);
-    // 捕获当前栏渲染高度，textarea 初始高度以此为准，消除切换跳变
+    // Capture the current bar rendering height. The initial height of the textarea shall be based on this to eliminate switching jumps.
     this.preEditHeight = this.colEls[i]?.offsetHeight ?? 0;
     this.editCol = i;
     this.pendingCaret = caretPos;
@@ -1541,11 +1533,11 @@ class ColumnsWidget extends WidgetType {
     this.render();
   }
 
-  /** 把当前编辑中的内容立即写回文档；DOM 已销毁的旧实例直接放弃。
-   *  切换标签页 / 关闭文档时 blur 可能不触发，由 flushEditingColumns 兜底调用。 */
+  /** Write the currently edited content back to the document immediately; the old instance of DOM that has been destroyed is abandoned directly.
+   * When switching tabs/closing the document, blur may not be triggered and is called by flushEditingColumns. */
   flushEdit(): void {
     if (this.editCol === null) return;
-    // 装饰层重建后旧实例已脱离文档，写回会落到失效视图，直接放弃
+    // After the decoration layer is rebuilt, the old instance has been separated from the document, and writing back will fall into the invalid view and give up directly.
     if (this.root && !this.root.isConnected) {
       this.editCol = null;
       setColumnEditTarget(null);
@@ -1558,14 +1550,14 @@ class ColumnsWidget extends WidgetType {
     try {
       this.commitDoc();
     } catch {
-      /* 视图已销毁，写回失败可忽略（原文仍在编辑器文档中） */
+      /* View has been destroyed，Writeback failure can be ignored（The original text is still in the editor document） */
     }
-    // 强制结束编辑后同步重建 DOM：否则残留的 textarea 已不在编辑态（editCol=null），
-    // 继续输入只更新内存文本、失焦时也不再写回，会静默丢字。
+    // Rebuild the DOM synchronously after forcibly ending editing: otherwise the remaining textarea is no longer in the editing state (editCol=null).
+    // If you continue to type, only the text in the memory will be updated. When it is out of focus, it will no longer be written back. Words will be lost silently.
     if (this.root?.isConnected) this.render();
   }
 
-  /** 当前栏所在行号（单行时恒 0） */
+  /** The line number of the current column (constantly 0 for a single line) */
   private rowIndexOf(colIdx: number): number {
     if (!this.rows.length) return 0;
     let acc = 0;
@@ -1576,13 +1568,13 @@ class ColumnsWidget extends WidgetType {
     return this.rows.length - 1;
   }
 
-  /** 行 r 的全局栏区间 [start, end) */
+  /** Global column interval [start, end) of row r */
   private rowRange(r: number): [number, number] {
     const start = this.rows.slice(0, r).reduce((a, b) => a + b, 0);
     return [start, start + this.rows[r]];
   }
 
-  /** 在当前栏（afterIndex）之后插入一栏；旧栏按比例缩小、新栏占 100/n */
+  /** Insert a column after the current column (afterIndex); the old column is scaled down and the new column occupies 100/n */
   private addColumnAt(afterIndex: number): void {
     const n = this.texts.length + 1;
     const newW = Math.round((100 / n) * 10) / 10;
@@ -1595,7 +1587,7 @@ class ColumnsWidget extends WidgetType {
     this.mutate();
   }
 
-  /** 删除指定栏；被删栏宽度按比例分给剩余栏（总和回到 100）；剩 1 栏时不执行 */
+  /** Delete the specified column; the width of the deleted column is divided proportionally to the remaining columns (the sum returns to 100); it will not be executed when there is 1 column left. */
   private removeColumn(i: number): void {
     if (this.texts.length <= 1) return;
     this.texts.splice(i, 1);
@@ -1610,13 +1602,13 @@ class ColumnsWidget extends WidgetType {
     if (this.rows.length) {
       const r = this.rowIndexOf(i);
       this.rows[r]--;
-      // 行内栏删光且还有其它行：移除该行（行结构保持 ≥1 行）
+      // The column in the row is deleted and there are other rows: remove the row (the row structure remains ≥1 row)
       if (this.rows[r] <= 0 && this.rows.length > 1) this.rows.splice(r, 1);
     }
     this.mutate();
   }
 
-  /** H2：把第 i 栏拆成两栏（文本按行对半，宽度对半，背景沿用） */
+  /** H2: Split the i-th column into two columns (the text is halved by line, the width is halved, and the background is used) */
   private splitColumnAt(i: number): void {
     const t = this.texts[i] ?? '';
     const lines = t.split('\n');
@@ -1633,7 +1625,7 @@ class ColumnsWidget extends WidgetType {
     this.mutate();
   }
 
-  /** H2：把第 i 栏与下一栏合并（行末栏禁止跨行合并；剩 1 栏时不执行） */
+  /** H2: Merge the i-th column with the next column (cross-row merging of the last column is prohibited; it will not be executed when there is 1 column left) */
   private mergeColumns(i: number): void {
     if (this.texts.length <= 1) return;
     if (this.rows.length && i + 1 >= this.rowRange(this.rowIndexOf(i))[1]) return;
@@ -1648,7 +1640,7 @@ class ColumnsWidget extends WidgetType {
     this.mutate();
   }
 
-  /** H2：分栏末尾追加一行（栏数与首行一致，含 `>> [!colrow]` 行标记） */
+  /** H2: Append a line at the end of the column (the number of columns is the same as the first line, including the `>> [!colrow]` line mark) */
   private appendRow(): void {
     const perRow = this.rows.length ? this.rows[0] : this.texts.length;
     for (let k = 0; k < perRow; k++) {
@@ -1656,13 +1648,13 @@ class ColumnsWidget extends WidgetType {
       this.widths.push(Math.round((100 / perRow) * 10) / 10);
       this.bgs.push(null);
     }
-    // 单行老笔记（rows 为空）追加首行后变为二维：首行 + 新行都要记录；
-    // 否则 rows=[N] 会被当成单行 N 栏，rowEnds 为空导致写回丢失 colrow 标记
+    // A single line of old notes (rows is empty) becomes two-dimensional after appending the first line: both the first line + the new line are recorded;
+    // Otherwise, rows=[N] will be treated as a single row of N columns, and rowEnds will be empty, causing the writeback to lose the colrow mark.
     this.rows = this.rows.length ? [...this.rows, perRow] : [perRow, perRow];
     this.mutate();
   }
 
-  /** H2：删除整行（移除该行全部栏；删后仅剩 1 行时回到单行模式，colrow 标记一并剥离） */
+  /** H2: Delete the entire row (remove all columns of the row; return to single-row mode when only 1 row is left after deletion, and strip off the colrow mark) */
   private removeRowAt(r: number): void {
     if (this.rows.length <= 1) return;
     const [s, e] = this.rowRange(r);
@@ -1674,13 +1666,13 @@ class ColumnsWidget extends WidgetType {
     this.mutate();
   }
 
-  /** H2：整行上移 / 下移（交换相邻两行的栏块、宽度、背景与行宽数组） */
+  /** H2: Move the entire row up/down (swap the column, width, background and row width arrays of two adjacent rows) */
   private moveRow(r: number, dir: -1 | 1): void {
     const t = r + dir;
     if (t < 0 || t >= this.rows.length) return;
     const [s1, e1] = this.rowRange(r);
     const [s2, e2] = this.rowRange(t);
-    // 相邻行 e1 === s2 恒成立，直接交换两行块
+    // Adjacent rows e1 === s2 always holds, and the two row blocks are directly exchanged.
     const swap = <T,>(arr: T[]): void => {
       const a = arr.slice(s1, e1);
       const b = arr.slice(s2, e2);
@@ -1695,7 +1687,7 @@ class ColumnsWidget extends WidgetType {
     this.mutate();
   }
 
-  // 按住栏间分隔条拖拽：调整相邻两栏的宽度（总和不变，最小 10%）
+  // Press and hold the column separator bar and drag: adjust the width of two adjacent columns (the sum remains unchanged, minimum 10%)
   private startResize(e: MouseEvent, i: number, row: HTMLElement, resizer: HTMLElement): void {
     e.preventDefault();
     e.stopPropagation();
@@ -1713,7 +1705,7 @@ class ColumnsWidget extends WidgetType {
       this.widths[i] = Math.round(n1 * 10) / 10;
       this.widths[i + 1] = Math.round(n2 * 10) / 10;
       if (colEls[0]) {
-        // 与 render() 统一为 grow 权重式，避免拖拽中与重建后布局模式不一致导致跳动
+        // Unify the grow weighted formula with render() to avoid jumps caused by inconsistency between the layout mode during dragging and after reconstruction.
         colEls[0].style.flex = this.widths[i] + ' 1 0%';
         colEls[0].style.removeProperty('max-width');
       }
@@ -1722,8 +1714,8 @@ class ColumnsWidget extends WidgetType {
         colEls[1].style.removeProperty('max-width');
       }
     };
-    // 收尾统一入口：mouseup 与 window blur（指针移出窗口 / 切换应用导致丢事件）都走它，
-    // 避免 mousemove / mouseup 监听器在丢失 mouseup 时残留
+    // Unified entrance to the end: both mouseup and window blur (events are lost when the pointer moves out of the window/switching applications),
+    // Avoid mousemove / mouseup listeners lingering when mouseup is lost
     const finish = (): void => {
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', finish);
@@ -1736,8 +1728,8 @@ class ColumnsWidget extends WidgetType {
     window.addEventListener('blur', finish);
   }
 
-  // 按住栏顶手柄：位移超过阈值进入拖拽排序；未超阈值松手视为点击，弹出命令菜单。
-  // 阈值区分解决“拖拽手柄”与“菜单入口”的冲突。
+  // Press and hold the handle on the top of the bar: the displacement exceeds the threshold and enters drag sorting; letting go before the threshold is exceeded is regarded as a click, and a command menu pops up.
+  // Threshold differentiation solves the conflict between "drag handle" and "menu entry".
   private gripDown(e: MouseEvent, from: number): void {
     e.preventDefault();
     e.stopPropagation();
@@ -1746,16 +1738,16 @@ class ColumnsWidget extends WidgetType {
     const startY = e.clientY;
     let dragging = false;
     let hover = -1;
-    /** 需求 B：当前合法的「拖出到分栏外」落点行号（null = 无合法落点，不显示提示） */
+    /** Requirement B: The current legal "drag out of the column" drop point line number (null = no legal drop point, no prompt will be displayed) */
     let outLine: number | null = null;
-    // 诊断日志：需求 B 的落点判定分层很多（命中栏 / widget 内 / 编辑器外 / 行号不合法），
-    // 任一环返回 null 都会「静默无反应」。保留前缀日志，便于用户直接粘控制台定位到第几步。
+    // Diagnostic log: There are many layers in the landing point determination of requirement B (hit bar/inside widget/outside editor/invalid line number),
+    // Any link that returns null will be "silent and unresponsive". Keep the prefix log so that users can directly stick to the console to locate the step.
     const dbg = (...a: unknown[]): void => {
       console.log('[block-editor] col-drag:', ...a);
     };
     dbg('gripDown', { from, cols: this.colEls.length, start: this.region.startLine, end: this.region.endLine });
     const clearDrop = () => this.colEls.forEach((c) => c.classList.remove('block-editor-col-drop'));
-    /** 源栏拖拽态描边：让用户看得见「这一栏已经被抓起来了」 */
+    /** Drag-and-drop stroke of the source column: Let the user see "This column has been captured" */
     const setDragging = (on: boolean): void => {
       const c = this.colEls[from];
       if (c) c.classList.toggle('block-editor-col-dragging', on);
@@ -1766,46 +1758,44 @@ class ColumnsWidget extends WidgetType {
       window.removeEventListener('blur', onCancel);
     };
     /**
-     * 只移除落点线的 DOM，**不动** outLine 状态。
+     * Only remove the DOM of the drop point line, **do not move** the outLine state.
      *
-     * 必须与 clearOutLine 分开：showOutLine 重画线之前要移除上一条线，若复用
-     * clearOutLine（它同时把 outLine 置 null），就会在「刚算出合法落点」之后
-     * 立刻把状态清掉 —— onMove 每次都算出同一个值、每次都被自己清成 null，
-     * 松手时 finalOutLine 恒为 null，提取永不触发。
-     * 表现为：日志里 outLine 94 反复打印（每次都算作「值变化」），但 up 时是 null。
-     */
+     * Must be separated from clearOutLine: showOutLine must remove the previous line before redrawing it. If it is reused
+     * clearOutLine (it also sets outLine to null), it will be after "just calculating the legal landing point"
+     * Immediately clear the state - onMove calculates the same value every time and is cleared to null each time.
+     * finalOutLine is always null when you let go, and extraction will never be triggered.
+     * The performance is as follows: outLine 94 is printed repeatedly in the log (each time is counted as a "value change"), but it is null when up. */
     const removeOutLineEl = (): void => {
       if (this.outLineEl) {
         this.outLineEl.remove();
         this.outLineEl = null;
       }
     };
-    /** 隐藏拖出落点插入线并清空落点状态（仅用于拖拽结束 / 落点变非法） */
+    /** Hide the insertion line after dragging out the drop point and clear the drop point status (only used when dragging ends/drop point becomes illegal) */
     const clearOutLine = (): void => {
       removeOutLineEl();
       outLine = null;
     };
     /**
-     * 需求 B：指针在 widget 外时计算合法落点。
-     * 只认分栏块的紧邻上行 / 下行 —— 其余位置（栏之间、其他块内部、更远的行）
-     * 一律不合法，不显示任何提示，松手即取消。
-     */
+     * Requirement B: Calculate the legal landing point when the pointer is outside the widget.
+     * Only recognize the immediate ascending/descending rows of column blocks - the rest (between columns, inside other blocks, further rows)
+     * It is absolutely illegal, no prompt will be displayed, and it will be canceled if you let go. */
     const computeOutLine = (ev: MouseEvent): number | null => {
       const view = this.parentView;
       if (!view) return null;
-      // 指针仍在 widget 内 → 不是拖出场景（要么是栏间换序，要么无效）
+      // The pointer is still within the widget → not dragging out of the scene (either the order of columns is changed, or it is invalid)
       if (this.root && document.elementFromPoint?.(ev.clientX, ev.clientY)?.closest?.('.block-editor-columns-widget') === this.root) {
         return null;
       }
-      // 指针不在任何 markdown 编辑器内 → 无落点
+      // The pointer is not in any markdown editor → no drop point
       if (!editorDomAtPoint(ev.clientX, ev.clientY, view)) return null;
       const pos = view.posAtCoords({ x: ev.clientX, y: ev.clientY });
       if (pos == null) return null;
       const { start, end } = this.getLineRange();
       const doc = view.state.doc;
       const l = doc.lineAt(pos);
-      // 编辑器惯例：指针落在某行的上半 → 插到该行之前；下半 → 插到该行之后。
-      // 这样每一行都有两个可选落点，配合「区间外任意行」的规则即可自由定位。
+      // Editor convention: when the pointer falls on the upper half of a line → it is inserted before the line; when the pointer falls on the lower half → it is inserted after the line.
+      // In this way, each row has two optional landing points, which can be positioned freely according to the rules of "any row outside the range".
       const top = view.coordsAtPos(l.from)?.top;
       const bottom = view.coordsAtPos(l.to)?.bottom;
       const mid = top != null && bottom != null ? (top + bottom) / 2 : null;
@@ -1813,14 +1803,14 @@ class ColumnsWidget extends WidgetType {
       const target = (l.number - 1) + (after ? 1 : 0);
       return resolveExtractLine(start, end, target);
     };
-    /** 画拖出落点插入线（贴在 .cm-editor 上，overflow:hidden 裁剪） */
+    /** Draw and drag out the insertion line (paste it on .cm-editor, crop it with overflow:hidden) */
     const showOutLine = (ev: MouseEvent, line: number): void => {
       const view = this.parentView;
       if (!view || !view.dom) return;
       const doc = view.state.doc;
       const editorRect = view.dom.getBoundingClientRect();
       const contentRect = view.contentDOM.getBoundingClientRect();
-      // 追加到文末：线画在最后一行的底部
+      // Append to end: line drawn at the bottom of the last line
       if (line >= doc.lines) {
         const last = doc.line(doc.lines);
         const c = view.coordsAtPos(last.to);
@@ -1838,12 +1828,12 @@ class ColumnsWidget extends WidgetType {
       const l = doc.line(line + 1);
       const c = view.coordsAtPos(l.from);
       if (!c) return;
-      // 只移除上一条线的 DOM：不能用 clearOutLine()，否则会把刚算出的 outLine 清成 null
+      // Only remove the DOM of the previous line: you cannot use clearOutLine(), otherwise the newly calculated outLine will be cleared to null
       removeOutLineEl();
       const el = createEl('div');
-      // 显隐由 .block-editor-col-outline 自己负责（display:block，见 styles.css），
-      // 外观基类 .block-editor-indicator 不含 display —— 两条落点线共用外观但
-      // 显隐各自独立，改基类不会波及这里。这里只写随指针变化的动态几何。
+      // The display and concealment are handled by .block-editor-col-outline itself (display:block, see styles.css),
+      // The appearance base class .block-editor-indicator does not contain display - the two drop-point lines share the appearance but
+      // Display and concealment are independent of each other, and changing the base class will not affect this. Only the dynamic geometry that changes with the pointer is written here.
       el.className = 'block-editor-indicator block-editor-col-outline';
       el.style.left = `${contentRect.left - editorRect.left}px`;
       el.style.width = `${Math.max(contentRect.width, 40)}px`;
@@ -1861,18 +1851,18 @@ class ColumnsWidget extends WidgetType {
       const el = document.elementFromPoint?.(ev.clientX, ev.clientY)?.closest('.block-editor-col-editor');
       hover = el ? this.colEls.indexOf(el as HTMLElement) : -1;
       this.colEls.forEach((c, k) => c.classList.toggle('block-editor-col-drop', k === hover && hover !== from));
-      // 命中栏 → 栏间换序，清掉拖出提示；未命中 → 尝试算拖出落点
+      // Hit the column → change the order between columns and clear the drag-out prompt; miss → try to calculate the drag-out landing point
       if (hover !== -1) clearOutLine();
       else {
         const line = computeOutLine(ev);
-        // 只在落点变化时打日志，避免每次 mousemove 刷屏
+        // Only log when the landing point changes to avoid refreshing the screen every time mousemove
         if (line !== outLine) dbg('outLine', line, { hover });
         outLine = line;
         if (line === null) clearOutLine();
         else showOutLine(ev, line);
       }
     };
-    // 失焦（指针移出窗口 / 切换应用）时取消拖拽并解绑，避免监听残留
+    // Cancel dragging and unbinding when out of focus (pointer moves out of window/switching applications) to avoid monitoring residue
     const onCancel = (): void => {
       detach();
       clearDrop();
@@ -1883,17 +1873,17 @@ class ColumnsWidget extends WidgetType {
       detach();
       clearDrop();
       setDragging(false);
-      // 必须在 clearOutLine() 之前捕获落点行号：clearOutLine 会把 outLine 置 null，
-      // 若顺序颠倒，下面的提取分支永远读到 null（表现为「怎么拖都拖不出来」）。
+      // The drop point line number must be captured before clearOutLine(): clearOutLine will set outLine to null.
+      // If the order is reversed, the following extraction branch will always read null (shown as "can't drag it out no matter how hard it is dragged").
       const finalOutLine = outLine;
       clearOutLine();
       dbg('up', { finalOutLine, hover, dragging, alt: ev.altKey });
       if (!dragging) {
-        // 点击（未拖动）：弹出命令菜单
+        // Click (without dragging): pop up command menu
         this.showColMenu(ev, from);
         return;
       }
-      // 需求 B 优先：拖到分栏外的合法落点 → 该栏脱离分栏成为普通块
+      // Requirement B takes priority: drag to the legal landing point outside the column → the column breaks away from the column and becomes a normal block
       if (finalOutLine !== null && hover === -1) {
         const done = this.extractColumnTo(from, finalOutLine, ev.altKey);
         dbg('extract', done);
@@ -1920,21 +1910,20 @@ class ColumnsWidget extends WidgetType {
   }
 
   /**
-   * 需求 B 落地：把第 i 栏移出分栏，作为普通块插入到 line 行之前。
+   * Implementation of requirement B: Move the i-th column out of the sub-column and insert it as a normal block before the line line.
    *
-   * 单步撤销：「区间重写（分栏少一栏）」+「区间外插入（普通块）」合并进同一
-   * Transaction，理由同 commitColumnDrop。
+   * Single-step undo: "Interval rewrite (one column less)" + "Insert outside the interval (ordinary block)" merge into the same
+   * Transaction, the reason is the same as commitColumnDrop.
    *
-   * 边界规则（已与用户确认）：
-   *  - 拖出后剩 1 栏 → 自动降级为取消分栏，整段还原为普通段落
-   *  - 被拖出栏的宽度按比例分给剩余栏（removeColumnAt 内部处理）
-   *  - 空栏禁止拖出（拖出去也没有内容）
-   *  - 行末栏可拖出到分栏外（跨行合并由 mergeColumns 负责，此处不拦）
+   * Boundary rules (confirmed with user):
+   * - After dragging out, there is only 1 column left → Automatically downgrade to cancel column division, and the entire paragraph will be restored to a normal paragraph
+   * - The width of the dragged column is distributed proportionally to the remaining columns (removeColumnAt internal processing)
+   * - Empty columns are prohibited from being dragged out (there will be no content even if dragged out)
+   * - The column at the end of a row can be dragged out of the sub-column (cross-row merging is handled by mergeColumns and is not blocked here)
    *
-   * @param line  目标插入行号（0-based，插到该行之前）
-   * @param copy  Alt = 复制到分栏外，栏仍保留
-   * @returns 是否已提交
-   */
+   * @param line target insertion line number (0-based, inserted before the line)
+   * @param copy Alt = Copy to outside the column, the column will remain
+   * @returns Whether it has been submitted */
   private extractColumnTo(i: number, line: number, copy: boolean): boolean {
     const view = this.parentView;
     if (!view) return false;
@@ -1949,7 +1938,7 @@ class ColumnsWidget extends WidgetType {
     const lines: string[] = [];
     for (let k = 1; k <= doc.lines; k++) lines.push(doc.line(k).text);
 
-    // 自由落点：line 表示「插到第 line 行之前」，line === doc.lines 表示追加到文末
+    // Free drop point: line means "insert before line", line === doc.lines means append to the end of the text
     const insert = buildExtractInsertText(plain, lines, line, {
       start: this.region.startLine,
       end: this.region.endLine,
@@ -1958,7 +1947,7 @@ class ColumnsWidget extends WidgetType {
     if (!insert) return false;
     const lineFrom = line >= doc.lines ? doc.length : doc.line(line + 1).from;
 
-    // Alt 复制：分栏结构不变，只在区间外插入
+    // Alt copy: The column structure remains unchanged, only insert outside the interval
     if (copy) {
       keepViewport(view, () => {
         view.dispatch({ changes: buildCombinedChanges(regionFrom, regionTo, this.buildRegionText(), { pos: lineFrom, text: insert }) });
@@ -1969,9 +1958,9 @@ class ColumnsWidget extends WidgetType {
     const removed = this.removeColumnAt(i);
     if (removed === null) return false;
 
-    // 剩 1 栏 → 降级为取消分栏：整段替换为剩余栏的纯文本。
-    // 落点不再受限，故与常规路径一样走「区间重写 + 区间外插入」的合并事务，
-    // 不能像早期版本那样把拖出内容拼进 region 文本（那样只能插在紧邻位置）。
+    // 1 column left → Downgrade to uncolumn: Replace the entire paragraph with the plain text of the remaining columns.
+    // The placement point is no longer limited, so the merge transaction of "range rewriting + outside range insertion" is carried out as usual.
+    // It is not possible to spell the dragged content into the region text like in earlier versions (in that case it can only be inserted in the immediate position).
     const regionText = shouldUnwrapAfterExtract(this.columnCount())
       ? this.buildUnwrappedText() + (this.region.hasBreak ? '\n' : '')
       : this.buildRegionText();
@@ -1983,8 +1972,8 @@ class ColumnsWidget extends WidgetType {
     return true;
   }
 
-  // ---- grip 命令菜单：设置背景色 / 新增栏 / 删除栏（横排纯图标） ----
-  /** lucide 风格内联图标（不依赖 Obsidian setIcon，测试环境同样可用） */
+  // ---- grip command menu: set background color / add column / delete column (horizontal pure icon) ----
+  /** lucide style inline icon (not dependent on Obsidian setIcon, also available in test environment) */
   private static iconEl(paths: string[]): SVGSVGElement {
     const svg = createSvg('svg');
     svg.setAttribute('viewBox', '0 0 24 24');
@@ -2030,15 +2019,15 @@ class ColumnsWidget extends WidgetType {
     }
   }
 
-  /** 写入某栏背景色并同步到文档与渲染（color 为 null 表示清除背景）。
-   *  仅设置浅色：深色由算法自动推导并写入内存模型（不落库，读取端可复现）；
-   *  显式覆盖深色请用 applyBgDark。 */
+  /** Write the background color of a certain column and synchronize it to the document and rendering (color is null to clear the background).
+   * Only set light colors: dark colors are automatically derived by the algorithm and written into the memory model (not dropped into the library, reproducible on the reading end);
+   * To explicitly cover dark colors, use applyBgDark. */
   private applyBg(i: number, color: string | null): void {
     this.bgs[i] = color ? { light: color, dark: deriveDarkColor(color) } : null;
     this.mutate();
   }
 
-  /** 覆盖/清除某栏深色主题背景：dark 为 null 时恢复为自动推导值 */
+  /** Overwrite/clear the dark theme background of a certain column: when dark is null, it returns to the automatically derived value */
   private applyBgDark(i: number, dark: string | null): void {
     const cur = this.bgs[i];
     if (!cur?.light) return;
@@ -2086,7 +2075,7 @@ class ColumnsWidget extends WidgetType {
       this.removeColumn(i);
     });
 
-    // H2 行列编辑增强：拆分栏 / 合并到下一栏 / 追加一行 / 行上移 / 行下移
+    // H2 row and column editing enhancements: split column/merge to next column/append a row/move row up/move row down
     const splitBtn = createEl('button');
     splitBtn.className = 'block-editor-col-menu-item';
     splitBtn.title = TEXT.message0055;
@@ -2119,7 +2108,7 @@ class ColumnsWidget extends WidgetType {
       this.appendRow();
     });
 
-    // 删除整行：仅多行时可用（单行禁用，避免把整个分栏删空）
+    // Delete the entire row: only available for multiple rows (disabled for single rows to avoid deleting the entire column)
     const delRowBtn = createEl('button');
     delRowBtn.className = 'block-editor-col-menu-item';
     delRowBtn.title = this.rows.length > 1 ? TEXT.message0060 : TEXT.message0061;
@@ -2138,7 +2127,7 @@ class ColumnsWidget extends WidgetType {
     menu.appendChild(rowBtn);
     menu.appendChild(delRowBtn);
 
-    // 多行时才提供整行排序（行上移 / 行下移），单行无意义
+    // Whole-row sorting (row up/row down) is only provided for multiple rows. A single row is meaningless.
     if (this.rows.length > 1) {
       const rIdx = this.rowIndexOf(i);
       const rowUp = createEl('button');
@@ -2167,16 +2156,16 @@ class ColumnsWidget extends WidgetType {
     document.body.appendChild(menu);
     this.menuEl = menu;
 
-    // 点击菜单外部关闭（菜单项自身的 mousedown 在 menu 内，不受影响）
+    // Click outside the menu to close (the mousedown of the menu item itself is inside the menu and will not be affected)
     window.setTimeout(() => {
       window.addEventListener('mousedown', this.onDocMouseDown, { once: true });
     }, 0);
   }
 
-  /** 5 个协调的柔和预设背景色 */
+  /** 5 coordinating pastel preset background colors */
   private static readonly BG_PALETTE = ['#f1f3f5', '#ffe8e8', '#fff4d6', '#d8f3dc', '#d0ebff'];
 
-  /** 弹窗选色：预设色板 + 自定义 hex + 无背景色（清除） */
+  /** Pop-up window color selection: default color palette + custom hex + no background color (clear) */
   private openColorPicker(i: number, x: number, y: number): void {
     this.closeColorPicker();
     const picker = createEl('div');
@@ -2189,7 +2178,7 @@ class ColumnsWidget extends WidgetType {
     title.textContent = TEXT.message0064 + (i + 1) + TEXT.message0065;
     picker.appendChild(title);
 
-    // 预设色板
+    // Default color palette
     const swatches = createEl('div');
     swatches.className = 'block-editor-col-picker-swatches';
     for (const c of ColumnsWidget.BG_PALETTE) {
@@ -2205,7 +2194,7 @@ class ColumnsWidget extends WidgetType {
     }
     picker.appendChild(swatches);
 
-    // 自定义选色窗：原生颜色选择器（即时预览到 hex 输入框，change 确认写回）
+    // Customized color selection window: native color picker (immediate preview to hex input box, change confirmation written back)
     const customRow = createEl('div');
     customRow.className = 'block-editor-col-picker-custom';
     const colorInput = createEl('input');
@@ -2222,7 +2211,7 @@ class ColumnsWidget extends WidgetType {
       this.applyBg(i, colorInput.value);
     });
 
-    // 自定义 hex 输入
+    // Custom hex input
     const hexRow = createEl('div');
     hexRow.className = 'block-editor-col-picker-hex';
     const input = createEl('input');
@@ -2252,8 +2241,8 @@ class ColumnsWidget extends WidgetType {
     customRow.appendChild(hexRow);
     picker.appendChild(customRow);
 
-    // 折叠式"覆盖深色"入口：展开可设置深色主题下的背景色；清除后恢复自动推导。
-    // 显式设置的值写回 `bg-dark=` 落库；自动推导值不落库（读取端按同一算法复现）
+    // Collapsible "Overlay Dark" portal: Expand to set the background color under the dark theme; clear it to resume automatic derivation.
+    // The explicitly set value is written back to `bg-dark=` and dropped into the library; the automatically derived value is not dropped into the library (the reading end reproduces it according to the same algorithm)
     const darkSection = createEl('div');
     darkSection.className = 'block-editor-col-picker-dark';
     const darkToggle = createEl('button');
@@ -2318,7 +2307,7 @@ class ColumnsWidget extends WidgetType {
     darkSection.appendChild(darkBody);
     picker.appendChild(darkSection);
 
-    // 清除背景
+    // clear background
     const clearBtn = createEl('button');
     clearBtn.className = 'block-editor-col-picker-clear';
     clearBtn.textContent = TEXT.message0074;
@@ -2331,7 +2320,7 @@ class ColumnsWidget extends WidgetType {
     document.body.appendChild(picker);
     this.colorPickerEl = picker;
 
-    // 点击浮层外部关闭
+    // Click outside the floating layer to close it
     window.setTimeout(() => {
       window.addEventListener('mousedown', this.onDocMouseDown, { once: true });
     }, 0);
@@ -2354,12 +2343,11 @@ function path_of(state: DecorState): string {
 }
 
 /**
- * 浏览 widget 复用缓存：区间内容未变时复用实例（保焦点、防闪烁）。
- * CM6 防御：key 记录文档标识（path）+ 所属视图（owner）防误复用——
- * widget 持有 DOM 与编辑器引用（parentView / root 为单实例），
- * 跨文档或同一文件的不同分屏共用同一 startPos / 内容签名时若复用，
- * parentView 会被后者覆盖、DOM 被搬走、写回 dispatch 落到错误视图。
- */
+ * Browse widget reuse cache: reuse instances when the range content remains unchanged (focus preservation, anti-flicker).
+ * CM6 defense: key record document identification (path) + belonging view (owner) to prevent mistaken reuse--
+ * The widget holds DOM and editor references (parentView / root is a single instance),
+ * If the same startPos/content signature is shared across documents or different split screens of the same file, it will be reused.
+ * parentView will be overwritten by the latter, the DOM will be moved, and the write back to dispatch will fall into the wrong view. */
 const widgetCache = new Map<
   number,
   { path: string; owner: unknown; key: string; widget: ColumnsWidget }
@@ -2367,21 +2355,19 @@ const widgetCache = new Map<
 let sharedCtx: BlockEditorPlugin | null = null;
 
 /**
- * DOM 根元素 → widget 实例的注册表。
+ * DOM root element → registry of widget instances.
  *
- * 需求 A/B 的落点命中必须从 DOM 反查 widget（elementFromPoint 拿到的只是元素，
- * 而栏信息存在 widget 实例上）。此处以 toDOM 建的 wrap 为键建反向索引，
- * widget 销毁 / DOM 重建时自动失效（WeakMap 弱引用，不阻止回收）。
- */
+ * It is required that the landing point of A/B must be checked from the DOM for the widget (elementFromPoint only gets the element,
+ * The column information is stored on the widget instance). Here, a reverse index is built using the wrap created by toDOM as the key.
+ * Automatically invalidate when widget is destroyed/DOM is rebuilt (WeakMap weak reference, does not prevent recycling). */
 const widgetByRoot = new WeakMap<HTMLElement, ColumnsWidget>();
 
 /**
- * 取指针位置下的分栏 widget（需求 A：命中栏 → 新增栏；需求 B：判定是否拖出）。
- * 未命中任何分栏返回 null。
+ * Get the column widget under the pointer position (requirement A: hit the column → add a new column; requirement B: determine whether to drag it out).
+ * Returns null if no column is hit.
  *
- * 命中判定用 elementFromPoint 而非 CM6 posAtCoords：widget 是 ignoreEvent 的
- * block 替换装饰，posAtCoords 只能给出整个区间的替换位置，取不到"第几栏"。
- */
+ * Use elementFromPoint instead of CM6 posAtCoords for hit determination: the widget is ignoreEvent
+ * block replacement decoration, posAtCoords can only give the replacement position of the entire interval, but cannot get the "number of columns". */
 export function columnsWidgetAtPoint(x: number, y: number): ColumnsWidget | null {
   const el = document.elementFromPoint(x, y);
   if (!el) return null;
@@ -2390,18 +2376,17 @@ export function columnsWidgetAtPoint(x: number, y: number): ColumnsWidget | null
   return widgetByRoot.get(root) ?? null;
 }
 
-/** 调试 / 测试用：当前存活的 widget 实例（按插入顺序） */
+/** For debugging/testing: currently living widget instances (in order of insertion) */
 export function allColumnsWidgets(): ColumnsWidget[] {
   return [...widgetCache.values()].map((e) => e.widget);
 }
 
 /**
- * 指针是否落在指定编辑器视图的可视区域内。
+ * Whether the pointer falls within the visible area of the specified editor view.
  *
- * 需求 B 用：`posAtCoords` 对编辑器之外的坐标会返回最近的合法位置（不保证 null），
- * 若不先做区域校验，把栏拖到标签页栏 / 侧边栏 / 窗口空白处也会被误判为合法落点，
- * 表现为"松手就粘到奇怪的位置"。
- */
+ * Requirement B uses: `posAtCoords` will return the nearest legal position for coordinates outside the editor (null is not guaranteed),
+ * If the area verification is not done first, dragging the bar to the tab bar/sidebar/window blank will also be misjudged as a legal landing point.
+ * It manifests as "it sticks to a strange position when you let go". */
 export function editorDomAtPoint(x: number, y: number, view: EditorView): boolean {
   const dom = view?.dom;
   if (!dom) return false;
@@ -2409,12 +2394,12 @@ export function editorDomAtPoint(x: number, y: number, view: EditorView): boolea
   return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
 }
 
-/** 装饰构建：整个分栏区域替换为交互 widget */
+/** Decoration construction: Replace the entire column area with interactive widgets */
 function buildDecorations(state: DecorState, regions: ColumnsRegion[]): DecorationSet {
   const ranges: Range<Decoration>[] = [];
   const live = state.field(editorLivePreviewField);
   const docId = path_of(state) || 'untitled';
-  // 每视图判别符：同一文件的不同分屏各有独立 Editor 实例，用于避免 widget 误复用
+  // Per-view discriminator: Different split-screens of the same file have independent Editor instances to avoid mistaken reuse of widgets.
   const owner = state.field(editorInfoField)?.editor ?? null;
   lastDiagnostics.livePreview = live;
 
@@ -2425,7 +2410,7 @@ function buildDecorations(state: DecorState, regions: ColumnsRegion[]): Decorati
   );
   colLog(TEXT.message0076, { live, markerLines: lastDiagnostics.markerLines, regions: regions.length });
 
-  // 开关关闭或源码模式：不替换为 widget，保留原生 callout（横排与否由 body.be-columns-live-on CSS 控制）
+  // Switch off or source mode: do not replace with widget, retain the native callout (horizontal or not is controlled by body.be-columns-live-on CSS)
   if (!sharedCtx?.settings.livePreviewWidget || !live) {
     lastDiagnostics.note = !sharedCtx?.settings.livePreviewWidget ? TEXT.message0077 : TEXT.message0078;
     for (const e of widgetCache.values()) e.widget.destroy();
@@ -2434,11 +2419,11 @@ function buildDecorations(state: DecorState, regions: ColumnsRegion[]): Decorati
   }
 
   const used = new Set<number>();
-  // docLen 与本函数内不变，提到循环外避免每个区间重复计算
+  // docLen remains unchanged within this function, and is mentioned outside the loop to avoid repeated calculations for each interval.
   const docLen = state.doc.line(state.doc.lines).to;
   for (const r of regions) {
-    // 行边界钳制（防御）：startPos/endPos 必须为有限数值且落在 0..doc.length
-    // 内且有序，不合规的区间跳过并记诊断，避免 Decoration.replace 越界抛错。
+    // Row boundary clamping (defense): startPos/endPos must be finite values and fall within 0..doc.length
+    // Internal and orderly, non-compliant intervals are skipped and diagnosed to avoid out-of-bounds errors of Decoration.replace.
     const clampStart = Math.max(0, Math.min(r.startPos, docLen));
     const clampEnd = Math.max(clampStart, Math.min(r.endPos, docLen));
     if (
@@ -2456,19 +2441,19 @@ function buildDecorations(state: DecorState, regions: ColumnsRegion[]): Decorati
       continue;
     }
     used.add(r.startPos);
-    // 缓存键纳入分栏默认外观设置签名，与 WidgetType.key 保持一致：
-    // 设置改动 gap / radius / valign / border 时强制重建 widget，使内联 alignSelf、
-    // 边框宽度等及时更新。
+    // The cache key is included in the default appearance setting signature of the column, consistent with WidgetType.key:
+    // Force the widget to be rebuilt when the settings change gap / radius / valign / border, so that alignSelf,
+    // Border width, etc. are updated in time.
     const key = columnsContentKey(r.segments, r.widths, r.bgs, r.rows, r.opts)
       + settingsAppearanceKey(sharedCtx.settings);
     let entry = widgetCache.get(r.startPos);
     let widget: ColumnsWidget;
     if (entry && entry.path === docId && entry.owner === owner && entry.key === key) {
-      // 同一视图且内容未变：复用实例（保焦点、防闪烁），仅同步位置
+      // The same view and the content remains unchanged: reuse the instance (maintain focus, anti-flicker), only synchronize the position
       widget = entry.widget;
       widget.region = r;
     } else {
-      // 旧缓存不匹配（内容/视图/文档变化）：先卸载旧 widget 的渲染组件，避免泄漏
+      // Old cache mismatch (content/view/document changes): Uninstall the rendering component of the old widget first to avoid leaks
       if (entry) entry.widget.destroy();
       colLog(TEXT.message0081, { startLine: r.startLine, doc: docId });
       widget = new ColumnsWidget(ctx_of(state), r, docId, owner);
@@ -2476,7 +2461,7 @@ function buildDecorations(state: DecorState, regions: ColumnsRegion[]): Decorati
     }
     ranges.push(Decoration.replace({ block: true, widget }).range(clampStart, clampEnd));
   }
-  // 清理已消失区间 / 已不属于当前文档或当前视图的缓存
+  // Clean up the disappeared range/cache that no longer belongs to the current document or current view
   for (const k of [...widgetCache.keys()]) {
     const e = widgetCache.get(k);
     if (!e || e.path !== docId || e.owner !== owner || !used.has(k)) {
@@ -2492,15 +2477,14 @@ function ctx_of(state: DecorState): BlockEditorPlugin {
 }
 
 /**
- * 分栏装饰由 StateField 提供：
- * 跨换行的 block 替换装饰从 ViewPlugin 提供会被 CM6 静默拒绝（仅控制台报错）。
- * 必须通过 provide 接入 decorations facet，否则装饰只存在于字段值中、视图不可见。
+ * Column decoration is provided by StateField:
+ * Block replacement decoration across newlines provided from ViewPlugin will be silently rejected by CM6 (only an error will be reported in the console).
+ * The decorations facet must be accessed through provide, otherwise the decorations only exist in the field value and are not visible in the view.
  *
- * 性能：文档变更默认全量重扫（增量平移方案因行号位移统计不可靠已弃用，见 update 注释）；
- * 仅当此前不存在任何分栏区间、且本次变更未插入 `>` 字符时走快速路径直接沿用旧值，
- * 避免无分栏文档的每次击键都全量扫描。
- */
-/** 本次事务是否插入了含 `>` 的文本（分栏行的必要前缀，快速路径判定用） */
+ * Performance: Document changes are fully rescanned by default (the incremental translation scheme has been abandoned due to unreliable line number displacement statistics, see update comments);
+ * Only when there was no column interval before and the `>` character was not inserted in this change, the fast path is used to directly use the old value.
+ * Avoid full scanning of uncolumn documents with every keystroke. */
+/** Whether this transaction inserted text containing `>` (necessary prefix for column lines, used for fast path determination) */
 function insertsQuote(tr: Transaction): boolean {
   let hit = false;
   tr.changes.iterChanges((_fromA, _toA, _fromB, _toB, inserted) => {
@@ -2524,21 +2508,21 @@ export const columnsField = StateField.define<ColumnsState>({
     }
 
     try {
-      // 未初始化（create 拿不到文档）或强制重算时，选区事务也要完整计算
+      // When not initialized (create cannot get the document) or forced recalculation, the constituency transaction must also be fully calculated.
       if (value.initialized && !tr.docChanged && !forced) return value;
       if (!value.initialized || forced) return fullRescan(tr);
 
-      // 快速路径：此前没有任何分栏区间、且本次未插入 `>` 时不可能新生分栏
-      // （分栏行必以 `>` 引用开头；删除无法凭空造出 `>` 行），直接沿用旧值，
-      // 避免无分栏文档的每次击键都全量扫描。
+      // Fast path: It is impossible to create new columns when there has not been any column interval before and `>` has not been inserted this time.
+      // (Column lines must start with `>` reference; deletion cannot create `>` lines out of thin air), use the old value directly,
+      // Avoid scanning the entire document with every keystroke.
       if (value.regions.length === 0 && !insertsQuote(tr)) return value;
 
-      // 任何文档变更一律全量重扫（放弃 H6 增量 kept 平移）。
-      // 原因：iterChangedRanges 的 fromB/toB 语义 + lineAt 对行尾位置的归属，
-      // 使 shiftLine 的行号位移统计在“分栏上方插入/编辑”场景系统性偏小，
-      // kept 分栏 startPos 偏上（覆盖前置行）、endPos 偏上（漏覆盖分栏尾部），
-      // 与 Obsidian 原生 callout 渲染叠加成同一分栏上下两份（镜像重复）。
-      // 全量重扫保证每次变更后 range 精确；widget 仍走 cache 复用，不丢焦点。
+      // Any document changes will be fully rescanned (H6 increment kept and translation abandoned).
+      // Reason: iterChangedRanges' fromB/toB semantics + lineAt's ownership of the end of line position,
+      // Make shiftLine's line number displacement statistics systematically smaller in the "insert/edit above column" scenario.
+      // kept column startPos on the upper side (covering the leading row), endPos on the upper side (missing the end of the column),
+      // Superimposed with Obsidian's native callout rendering into two upper and lower copies of the same column (mirror repetition).
+      // Full rescan ensures that the range is accurate after each change; widgets are still cached and reused without losing focus.
       colLog(TEXT.message0084);
       return fullRescan(tr);
     } catch (e) {
@@ -2546,29 +2530,29 @@ export const columnsField = StateField.define<ColumnsState>({
       return value;
     }
   },
-  // 关键：把字段中的装饰接到 decorations facet——
-  // 没有这一步，装饰只存在于字段值里，视图根本看不到；
-  // 且经 compute 提供的值是静态 DecorationSet，块替换才被 CM6 允许。
-  // 消费 tip 逃逸防御：compute 回调在 CM6 事务应用期执行，包 try-catch +
-  // range 归一化，杜绝非法 range / 字段异常冒泡到 dispatch（lineAt 越界）。
+  // Key: Connect the decorations in the field to the decorations facet--
+  // Without this step, the decoration only exists in the field value and cannot be seen by the view at all;
+  // Block replacement is only allowed by CM6 if the value provided by compute is a static DecorationSet.
+  // Consumption tip escape defense: compute callback is executed during the CM6 transaction application period, including try-catch +
+  // Range normalization prevents illegal range/field exceptions from bubbling up to dispatch (lineAt out-of-bounds).
   provide: (f) =>
     EditorView.decorations.compute([f], safeDecoCompute((state) => state.field(f).decorations, (msg, e) => colLog(msg, e))),
 });
 
-/** 全量重扫（初始化 / 强制重算 / 每次文档变更——增量弃用后唯一入口） */
+/** Full rescan (initialization / forced recalculation / each document change - the only entry after incremental deprecation) */
 function fullRescan(tr: Transaction): ColumnsState {
   const stats = { markerLines: 0 };
   const regions = scanRegions(tr.state.doc, stats);
   lastDiagnostics.markerLines = stats.markerLines;
   colLog(TEXT.message0085, {
-    区间数: regions.length,
-    区间范围: regions.map((r) => [r.startLine, r.endLine]),
+    regionCount: regions.length,
+    regionRanges: regions.map((r) => [r.startLine, r.endLine]),
   });
   const decorations = buildDecorations({ doc: tr.state.doc, field: (f) => tr.state.field(f) }, regions);
   return { initialized: true, regions, decorations };
 }
 
-// 交互层：编辑器挂载后立即补一次计算（StateField.create 拿不到文档）
+// Interaction layer: Complement the calculation immediately after the editor is mounted (StateField.create cannot get the document)
 const columnsInteractions = ViewPlugin.fromClass(
   class {
     constructor(view: EditorView) {
@@ -2578,7 +2562,7 @@ const columnsInteractions = ViewPlugin.fromClass(
         try {
           v.dispatch({ effects: forceRecompute.of(null) });
         } catch {
-          /* 视图已销毁 */
+          /* View has been destroyed */
         }
       });
     }
@@ -2586,17 +2570,16 @@ const columnsInteractions = ViewPlugin.fromClass(
 );
 
 /**
- * 撤销/重做视口保护：
- * 撤销会让分栏 widget 重建、CM6 重算视口，并把视图滚走（常见是滚回文档顶部——
- * 撤销事务会带上「滚动到光标」目标，而光标往往还停在文档开头）。
+ * Undo/redo viewport protection:
+ * Undoing will cause the column widget to rebuild, CM6 to recalculate the viewport, and scroll the view away (commonly scrolling back to the top of the document--
+ * Undoing the transaction will bring the "scroll to cursor" target, and the cursor is often still at the beginning of the document).
  *
- * 这里在 ViewPlugin.update 里记下滚动锚点：该钩子在 CM6 的 DOM 更新之前执行
- * （EditorView.update 顺序为 viewState.update → updatePlugins → docView.update），
- * 此刻 scrollTop 仍然可信。随后用 scrollSnapshot 事务去「覆盖」撤销事务携带的
- * 滚动目标——后派发的事务会替换掉原来的 scrollTarget，CM6 在测量阶段按锚点还原
- * 到原位置，而不是滚到光标处。
- * 仅在本文档存在分栏区间时生效，避免改变普通文档的原生撤销行为。
- */
+ * Note the scroll anchor point in ViewPlugin.update here: this hook is executed before the DOM of CM6 is updated.
+ * (EditorView.update sequence is viewState.update → updatePlugins → docView.update),
+ * At this moment scrollTop is still trusted. Then use the scrollSnapshot transaction to "overwrite" the undo transaction carried
+ * Scroll target - the later dispatched transaction will replace the original scrollTarget, and CM6 will restore it according to the anchor point during the measurement phase
+ * Go to the original position instead of scrolling to the cursor.
+ * Only takes effect when this document has column intervals to avoid changing the native undo behavior of ordinary documents. */
 const undoViewportGuard = ViewPlugin.fromClass(
   class {
     update(update: ViewUpdate): void {
@@ -2606,24 +2589,24 @@ const undoViewportGuard = ViewPlugin.fromClass(
       );
       if (!isUndoRedo) return;
       const view = update.view;
-      // 字段缺失或本文档没有分栏区间时不介入
+      // No intervention occurs when fields are missing or this document does not have column intervals.
       const state = view.state.field(columnsField, false);
       if (!state || !state.regions.length) return;
       const sd = view.scrollDOM;
       const top = sd.scrollTop;
-      if (top <= 0) return; // 本来就在顶部，没有可保护的位置
+      if (top <= 0) return; // It's at the top, there's no place to protect it
       const snap = view.scrollSnapshot();
       const restore = (): void => {
         if (!view.dom.isConnected) return;
         try {
           view.dispatch({ effects: snap });
         } catch {
-          /* 视图已销毁 */
+          /* View has been destroyed */
         }
       };
-      // 微任务：在 CM6 测量（应用原撤销滚动目标）之前派发，抢占 scrollTarget
+      // Microtask: dispatched before CM6 measurement (apply original undo scroll target), preempt scrollTarget
       queueMicrotask(restore);
-      // 下一帧：兜住测量之后才发生的异步滚动
+      // Next frame: Asynchronous scrolling that occurs only after pocket measurement
       window.requestAnimationFrame(() => {
         if (Math.abs(sd.scrollTop - top) > 1) restore();
       });
@@ -2633,11 +2616,11 @@ const undoViewportGuard = ViewPlugin.fromClass(
 
 export function columnsExtension(ctx: BlockEditorPlugin): Extension {
   sharedCtx = ctx;
-  // 最高优先级：压过 Obsidian 原生 callout 渲染块的装饰
+  // Highest priority: overrides Obsidian native callout render block decorations
   return Prec.highest([columnsField, columnsInteractions, undoViewportGuard]);
 }
 
-/** 设置切换后让所有编辑器立即重算分栏装饰（无需重载插件） */
+/** Let all editors immediately recalculate column decorations after setting the switch (no need to reload the plug-in) */
 export function recomputeColumnsEditors(app: App): void {
   app.workspace.iterateAllLeaves((leaf) => {
     const mv = leaf.view as { editor?: unknown } | null;
@@ -2646,7 +2629,7 @@ export function recomputeColumnsEditors(app: App): void {
     try {
       (cm as unknown as EditorView).dispatch({ effects: forceRecompute.of(null) });
     } catch {
-      /* 视图已销毁 */
+      /* View has been destroyed */
     }
   });
 }

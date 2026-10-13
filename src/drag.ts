@@ -18,21 +18,21 @@ interface DragState {
   end: number;
   type: BlockType;
   ranges: BlockRange[];
-  /** 落点所在的目标编辑器；null 表示仍在源编辑器内（或同文档分屏） */
+  /** The target editor where the drop point is located; null means it is still in the source editor (or split screen with the same document) */
   targetEditor: Editor | null;
   targetLine: number | null;
   nestCol: number | null;
-  /** 拖入引用 / callout 时套用的引用前缀（如 `> ` / `>> `），null 表示不嵌套引用 */
+  /** Reference prefix applied when dragging in a reference/callout (such as `> ` / `>> `), null means no nested references */
   quotePrefix: string | null;
-  /** H4 贴边分栏：-1 贴目标块左边缘（拖动块作左栏），1 贴右边缘（作右栏），null 未命中 */
+  /** H4 Paste column: -1 paste the left edge of the target block (drag the block to make the left column), 1 paste the right edge (make the right column), null miss */
   edgeSide: -1 | 1 | null;
-  /** H4 贴边目标块首行（onMouseUp 时重新取块，拖拽期间文档不变、行号稳定） */
+  /** The first line of the H4 border target block (re-fetch the block during onMouseUp, the document remains unchanged and the line number is stable during dragging) */
   edgeTargetStart: number | null;
-  /** 拖入普通段落/标题时需「列表化」的目标首行（null 表示非此类嵌套） */
+  /** The first line of the target that needs to be "listed" when dragging in an ordinary paragraph/title (null means no such nesting) */
   listifyTargetLine: number | null;
-  /** 需求 A：命中分栏 widget 的落点（新增一栏），null 表示未命中分栏 */
+  /** Requirement A: Hit the drop point of the column widget (add a new column), null means the column is not hit. */
   colHit: ColDropHit | null;
-  /** 需求 A：命中分栏所属的 widget（写回时用其区间与状态） */
+  /** Requirement A: Hit the widget to which the column belongs (use its range and status when writing back) */
   colWidget: ColumnsWidgetLike | null;
   startY: number;
   startX: number;
@@ -44,9 +44,8 @@ interface DragState {
 }
 
 /**
- * drag.ts 实际用到的 ColumnsWidget 表面（局部声明避免与 columns-preview 形成
- * 类型环：columns-preview 不 import drag.ts，此处用结构化子类型解耦）。
- */
+ * The ColumnsWidget surface actually used by drag.ts (local declaration to avoid formation with columns-preview
+ * Type loop: columns-preview does not import drag.ts, and structured subtypes are used to decouple it here). */
 interface ColumnsWidgetLike {
   getLayoutInfo(): ReturnType<typeof import('./columns-droptarget').buildColLayout>;
   getLineRange(): { start: number; end: number };
@@ -58,84 +57,83 @@ interface ColumnsWidgetLike {
 }
 
 
-/** 分栏外壳标记（拖拽嵌套引用时排除，避免插入点落在分栏内部截断结构） */
+/** Column shell mark (excluded when dragging nested references to prevent the insertion point from falling inside the column and truncating the structure) */
 const COL_SHELL_RE = /^\s*>\s*\[!multi-column(?:\|[^\]]*)?\]/;
 
-/** 四向落区：目标块盒左右外缘带的贴边分栏热区宽度上限 */
+/** Four-way drop zone: the upper limit of the width of the hot zone on the left and right edges of the target block box */
 const EDGE_BAND = 36;
-/** 窄块时贴边带下限，避免热区过小不可命中 */
+/** When the block is narrow, the lower limit of the sideband is attached to prevent the hot zone from being too small to hit. */
 const EDGE_BAND_MIN = 12;
-/** 缩进嵌套热区起点（指针须超过行文本左缘 + NEST_OFFSET 才算嵌套） */
+/** Indent the starting point of the nested hot area (the pointer must exceed the left edge of the line text + NEST_OFFSET to be nested) */
 const NEST_OFFSET = 24;
-/** 嵌套插入的一步缩进字符数（设置里未指定步长时使用） */
+/** The number of indented characters for nested insertion (used when the step size is not specified in the settings) */
 const NEST_INDENT = 4;
-/** 目标为列表 / 引用 / callout 时，左侧贴边带收缩到嵌套起点之前，避免与嵌套争抢 */
+/** When the target is a list/reference/callout, the left sideband shrinks before the starting point of the nesting to avoid competing with the nesting */
 const EDGE_BAND_NESTABLE = NEST_OFFSET - 4;
-/** 可作为缩进嵌套目标（需为其让出边缘热区）的块类型 */
+/** Block types that can be used as indented nesting targets (need to give way to edge hot areas) */
 const NESTABLE_TYPES = ['list', 'quote', 'callout'];
-/** 普通段落 / 标题：Markdown 无父子结构，拖入时把目标「列表化」再嵌套 */
+/** Ordinary paragraph/title: Markdown has no parent-child structure. When dragging in, the target is "listed" and then nested. */
 const LISTIFY_TYPES = ['line', 'heading'];
 
-/** 是否为「缩进为子块」的落点目标（列表/引用/Callout + 需列表化的普通段落/标题） */
+/** Whether it is the drop target of "Indent to sub-block" (list/quote/Callout + ordinary paragraph/title that needs to be listed) */
 function isNestTarget(type: BlockType): boolean {
   return NESTABLE_TYPES.includes(type) || LISTIFY_TYPES.includes(type);
 }
 
-/** 拖拽排序：幽灵预览、插入指示线、边缘自动滚动、列表嵌套 / 降级 */
+/** Drag and drop sorting: ghost preview, insertion indicator line, edge auto-scrolling, list nesting/degradation */
 export class DragController {
   private state: DragState | null = null;
   private ghostEl: HTMLElement | null = null;
   private indicatorEl: HTMLElement | null = null;
   private edgeLineEl: HTMLElement | null = null;
   private edgeBoxEl: HTMLElement | null = null;
-  /** 需求 A：分栏内「新栏插在这里」的位置竖条 */
+  /** Requirement A: Vertical bar at the position of "Insert new column here" in the column */
   private colSlotEl: HTMLElement | null = null;
 
   constructor(private ctx: BlockEditorPlugin) {}
 
   init(): void {
-    // 指示器 / 贴边线 / 描边盒不在 init 时挂入 DOM，使用时动态挂到目标编辑器的
-    // .cm-editor 上：absolute 定位 + overflow:hidden 物理裁剪，不溢出到标签页栏。
-    // 拖拽幽灵（ghost）仍挂 body，需高于一切 UI 跟随鼠标。
+    // The indicator / edge line / stroke box is not hung into the DOM during init, and is dynamically hung into the target editor when used.
+    // On .cm-editor: absolute positioning + overflow:hidden physical cropping, not overflowing to the tab bar.
+    // Dragging the ghost still hangs on the body, and needs to follow the mouse above all other UIs.
     //
-    // 类名分工：外观基类 .block-editor-indicator 只管长相（不含 display），
-    // 显隐由 .is-visible 这个状态类接管（见 styles.css）。
-    // 不写内联 style 显隐，是为了让它始终受 CSS 控制 —— 内联样式会盖住样式表，
-    // 改 CSS 时看不出效果，两边悄悄走偏。columns-preview 的落点线也共用同一基类，
-    // 各自独立决定显隐，互不影响。
+    // Class name division: Appearance base class .block-editor-indicator only cares about appearance (excluding display),
+    // Visibility is taken over by the .is-visible state class (see styles.css).
+    // The reason why the inline style is not visible or hidden is to make it always controlled by CSS - the inline style will cover the style sheet.
+    // When changing CSS, no effect can be seen, and both sides quietly go astray. The drop-point lines of columns-preview also share the same base class.
+    // Each independently decides to show or hide without affecting each other.
     const indicator = createEl('div');
     indicator.className = 'block-editor-indicator block-editor-insert-line';
     this.indicatorEl = indicator;
-    // H4 贴边分栏竖线（横向插入线之上，视觉区分：竖线 = 贴边合成）
+    // H4 Vertical line for welt column division (above the horizontal insertion line, visual distinction: vertical line = welt synthesis)
     const edgeLine = createEl('div');
     edgeLine.className = 'block-editor-edge-line';
     this.edgeLineEl = edgeLine;
-    // 贴边分栏目标块整体描边（与竖线共同构成「此块将合成分栏」的明确视觉，
-    // 与「横向插入线 = 移动」形成一眼可辨的区分，避免两种落点模式混淆）
+    // The overall stroke of the border column target block (together with the vertical line to form a clear visual "this block will be combined into columns",
+    // Form a clearly distinguishable distinction from "horizontal insertion line = move" to avoid confusion between the two placement modes)
     const edgeBox = createEl('div');
     edgeBox.className = 'block-editor-edge-box';
     this.edgeBoxEl = edgeBox;
-    // 需求 A：分栏内插入位置竖条（accent 色，宽度 2px，与 edge-line 区分：
-    // edge-line 是"贴边合成分栏"的语义竖线，本条是"新栏插这里"的插入位）
+    // Requirement A: Insert a vertical bar in a column (accent color, width 2px, distinguished from edge-line:
+    // edge-line is the semantic vertical line of "edge combined column", this article is the insertion position of "insert new column here")
     const colSlot = createEl('div');
     colSlot.className = 'block-editor-col-slot';
     this.colSlotEl = colSlot;
   }
 
   /**
-   * 落点视觉的显隐（唯一入口）。
+   * The visibility of the landing point vision (the only entrance).
    *
-   * 为什么不用 setCssStyles 写内联 display：内联样式优先级高于样式表，
-   * 一旦写进去，styles.css 里的显隐规则就再也观察不到效果 —— 两条线
-   * （drag.ts 的可复用插入线 / columns-preview 的一次性落点线）虽然共用
-   * 外观基类，但显隐必须各自独立、且都在 CSS 里可见。统一走 .is-visible
-   * 状态类后，「谁在显示」这件事只有一处真相：grep 这个类名即可。
-   */
+   * Why not use setCssStyles to write inline display: Inline styles have higher priority than style sheets.
+   * Once written in, the effect of the explicit and implicit rules in styles.css can no longer be observed - two lines
+   * (Reusable insertion line of drag.ts / one-time drop point line of columns-preview) Although shared
+   * Appearance base class, but visibility must be independent and visible in CSS. Uniformly go .is-visible
+   * After the status class, there is only one truth about "who is showing": just grep the class name. */
   private setVisual(el: HTMLElement | null, visible: boolean): void {
     el?.classList.toggle('is-visible', visible);
   }
 
-  /** 隐藏全部落点视觉（插入线 / 贴边线 / 描边盒 / 新栏竖条） */
+  /** Hide all drop point vision (insertion line/edge line/stroke box/new column vertical bar) */
   private hideAllVisuals(): void {
     this.setVisual(this.indicatorEl, false);
     this.setVisual(this.edgeLineEl, false);
@@ -169,7 +167,7 @@ export class DragController {
     e.preventDefault();
     e.stopPropagation();
 
-    // Shift + 点击手柄：把块加入 / 移出多选
+    // Shift + click handle: add/remove blocks to multiple selections
     if (e.shiftKey) {
       this.ctx.selection.toggleSelection(block);
       return;
@@ -223,7 +221,7 @@ export class DragController {
     this.hideAllVisuals();
 
     if (!ds.moved) {
-      // 视为点击 -> 打开块菜单
+      // Treat as click -> open block menu
       this.ctx.menu.openTypeMenu(e, {
         editor: ds.editor,
         file: ds.file,
@@ -234,8 +232,8 @@ export class DragController {
       return;
     }
 
-    // 需求 A：拖入分栏新增栏。放在贴边分栏之前 —— 分栏命中时 ds.edgeSide 必为 null，
-    // 两者几何互斥，顺序不影响正确性；置前让"进分栏"优先于"贴边合成"。
+    // Requirement A: Drag into columns to add new columns. Placed before the edge column - ds.edgeSide must be null when the column is hit.
+    // The two are geometrically mutually exclusive, and the order does not affect the correctness; placing them in front allows "advance column" to take precedence over "edge synthesis".
     if (ds.colHit && ds.colWidget) {
       if (this.commitColumnDrop(ds, ds.colWidget, ds.colHit, e.altKey)) {
         this.ctx.handle.hideHandle();
@@ -243,9 +241,9 @@ export class DragController {
       }
     }
 
-    // 四向落区·贴边分栏：松手时若仍命中贴边热区（同文档），把拖动块与目标块
-    // 合成两栏分栏；合成失败（目标已变 / 结构异常）时 ds.targetLine 仍保留着
-    // 拖拽期间算出的纵向插入点，自然回退到下方的普通移动分支。
+    // Four-way drop area·Welt column: If you still hit the welt hot spot (same as the document) when you let go, move the drag block to the target block
+    // Synthesize two columns; when synthesis fails (the target has changed/the structure is abnormal), ds.targetLine is still retained
+    // The vertical insertion point calculated during dragging naturally falls back to the normal movement branch below.
     if (ds.edgeSide !== null && ds.edgeTargetStart !== null && ds.targetEditor === null) {
       const t = this.ctx.detector.getBlockAtLine(ds.editor, ds.edgeTargetStart);
       if (t && this.ctx.converter.wrapToEdgeColumns(ds.editor, ds.ranges, t, ds.edgeSide)) {
@@ -254,7 +252,7 @@ export class DragController {
       }
     }
 
-    // 普通段落 / 标题嵌套：把目标列表化后插入子项（单步撤销；Alt 为复制）
+    // Ordinary paragraph/title nesting: list the target and insert sub-items (single-step undo; Alt means copy)
     if (ds.listifyTargetLine != null && ds.nestCol != null && ds.targetEditor === null) {
       this.ctx.ops.nestUnderPlainBlock(
         ds.editor,
@@ -271,14 +269,14 @@ export class DragController {
       const cross = ds.targetEditor !== null && ds.targetEditor !== ds.editor;
       if (cross && ds.targetEditor) {
         if (e.altKey) {
-          // 跨文档复制：源不动
+          // Cross-document copy: source unchanged
           const lines: string[] = [];
           for (const r of [...ds.ranges].sort((a, b) => a.start - b.start)) {
             lines.push(...getLines(ds.editor, r.start, r.end));
           }
           this.ctx.ops.insertLines(ds.targetEditor, lines, ds.targetLine, ds.nestCol, ds.quotePrefix);
         } else {
-          // 跨文档移动：目标插入 + 源删除，各文件一步撤销
+          // Cross-document movement: target insertion + source deletion, undoing each file in one step
           this.ctx.ops.moveRangesTo(
             ds.targetEditor,
             ds.editor,
@@ -298,19 +296,18 @@ export class DragController {
   }
 
   /**
-   * 需求 A 落地：把被拖块作为一栏插入目标分栏的 hit.insertIndex 位置。
+   * Implementation of requirement A: Insert the dragged block as a column into the hit.insertIndex position of the target column.
    *
-   * 单步撤销的实现要点：这里是「区间重写（分栏插入新栏）」+「区间外删除（源块）」
-   * 两处编辑，必须合并进**同一个 Transaction**。若先写回分栏、再单独删除源块，
-   * 会产生两步撤销，Ctrl+Z 一次只能撤一半。
-   * CM6 的 state.update({changes: [...]}) 接受多段编辑并作为整体回滚，
-   * 已用 temp/verify-single-trx.mjs 验证 invert() 能干净还原。
+   * Implementation points of single-step undo: Here are "interval rewrite (insert new columns into columns)" + "delete outside the interval (source block)"
+   * Two edits must be merged into **the same Transaction**. If you first write back the columns and then delete the source block separately,
+   * A two-step undo will occur, and Ctrl+Z can only undo half of it at a time.
+   * CM6's state.update({changes: [...]}) accepts multiple edits and rolls back as a whole,
+   * Used temp/verify-single-trx.mjs to verify that invert() can be restored cleanly.
    *
-   * 源块可能位于分栏区间之前或之后，两处编辑互不重叠，CM6 可安全合并。
+   * The source block may be before or after the column interval. The two edits do not overlap each other and CM6 can safely merge them.
    *
-   * @param copy Alt = 复制到新栏，源块保留
-   * @returns 是否已提交（false 表示落点已失效，调用方应回退普通移动）
-   */
+   * @param copy Alt = Copy to new column, source block retained
+   * @returns Whether it has been submitted (false means that the landing point has expired, and the caller should fall back to normal movement) */
   private commitColumnDrop(
     ds: DragState,
     widget: ColumnsWidgetLike,
@@ -325,7 +322,7 @@ export class DragController {
     if (!text.trim()) return false;
 
     const range = widget.getLineRange();
-    // 拖拽期间文档未变，但保险起见复核区间未越界（结构被外部改动时放弃本次落点）
+    // The document did not change during dragging, but the review interval did not cross the boundary for safety reasons (this placement point is abandoned when the structure is changed externally)
     const doc = cm.state.doc;
     if (range.start < 0 || range.end >= doc.lines) return false;
 
@@ -339,18 +336,18 @@ export class DragController {
     );
 
     if (!copy) {
-      // 删除源块：多选时按行号升序逐段删除，每段含行尾换行（与 ops.removeRanges 同语义）
+      // Delete source blocks: Delete segments one by one in ascending order of line numbers during multi-selection, and each segment contains a newline at the end of the line (same semantics as ops.removeRanges)
       const sorted = [...ds.ranges].sort((a, b) => a.start - b.start);
       for (const r of sorted) {
         const from = doc.line(r.start + 1).from;
-        // 末行块不能带换行（会越过文档尾），改为删到本行行尾
+        // The last line block cannot have a newline (it will cross the end of the document), and is instead deleted to the end of the current line.
         const to =
           r.end < doc.lines - 1 ? doc.line(r.end + 2).from : doc.line(r.end + 1).to;
         changes.push({ from, to, insert: '' });
       }
     }
 
-    // 视口锁定：区间重写 + 源块删除会让 CM6 重算视口，钉住 scrollTop 停在原位置
+    // Viewport locking: Range rewriting + source block deletion will cause CM6 to recalculate the viewport and pin the scrollTop to stop at the original position.
     keepViewport(cm, () => {
       cm.dispatch({ changes });
     });
@@ -364,10 +361,10 @@ export class DragController {
     ds.lastX = e.clientX;
     ds.lastY = e.clientY;
 
-    // 任意方向位移超过 4px 即进入拖拽；已离开源编辑器也算（跨分屏拖拽几乎纯横向，
-    // 旧逻辑只看纵向位移，导致分屏拖拽永远无法启动、松手被当成点击弹菜单）
+    // Dragging occurs when the displacement exceeds 4px in any direction; it also counts if you have left the source editor (dragging across split screens is almost purely horizontal.
+    // The old logic only looked at vertical displacement, resulting in split-screen drag never being able to start, and letting go was treated as a click pop-up menu)
     if (!ds.moved) {
-      // M4：拖拽阈值取设置值（默认 4px），小于阈值视为点击（打开块菜单）
+      // M4: The drag threshold takes the set value (default 4px), and if it is less than the threshold, it is considered a click (open the block menu)
       const dist = Math.hypot(e.clientX - ds.startX, e.clientY - ds.startY);
       ds.moved = dist > (this.ctx.settings.dragThreshold || 4) || this.isOutsideSourceEditor(ds, e.clientX, e.clientY);
       if (ds.moved) this.ghostEl = this.createGhost(ds);
@@ -380,7 +377,7 @@ export class DragController {
     this.updateAutoScroll(ds);
   }
 
-  // 把「松手会执行什么」写到 ghost 的 data-action，由 styles.css 渲染成跟随光标的动作标签
+  // Write "what will happen if you let go" to the ghost's data-action, and render it into an action tag that follows the cursor by styles.css
   private applyActionHint(ds: DragState, altKey: boolean): void {
     const el = this.ghostEl;
     if (!el) return;
@@ -389,11 +386,11 @@ export class DragController {
     else delete el.dataset.action;
   }
 
-  // 当前落点对应的动作状态；无有效落点（拖回自身 / 无效区域）返回 null，此时不显示标签
+  // The action state corresponding to the current landing point; if there is no valid landing point (drag back to itself/invalid area), null will be returned, and the label will not be displayed at this time.
   private resolveAction(ds: DragState, altKey: boolean): string | null {
-    // 需求 A：命中分栏 → 新增一栏（该路径优先于贴边，几何上已互斥）
+    // Requirement A: Hit the column → add a new column (this path takes precedence over the edge and is geometrically mutually exclusive)
     if (ds.colHit) return altKey ? 'col-new-copy' : 'col-new';
-    // 贴边分栏优先：松手直接与目标块合成两栏（该路径不响应 Alt）
+    // Prioritize side column splitting: let go and directly merge the target block into two columns (this path does not respond to Alt)
     if (ds.edgeSide === -1) return 'column-left';
     if (ds.edgeSide === 1) return 'column-right';
     if (ds.targetLine == null) return null;
@@ -403,7 +400,7 @@ export class DragController {
     return 'move';
   }
 
-  // 指针是否已经离开源编辑器区域
+  // Whether the pointer has left the source editor area
   private isOutsideSourceEditor(ds: DragState, x: number, y: number): boolean {
     const cm = getCM(ds.editor);
     if (!cm) return false;
@@ -411,7 +408,7 @@ export class DragController {
     return x < r.left || x > r.right || y < r.top || y > r.bottom;
   }
 
-  // 按当前鼠标位置计算落点并画插入线。落点可以是另一篇文档的编辑器（跨文档拖拽）
+  // Calculate the landing point based on the current mouse position and draw the insertion line. The drop point can be the editor of another document (cross-document drag and drop)
   private updateDropTarget(ds: DragState, x: number, y: number): void {
     const over = this.editorAtPoint(x, y);
     if (!over) {
@@ -423,7 +420,7 @@ export class DragController {
       this.clearDropTarget(ds);
       return;
     }
-    // 同一个文档对象（如分屏打开同一文件）按文档内拖拽处理，避免行号错乱
+    // The same document object (such as opening the same file in split screen) is handled by dragging and dropping within the document to avoid confusing line numbers.
     const sameDoc = overCm.state.doc === getCM(ds.editor)?.state.doc;
     const editor = sameDoc ? ds.editor : over.editor;
     const cm = getCM(editor);
@@ -433,20 +430,20 @@ export class DragController {
     }
     const cross = !sameDoc;
 
-    // 需求 A：命中分栏 widget → 新增一栏。
-    // 必须放在 posAtCoords 之前：widget 是 ignoreEvent 的 block 替换装饰，
-    // posAtCoords 对栏内只能给出整个区间的替换位置，取不到"第几栏"。
-    // 命中即 return，不进入后面的行号 / 嵌套 / 贴边判定（几何互斥）。
+    // Requirement A: Hit the column widget → add a new column.
+    // Must be placed before posAtCoords: widget is the block replacement decoration of ignoreEvent,
+    // posAtCoords can only give the replacement position of the entire interval in the column, but cannot get the "which column".
+    // A hit means return, and does not enter subsequent line numbers/nesting/edge determination (geometric mutual exclusion).
     if (!cross) {
       const colWidget = columnsWidgetAtPoint(x, y);
       if (colWidget) {
         if (this.tryColumnDropTarget(ds, colWidget, x, y)) return;
-        // 命中分栏但资格校验不过（拖源是分栏本身 / 与区间重叠）：不给落点提示
+        // The column is hit but the qualification verification fails (the drag source is the column itself/overlaps with the interval): no drop point prompt is given
         this.clearDropTarget(ds);
         return;
       }
     }
-    // 未命中分栏：清掉上一轮残留的分栏态，避免指针从分栏移出后仍走建栏分支
+    // Missed column: clear the remaining column status from the previous round to prevent the pointer from still taking the column-building branch after moving out of the column
     if (ds.colHit !== null) {
       ds.colHit = null;
       ds.colWidget = null;
@@ -470,19 +467,19 @@ export class DragController {
     const mid = (lineCoords.top + lineCoords.bottom) / 2;
     let insertAt = y > mid ? lineIndex + 1 : lineIndex;
 
-    // 拖到列表 / 引用 / callout 块正文右侧：变成它的子块
-    // 文档内拖动时，落点落在被拖动范围内不算，否则「拖到自己身上」会莫名多一级缩进
+    // Drag to the right of the list/quote/callout block body: become its subblock
+    // When dragging within the document, it does not count if the drop point falls within the dragged range, otherwise "drag it to yourself" will inexplicably add another level of indentation.
     let nestCol: number | null = null;
     let quotePrefix: string | null = null;
     let listifyTargetLine: number | null = null;
     const overSelf = !cross && ds.ranges.some((r) => lineIndex >= r.start && lineIndex <= r.end);
     const target = overSelf ? null : this.ctx.detector.getBlockAtLine(editor, lineIndex);
 
-    // 嵌套插入的一步缩进：设置里指定了步长就用设置值，否则固定 4 个字符
+    // One-step indentation for nested insertion: If the step size is specified in the settings, the setting value will be used, otherwise it will be fixed at 4 characters.
     const indentStep = this.ctx.settings.indentStep > 0 ? this.ctx.settings.indentStep : NEST_INDENT;
-    // 被拖动块首行的文本左缘。嵌套门槛以它为基准（而非落点行文本左缘）：
-    // 手柄位于文本左侧，从手柄垂直拖动时指针 x 恒小于「自身文本起点 + NEST_OFFSET」，
-    // 因此上下移动途中不会被判成缩进 —— 保证块能稳定上下重排。
+    // The left edge of the text in the first line of the dragged block. The nested threshold is based on this (not the left edge of the drop-point line text):
+    // The handle is located on the left side of the text. When dragging vertically from the handle, the pointer x is always less than "the starting point of the own text + NEST_OFFSET".
+    // Therefore, when moving up and down, it will not be judged as indentation - ensuring that the blocks can be rearranged up and down stably.
     let dragTextLeft: number | null = null;
     if (!cross) {
       const firstRange = [...ds.ranges].sort((a, b) => a.start - b.start)[0];
@@ -490,19 +487,19 @@ export class DragController {
       dragTextLeft = firstCoords ? firstCoords.left : null;
     }
 
-    // 四向落区：以目标块可视盒为锚点划分落点，两种意图几何互斥、一眼可辨——
-    //   左右外缘带 → 贴边分栏（竖线 + 目标块描边）；其余位置 → 移动（横向插入线）。
-    // 两道闸门保证边界清晰（不再与「移动」混淆）：
-    //   1) 纵向：指针须落在目标块垂直范围内 —— 块与块之间的空隙一律回退移动；
-    //   2) 横向：指针须落在块盒左 / 右外缘带内（带以块盒为基准，与悬停高亮块一致）。
-    // 目标为列表 / 引用 / callout 时，左侧带收缩到嵌套起点之前，避免与缩进嵌套争抢。
+    // Four-way landing area: Using the target block visual box as the anchor point to divide the landing points, the two intentions are geometrically mutually exclusive and can be distinguished at a glance--
+    // The left and right outer edges → welt columns (vertical lines + target block strokes); the remaining positions → move (horizontal insertion lines).
+    // Two gates ensure clear boundaries (no longer confused with "movement"):
+    // 1) Vertical: The pointer must fall within the vertical range of the target block - the gaps between blocks will all move backward;
+    // 2) Horizontal: The pointer must fall within the left/right outer edge band of the block box (the band is based on the block box and consistent with the hovering highlighted block).
+    // When the target is a list/reference/callout, the left band shrinks before the start of the nest to avoid competing with the indented nest.
     if (target && !cross && this.canEdgeColumnSource(ds, target)) {
       const box = this.blockBox(cm, target);
       if (box && y >= box.top - 1 && y <= box.bottom + 1) {
         const width = Math.max(box.right - box.left, 1);
         const band = Math.max(EDGE_BAND_MIN, Math.min(EDGE_BAND, width * 0.22));
-        // 嵌套目标（列表/引用/Callout/普通段落/标题）两侧热区都收窄，
-        // 给「缩进为子块」让出正文区域
+        // The hot areas on both sides of nested targets (list/quote/Callout/ordinary paragraph/title) are narrowed.
+        // Make way for "indent into sub-blocks" to make way for text area
         const edgeBand = isNestTarget(target.type) ? Math.min(band, EDGE_BAND_NESTABLE) : band;
         const dl = x - box.left;
         const dr = box.right - x;
@@ -515,7 +512,7 @@ export class DragController {
         if (side !== null) {
           ds.edgeSide = side;
           ds.edgeTargetStart = target.start;
-          // 保留纵向插入点作为兜底：贴边合成失败（目标已变 / 结构异常）时不至于整块不动
+          // Keep the longitudinal insertion point as a backstop: when the welt synthesis fails (the target has changed/the structure is abnormal), the whole piece will not move
           ds.targetLine = insertAt;
           ds.nestCol = null;
           ds.quotePrefix = null;
@@ -526,8 +523,8 @@ export class DragController {
       }
     }
 
-    // 未命中贴边热区：清除上一轮可能残留的贴边态与视觉。
-    // 否则指针先经过贴边热区、再移到普通落点时，松手会优先走贴边分栏分支（吞掉嵌套/移动）。
+    // Missing the welt hot spot: clear the possible remaining welt status and vision from the previous round.
+    // Otherwise, when the pointer first passes through the welt hot zone and then moves to the normal landing point, when you let go, it will take the welt column branch first (eating out nesting/movement).
     if (ds.edgeSide !== null) {
       ds.edgeSide = null;
       ds.edgeTargetStart = null;
@@ -537,28 +534,28 @@ export class DragController {
 
     if (target && isNestTarget(target.type)) {
       const targetText = editor.getLine(target.start);
-      // 嵌套门槛取「拖动块文本左缘」与「目标行文本左缘」的较大者 + NEST_OFFSET：
-      // - 下限含目标左缘：指针移到目标正文右侧即可嵌套（缩进块拖到较浅目标也能命中，
-      //   若只用拖动块左缘，门槛会被自身缩进推远，表现为「拖到正文右侧不嵌套」）；
-      // - 下限含拖动块左缘：从手柄垂直拖动时指针恒在自身文本左缘之左，不会误判为嵌套。
+      // The nesting threshold is the larger of "left edge of drag block text" and "left edge of target row text" + NEST_OFFSET:
+      // - The lower limit includes the left edge of the target: move the pointer to the right side of the target text to nest (the indented block can also be hit by dragging it to a shallower target,
+      // If you only drag the left edge of the block, the threshold will be pushed further by its own indentation, which appears as "drag to the right side of the text without nesting");
+      // - The lower limit includes the left edge of the drag block: when dragging vertically from the handle, the pointer is always to the left of the left edge of the text itself, and will not be misjudged as nested.
       const targetLeft = cm.coordsAtPos(doc.line(target.start + 1).from)?.left ?? lineCoords.left;
       const nestGate = Math.max(dragTextLeft ?? targetLeft, targetLeft) + NEST_OFFSET;
-      // 分栏外壳不作为嵌套目标：拖到外壳行会截断分栏结构
+      // Column shells are not targeted for nesting: dragging to a shell row truncates the column structure
       if (!COL_SHELL_RE.test(targetText) && x > nestGate) {
         const marker = targetText.match(/^(\s*)([-*+]|\d+[.)])\s+/);
         if (marker) {
-          // 列表项：缩进为子项
+          // List items: indent to subitems
           nestCol = marker[1].length + indentStep;
           insertAt = target.end + 1;
         } else if (target.type === 'quote' || target.type === 'callout') {
-          // 引用 / callout 嵌套：给被拖行统一补一层 `> ` 前缀（保留原缩进）
+          // Reference/callout nesting: add a layer of `> ` prefix to the dragged line (retain the original indent)
           const qm = targetText.match(/^(\s*)((?:>\s*)+)/);
           if (qm) {
             quotePrefix = qm[1] + qm[2];
             insertAt = target.end + 1;
           }
         } else {
-          // 普通段落 / 标题：Markdown 无父子结构，落点触发「列表化目标」的嵌套
+          // Ordinary paragraph/title: Markdown has no parent-child structure, and the drop point triggers the nesting of "list target"
           nestCol = getIndent(targetText).length + indentStep;
           listifyTargetLine = target.start;
           insertAt = target.start + 1;
@@ -566,7 +563,7 @@ export class DragController {
       }
     }
 
-    // 向左拖出：落点行的缩进更浅时，把被拖的列表项降级到该层级
+    // Drag out to the left: When the indentation of the dropped line is shallower, the dragged list item will be demoted to this level.
     if (nestCol == null && !overSelf) {
       const first = [...ds.ranges].sort((a, b) => a.start - b.start)[0];
       const firstLine = ds.editor.getLine(first.start);
@@ -577,7 +574,7 @@ export class DragController {
       }
     }
 
-    // 位置没变化（同级移动）时不给落点提示（仅文档内拖动）
+    // When the position has not changed (simultaneous movement), no drop point prompt will be given (only when dragging within the document)
     if (!cross) {
       const noMove = ds.ranges.every((r) => insertAt >= r.start && insertAt <= r.end + 1);
       if (noMove && nestCol == null) {
@@ -592,10 +589,10 @@ export class DragController {
     ds.listifyTargetLine = listifyTargetLine;
     ds.targetEditor = cross ? editor : null;
 
-    // 插入线宽度取编辑器「系统行宽」：以内容区（.cm-content，即 Obsidian 可读行宽
-    // 约束后的文本列）为基准整列铺满，不再随目标行/当前块文本长短变化
-    // （否则同一块内各行长短不一，落点指示忽长忽短）。
-    // 挂到目标编辑器 .cm-editor，absolute 定位 + overflow:hidden 物理裁剪。
+    // The insertion line width takes the editor's "system line width": the content area (.cm-content, that is, the Obsidian readable line width
+    // The constrained text column) is filled with the entire column and will no longer change with the length of the target row/current block text.
+    // (Otherwise, the rows in the same block are of different lengths, and the drop point indications are sometimes long or short).
+    // Hooked to the target editor .cm-editor, absolute positioning + overflow:hidden physical cropping.
     const editorDom = cm.dom;
     const editorRect = editorDom.getBoundingClientRect();
     const contentRect = cm.contentDOM.getBoundingClientRect();
@@ -612,7 +609,7 @@ export class DragController {
     }
   }
 
-  // 鼠标所在的 markdown 编辑器（任意分屏），不在任何编辑器内时返回 null
+  // The markdown editor where the mouse is located (any split screen), returns null if it is not in any editor
   private editorAtPoint(x: number, y: number): { editor: Editor; file: TFile | null } | null {
     const leaves = this.ctx.app.workspace.getLeavesOfType('markdown');
     for (const leaf of leaves) {
@@ -629,7 +626,7 @@ export class DragController {
     return null;
   }
 
-  // 拖到编辑区上 / 下边缘时持续滚动（悬停哪个编辑器就滚哪个）
+  // Continuous scrolling when dragging to the upper/lower edge of the editing area (scroll to whichever editor you hover over)
   private updateAutoScroll(ds: DragState): void {
     if (!this.ctx.settings.dragAutoScroll) return;
     const scroller = getCM(ds.targetEditor ?? ds.editor)?.scrollDOM;
@@ -653,7 +650,7 @@ export class DragController {
       if (!el) return;
       const before = el.scrollTop;
       el.scrollTop = before + ds.edgeDir * 14;
-      // 已经滚到顶 / 底，落点不会变
+      // It has rolled to the top/bottom and the landing point will not change.
       if (el.scrollTop !== before) this.updateDropTarget(ds, ds.lastX, ds.lastY);
     }, 16);
   }
@@ -682,15 +679,14 @@ export class DragController {
   }
 
   /**
-   * 需求 A：指针命中分栏 widget 时的落点判定 + 视觉。
+   * Requirement A: Determination of the point of impact when the pointer hits the column widget + vision.
    *
-   * 资格校验（任一不满足即返回 false，不给落点）：
-   *  - 拖源不得是分栏外壳行、不得位于分栏内部（否则等于把分栏塞进自己的栏里）
-   *  - 拖源区间不得与目标分栏区间重叠（防自拖）
-   *  - 被拖内容剥掉引用前缀后不能为空（空栏无意义）
+   * Qualification verification (if any condition is not met, false will be returned and no placement will be given):
+   * - The drag source must not be a column shell row or be located inside a column (otherwise it will be equivalent to stuffing the column into its own column)
+   * - The drag source interval must not overlap with the target column interval (anti-self-drag)
+   * - The dragged content cannot be empty after stripping off the reference prefix (empty columns are meaningless)
    *
-   * @returns true 表示已命中分栏落点（调用方应 return，不再走后续行号逻辑）
-   */
+   * @returns true indicates that the column drop point has been hit (the caller should return and no longer follow the subsequent line number logic) */
   private tryColumnDropTarget(
     ds: DragState,
     widget: ColumnsWidgetLike,
@@ -725,16 +721,15 @@ export class DragController {
   }
 
   /**
-   * 需求 A 的落点视觉：
-   *  - kind='gap'  → 在两栏之间画一条竖线（复用 edgeLine，明确"插在缝里"）
-   *  - kind='before'/'after' → 给参照栏描边（复用 edgeBox，与贴边分栏同一视觉语言）
-   * 另加一个 colSlot 条：命中时在被插位置显示一条 accent 竖条，让"插在哪"一眼可见。
-   */
+   * Requirement A’s landing point vision:
+   * - kind='gap' → draw a vertical line between two columns (reuse edgeLine, clearly "insert in the gap")
+   * - kind='before'/'after' → stroke the reference column (reuse edgeBox, the same visual language as the edge column)
+   * Add another colSlot bar: when hit, an accent vertical bar is displayed at the inserted position, so that "where it is inserted" can be seen at a glance. */
   private showColumnSlot(hit: ColDropHit, widget: ColumnsWidgetLike): void {
     this.setVisual(this.indicatorEl, false);
     const ds = this.state;
     if (!ds || !hit.box) return;
-    // 竖线 / 描边挂在源编辑器 .cm-editor（同文档拖拽，坐标同源；overflow:hidden 会裁剪）
+    // Vertical lines/strokes are hung in the source editor .cm-editor (same as document dragging, coordinates are from the same source; overflow:hidden will be cropped)
     const editorDom = getCM(ds.editor)?.dom;
     if (!editorDom) return;
     const editorRect = editorDom.getBoundingClientRect();
@@ -758,7 +753,7 @@ export class DragController {
       this.setVisual(this.edgeLineEl, false);
     }
 
-    // 插入位置竖条：before 画在参照栏左缘，after/gap 画在参照栏右缘
+    // Insertion position vertical bar: before is drawn on the left edge of the reference column, after/gap is drawn on the right edge of the reference column
     if (this.colSlotEl) {
       const slotX = (hit.kind === 'before' ? hit.box.left : hit.box.right) - editorRect.left;
       if (this.colSlotEl.parentElement !== editorDom) editorDom.appendChild(this.colSlotEl);
@@ -769,16 +764,16 @@ export class DragController {
     }
   }
 
-  /** 贴边分栏目标判定：目标不能为空行、不能是分栏外壳，也不能在分栏内部（避免截断结构） */
+  /** Judgment of side column target: The target cannot be a blank line, a column shell, or inside a column (to avoid truncating the structure) */
   private isEdgeColumnTarget(editor: Editor, target: BlockRange): boolean {
     if (target.type === 'empty') return false;
     if (COL_SHELL_RE.test(editor.getLine(target.start))) return false;
     return !this.ctx.converter.insideColumns(editor, target);
   }
 
-  /** 贴边分栏资格（目标 + 拖动源双向校验，任一不干净即回退普通移动）：
-   *  拖动源不得是分栏外壳 / 位于分栏内部（否则会把整个分栏塞进新栏形成嵌套分栏），
-   *  且不得与目标区间重叠（合成时按 min/max 取范围会吞掉中间内容）。 */
+  /** Qualifications for side columns (target + drag source bidirectional verification, if any one is not clean, normal movement will fall back):
+   * The drag source must not be the column shell/located inside the column (otherwise the entire column will be inserted into the new column to form a nested column),
+   * And must not overlap with the target range (using min/max to select the range during synthesis will swallow up the middle content). */
   private canEdgeColumnSource(ds: DragState, target: BlockRange): boolean {
     if (!this.isEdgeColumnTarget(ds.editor, target)) return false;
     for (const r of ds.ranges) {
@@ -789,9 +784,9 @@ export class DragController {
     return true;
   }
 
-  /** 目标块的可视盒：与 handle.showHighlight 同一锚点（左 = 首行文本起点，右 = 内容区右缘，
-   *  上 = 首行顶，下 = 末行底）。贴边热区与目标描边都基于它，保证
-   *  「用户看到的悬停高亮块」 == 「贴边分栏的落区」，消除位置口径不一致带来的混淆。 */
+  /** The visual box of the target block: the same anchor point as handle.showHighlight (left = starting point of the first line of text, right = right edge of the content area,
+   * Top = top of the first row, bottom = bottom of the last row). Both edge hotspot and target stroke are based on it, ensuring
+   * "The hover highlight block seen by the user" == "The drop area of the side column" eliminates confusion caused by inconsistent positioning and caliber. */
   private blockBox(
     cm: CMView,
     block: BlockRange
@@ -801,8 +796,8 @@ export class DragController {
     const topC = cm.coordsAtPos(doc.line(block.start + 1).from);
     const botC = cm.coordsAtPos(doc.line(block.end + 1).to);
     if (!topC || !botC) return null;
-    // 钳制到编辑器内容区可视范围：块首行贴近顶部时 coordsAtPos 的 top
-    // 可能小于内容区上缘，导致贴边分栏描边 / 竖线向上溢出覆盖标签页。
+    // Clamp to the visible range of the editor content area: top of coordsAtPos when the first line of the block is close to the top
+    // It may be smaller than the upper edge of the content area, causing the border column strokes/vertical lines to overflow upward and cover the tab page.
     const contentRect = cm.contentDOM.getBoundingClientRect();
     return {
       top: Math.max(topC.top, contentRect.top),
@@ -812,14 +807,14 @@ export class DragController {
     };
   }
 
-  /** 绘制贴边分栏视觉：目标块整体描边 + 侧边竖线（side=-1 贴左，1 贴右） */
+  /** Draw the side column vision: the overall stroke of the target block + side vertical line (side=-1 sticks to the left, 1 sticks to the right) */
   private showEdgeLine(
     side: -1 | 1,
     box: { top: number; bottom: number; left: number; right: number },
     cm: CMView
   ): void {
     this.setVisual(this.indicatorEl, false);
-    // 挂到目标编辑器 .cm-editor，视口坐标转编辑器坐标，overflow:hidden 物理裁剪
+    // Hang to the target editor .cm-editor, convert viewport coordinates to editor coordinates, overflow:hidden physical cropping
     const editorDom = cm.dom;
     const editorRect = editorDom.getBoundingClientRect();
     const top = box.top - editorRect.top;
@@ -845,7 +840,7 @@ export class DragController {
     }
   }
 
-  // 拖拽时跟随鼠标的浮动预览
+  // Floating preview that follows the mouse when dragging
   private createGhost(ds: DragState): HTMLElement {
     const editor = ds.editor;
     const lines: string[] = [];

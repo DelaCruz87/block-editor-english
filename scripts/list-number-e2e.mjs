@@ -1,10 +1,9 @@
-/**
- * 有序列表重编号的端到端验证：直接加载构建产物 main.js，
- * 用最小 Editor 桩跑真实的 ops.moveRanges / removeRanges / insertLines /
- * duplicateBlock，确认序号在真实调用链上确实被修好（而非只在纯函数里正确）。
+/* *
+ * End-to-end verification of ordered list renumbering: directly load the build product main.js,
+ * Run real ops.moveRanges / removeRanges / insertLines / with minimal Editor stub
+ * duplicateBlock, confirms that the sequence number is indeed corrected in the real call chain (not just correct in pure functions).
  *
- * 运行：node scripts/list-number-e2e.mjs
- */
+ * Run: node scripts/list-number-e2e.mjs */
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -13,7 +12,7 @@ import Module from 'node:module';
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve('.');
 
-// obsidian 桩：仅需可被 import / new 的空类
+// obsidian stub: only empty classes that can be imported / new
 const stub = {
   Plugin: class {},
   Menu: class {},
@@ -29,7 +28,7 @@ Module._load = function (request, parent, isMain) {
   if (request === 'obsidian') return stub;
   return origLoad.call(this, request, parent, isMain);
 };
-// Node 22 起 navigator 是只读 getter，直接赋值会抛 TypeError
+// Starting from Node 22, navigator is a read-only getter. Direct assignment will throw a TypeError.
 if (!globalThis.navigator || !globalThis.navigator.clipboard) {
   Object.defineProperty(globalThis, 'navigator', {
     value: { clipboard: { writeText: () => Promise.resolve() } },
@@ -41,7 +40,7 @@ if (!globalThis.navigator || !globalThis.navigator.clipboard) {
 const NewPlugin = require(path.join(ROOT, 'main.js'));
 const plugin = new (NewPlugin.default || NewPlugin)();
 
-/** 最小 Editor 桩：行数组 + 区间替换 */
+/* * Minimal Editor pile: row array + interval replacement */
 function makeEditor(lines) {
   const doc = { lines: lines.slice() };
   return {
@@ -89,147 +88,147 @@ const eq = (a, b, l) => {
   }
 };
 
-// selection.actionRanges：e2e 只关心单块
+// selection.actionRanges: e2e only cares about single blocks
 plugin.selection = { actionRanges: (b) => [{ start: b.start, end: b.end, type: b.type }] };
 plugin.handle = { hideHandle() {} };
-// duplicateBlock 用到的块 ID 查询：本用例不涉及块 ID，返回 null
+// Query the block ID used by duplicateBlock: This use case does not involve block ID and returns null
 plugin.ids = { findOwnLineIdLine: () => null };
 
-console.log('\n=== E2E 1. 拖拽重排：3. 丙 拖到最前 ===');
+console.log("=== E2E 1. Drag and drop to rearrange: 3. C Drag to the front ===");
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙']);
-  // 源 = 第 3 行（丙），落点 = 第 0 行前
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19']);
+  // Source = row 3 (C), drop point = before row 0
   plugin.ops.moveRanges(ed, [{ start: 2, end: 2, type: 'list' }], 0);
-  eq(ed.docLines(), ['1. 丙', '2. 甲', '3. 乙'], '丙移到首位后 1/2/3 连号');
+  eq(ed.docLines(), ['1. \u4e19', '2. \u7532', '3. \u4e59'], "After C is moved to the first position, 1/2/3 consecutive numbers");
 }
 
-console.log('\n=== E2E 2. 拖拽重排：1. 甲 拖到乙与丙之间 ===');
+console.log("=== E2E 2. Drag and rearrange: 1. Drag A to between B and C ===");
 {
-  // insertLine=2 → 插到第 2 行（乙）之前
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙']);
+  // insertLine=2 → insert before line 2 (B)
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19']);
   plugin.ops.moveRanges(ed, [{ start: 0, end: 0, type: 'list' }], 2);
-  eq(ed.docLines(), ['1. 乙', '2. 甲', '3. 丙'], '甲插到乙前 → 乙1 甲2 丙3');
+  eq(ed.docLines(), ['1. \u4e59', '2. \u7532', '3. \u4e19'], "A inserts in front of B → B 1 A 2 C 3");
 }
 
-console.log('\n=== E2E 2b. 拖到末尾（落在文档尾之后） ===');
+console.log("=== E2E 2b. Drag to the end (fall after the end of the document) ===");
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙']);
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19']);
   plugin.ops.moveRanges(ed, [{ start: 0, end: 0, type: 'list' }], 3);
-  eq(ed.docLines(), ['1. 乙', '2. 丙', '3. 甲'], '甲移到末尾后 1/2/3 连号');
+  eq(ed.docLines(), ['1. \u4e59', '2. \u4e19', '3. \u7532'], "A is moved 1/2/3 consecutive numbers after the end");
 }
 
-console.log('\n=== E2E 3. 保留原始首项号（3 起始不被压成 1） ===');
+console.log("=== E2E 3. Keep the original first item number (the starting number of 3 is not pressed to 1) ===");
 {
-  const ed = makeEditor(['3. 甲', '4. 乙', '5. 丙']);
+  const ed = makeEditor(['3. \u7532', '4. \u4e59', '5. \u4e19']);
   plugin.ops.moveRanges(ed, [{ start: 2, end: 2, type: 'list' }], 0);
-  eq(ed.docLines(), ['3. 丙', '4. 甲', '5. 乙'], '3 起始的列表重排后仍 3 起始');
+  eq(ed.docLines(), ['3. \u4e19', '4. \u7532', '5. \u4e59'], "3 The starting list is still 3 starting after rearrangement");
 }
 
-console.log('\n=== E2E 4. 上移 / 下移（moveBlockVertically） ===');
+console.log("=== E2E 4. Move up/down (moveBlockVertically) ===");
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙']);
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19']);
   plugin.ops.moveBlockVertically({ editor: ed, file: null, start: 2, end: 2, type: 'list' }, -1);
-  eq(ed.docLines(), ['1. 甲', '2. 丙', '3. 乙'], '丙上移一位后连号');
+  eq(ed.docLines(), ['1. \u7532', '2. \u4e19', '3. \u4e59'], "Move C up one digit and continue with the number");
 }
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙']);
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19']);
   plugin.ops.moveBlockVertically({ editor: ed, file: null, start: 0, end: 0, type: 'list' }, 1);
-  eq(ed.docLines(), ['1. 乙', '2. 甲', '3. 丙'], '甲下移一位后连号');
+  eq(ed.docLines(), ['1. \u4e59', '2. \u7532', '3. \u4e19'], "Move the first letter down one digit and continue the number.");
 }
 
-console.log('\n=== E2E 5. 嵌套层级各自连号 ===');
+console.log("=== E2E 5. The nesting levels are consecutively numbered ===");
 {
-  // moveRanges 只搬行不改缩进（nestCol=null）：乙仍是顶层项，子层级不受影响
-  const ed = makeEditor(['1. 甲', '   1. 子1', '   2. 子2', '2. 乙']);
+  // moveRanges only moves lines without changing the indentation (nestCol=null): B is still the top-level item, and sub-levels are not affected.
+  const ed = makeEditor(['1. \u7532', '   1. \u5b501', '   2. \u5b502', '2. \u4e59']);
   plugin.ops.moveRanges(ed, [{ start: 3, end: 3, type: 'list' }], 1);
   eq(
     ed.docLines(),
-    ['1. 甲', '2. 乙', '   1. 子1', '   2. 子2'],
-    '顶层重排连号，子层级 1/2 保持不变'
+    ['1. \u7532', '2. \u4e59', '   1. \u5b501', '   2. \u5b502'],
+    "The top-level serial numbers are rearranged, and the sub-level 1/2 remains unchanged."
   );
 }
 {
-  // 子项被拖到顶层末尾：moveRanges 不改缩进，子1 仍是 3 空格缩进 → 成为乙的子项，
-  // 在子层级里连号（保持 1.），顶层 甲/乙 也不受它的序号影响
-  const ed = makeEditor(['1. 甲', '   1. 子1', '   2. 子2', '2. 乙']);
+  // The subitem is dragged to the end of the top level: moveRanges does not change the indentation, subitem 1 is still indented by 3 spaces → becomes a subitem of B,
+  // The numbers are consecutive (remaining 1.) in the sub-level, and the top-level A/B is not affected by its serial number.
+  const ed = makeEditor(['1. \u7532', '   1. \u5b501', '   2. \u5b502', '2. \u4e59']);
   plugin.ops.moveRanges(ed, [{ start: 1, end: 1, type: 'list' }], 4);
   eq(
     ed.docLines(),
-    ['1. 甲', '   1. 子2', '2. 乙', '   1. 子1'],
-    '子1 保持缩进 → 落入乙的子层级并取 1 号'
+    ['1. \u7532', '   1. \u5b502', '2. \u4e59', '   1. \u5b501'],
+    "Child 1 remains indented → falls into the sublevel of B and takes number 1"
   );
 }
 
-console.log('\n=== E2E 6. 跨列表移动：目标列表后续项要跟着改号 ===');
+console.log("=== E2E 6. Moving across lists: subsequent items in the target list must be renumbered ===");
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '正文', '1. 丙', '2. 丁', '3. 戊']);
-  // 把「2. 乙」拖到目标列表末尾（末行之前，即第 5 行前）
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '\u6b63\u6587', '1. \u4e19', '2. \u4e01', '3. \u620a']);
+  // Drag "2. B" to the end of the target list (before the last line, that is, before line 5)
   plugin.ops.moveRanges(ed, [{ start: 1, end: 1, type: 'list' }], 5);
   eq(
     ed.docLines(),
-    ['1. 甲', '正文', '1. 丙', '2. 丁', '3. 乙', '4. 戊'],
-    '乙插入目标列表后整体连号（span 外扩生效）'
+    ['1. \u7532', '\u6b63\u6587', '1. \u4e19', '2. \u4e01', '3. \u4e59', '4. \u620a'],
+    "B inserts the whole number into the target list (span expansion takes effect)"
   );
 }
 
-console.log('\n=== E2E 7. 删除中间项后序号不断层 ===');
+console.log("=== E2E 7. The serial number keeps increasing after deleting the middle item ===");
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙', '4. 丁']);
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19', '4. \u4e01']);
   plugin.ops.removeRanges(ed, [{ start: 1, end: 1, type: 'list' }]);
-  eq(ed.docLines(), ['1. 甲', '2. 丙', '3. 丁'], '删掉 2. 乙后 丙/丁 补为 2/3');
+  eq(ed.docLines(), ['1. \u7532', '2. \u4e19', '3. \u4e01'], "Delete 2. After B, C/D and replace it with 2/3");
 }
 
-console.log('\n=== E2E 8. 多段删除仍是一步撤销 ===');
+console.log("=== E2E 8. Multi-segment deletion is still one-step undo ===");
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙', '4. 丁', '5. 戊']);
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19', '4. \u4e01', '5. \u620a']);
   plugin.ops.removeRanges(ed, [
     { start: 0, end: 0, type: 'list' },
     { start: 3, end: 3, type: 'list' },
   ]);
-  eq(ed.docLines(), ['1. 乙', '2. 丙', '3. 戊'], '删首尾两项后连号');
+  eq(ed.docLines(), ['1. \u4e59', '2. \u4e19', '3. \u620a'], "Delete the first and last two items followed by a consecutive number");
 }
 
-console.log('\n=== E2E 9. 复制（Alt 拖拽 / copyRanges）序号正确 ===');
+console.log("=== E2E 9. Copy (Alt drag/copyRanges) serial number is correct ===");
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙']);
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19']);
   plugin.ops.copyRanges(ed, [{ start: 0, end: 0, type: 'list' }], 2);
-  eq(ed.docLines(), ['1. 甲', '2. 乙', '3. 甲', '4. 丙'], '副本插到乙与丙之间，两者顺延');
+  eq(ed.docLines(), ['1. \u7532', '2. \u4e59', '3. \u7532', '4. \u4e19'], "The copy is inserted between B and C, and the two are postponed");
 }
 
-console.log('\n=== E2E 10. 创建副本序号正确 ===');
+console.log("=== E2E 10. The serial number of the created copy is correct ===");
 {
-  const ed = makeEditor(['1. 甲', '2. 乙', '3. 丙']);
+  const ed = makeEditor(['1. \u7532', '2. \u4e59', '3. \u4e19']);
   plugin.ops.duplicateBlock({ editor: ed, file: null, start: 0, end: 0, type: 'list' });
-  eq(ed.docLines(), ['1. 甲', '2. 甲', '3. 乙', '4. 丙'], '甲的副本拿 2 号，原乙丙顺延');
+  eq(ed.docLines(), ['1. \u7532', '2. \u7532', '3. \u4e59', '4. \u4e19'], "A's copy gets No. 2, and the original B and C are postponed.");
 }
 
-console.log('\n=== E2E 11. 非列表内容不受影响 ===');
+console.log("=== E2E 11. Non-list content is not affected ===");
 {
-  const ed = makeEditor(['- 甲', '段落', '# 标题']);
+  const ed = makeEditor(['- \u7532', '\u6bb5\u843d', '# \u6807\u9898']);
   plugin.ops.moveRanges(ed, [{ start: 2, end: 2, type: 'heading' }], 0);
-  eq(ed.docLines(), ['# 标题', '- 甲', '段落'], '无序列表与段落原样');
+  eq(ed.docLines(), ['# \u6807\u9898', '- \u7532', '\u6bb5\u843d'], "Unordered list and paragraph as is");
 }
 
-console.log('\n=== E2E 12. 代码围栏内的假列表不被改 ===');
+console.log("=== E2E 12. Fake lists within code fences will not be modified ===");
 {
-  const ed = makeEditor(['1. 甲', '   ```', '   9. 代码里的假列表', '   ```', '2. 乙']);
+  const ed = makeEditor(['1. \u7532', '   ```', '   9. \u4ee3\u7801\u91cc\u7684\u5047\u5217\u8868', '   ```', '2. \u4e59']);
   plugin.ops.moveRanges(ed, [{ start: 4, end: 4, type: 'list' }], 0);
   const got = ed.docLines();
-  ok(got.includes('   9. 代码里的假列表'), '围栏内容原样保留');
-  eq(got[0], '1. 乙', '乙移到首位后取 1 号');
-  eq(got[1], '2. 甲', '甲顺延为 2 号，其围栏子行随之搬动');
+  ok(got.includes('   9. \u4ee3\u7801\u91cc\u7684\u5047\u5217\u8868'), "The contents of the fence remain intact");
+  eq(got[0], '1. \u4e59', "After B moves to the first position, take number 1");
+  eq(got[1], '2. \u7532', "A was postponed to No. 2, and his fence line was moved accordingly.");
 }
 
-console.log('\n=== E2E 13. callout 内列表独立编号 ===');
+console.log("=== E2E 13. Independent numbering of the list in the callout ===");
 {
-  const ed = makeEditor(['> [!note]', '> 1. 甲', '> 2. 乙', '1. 乙外']);
+  const ed = makeEditor(['> [!note]', '> 1. \u7532', '> 2. \u4e59', '1. \u4e59\u5916']);
   plugin.ops.moveRanges(ed, [{ start: 2, end: 2, type: 'list' }], 1);
   eq(
     ed.docLines(),
-    ['> [!note]', '> 1. 乙', '> 2. 甲', '1. 乙外'],
-    'callout 内重排连号，外部列表不受牵连'
+    ['> [!note]', '> 1. \u4e59', '> 2. \u7532', '1. \u4e59\u5916'],
+    "The serial numbers are rearranged within the callout, and the external list is not affected."
   );
 }
 
-console.log(`\n结果：${pass} 通过，${fail} 失败\n`);
+console.log(`Result:${pass}pass,${fail}failed`);
 process.exit(fail ? 1 : 0);

@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-14",
+  "actor": "Codex",
+  "version": "0.8.0-en.1",
+  "upstream_commit": "43f80c0d9bf98659a48e37878799283975ac75f1",
+  "build_exit_code": 0,
+  "suite_exit_code": 0,
+  "suites_passed": 10,
+  "sandbox_native_checks_passed": 12,
+  "sandbox_menu_click_and_undo": true,
+  "sandbox_settings_increment_reset_reload": {
+    "changed": 21,
+    "restored": 20
+  },
+  "enso": {
+    "loaded": true,
+    "enabled": true,
+    "commands": 29,
+    "settings_texts": 61,
+    "original_uninstalled": true
+  },
+  "artifacts": {
+    "main.js": {
+      "sha256": "7847e3ce0ff72d9f118d12433877a942370ffc6420d69c5d8eb804ad5972a9c7"
+    },
+    "manifest.json": {
+      "sha256": "65ccc4ac6925c02cb7b2524027f88f4754251cdbe1d76cf3d598f2a32f2c0be5"
+    },
+    "styles.css": {
+      "sha256": "8a9f0ac49824533ecd2847dd971122d7fd7599585729835c1e6747ace7b9f686"
+    }
+  },
+  "settings_preserved": true
+}

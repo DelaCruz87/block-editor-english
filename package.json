@@ -1,12 +1,12 @@
 {
-  "name": "block-editor",
-  "version": "0.8.0",
-  "description": "Notion 风格块编辑：块手柄、拖拽排序、多选、类型转换与斜杠命令.",
+  "name": "block-editor-english",
+  "version": "0.8.0-en.1",
+  "description": "Notion-style block editing: handles, drag-and-drop reordering, multi-select, type conversion and slash commands.",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "test": "node scripts/parity.cjs",
+    "test": "node scripts/test-suite.mjs",
     "test:update": "node scripts/parity.cjs --update",
     "test:columns": "node scripts/build-droptarget-spec.mjs && node scripts/columns-droptarget-spec.mjs",
     "test:cmview": "node scripts/cmview-shape-spec.mjs",
@@ -17,17 +17,19 @@
     "test:columns-list": "node scripts/build-convert-spec.mjs && node scripts/columns-list-spec.mjs && node scripts/columns-list-range-spec.mjs",
     "test:columns-list:mutation": "node scripts/columns-list-mutation.mjs",
     "test:list-number": "node scripts/build-list-number-spec.mjs && node scripts/list-number-spec.mjs && node scripts/list-number-e2e.mjs",
-    "repro": "node scripts/cm6-repro.cjs"
+    "repro": "node scripts/cm6-repro.cjs",
+    "test:legacy-parity": "node scripts/parity.cjs",
+    "test:english": "node scripts/english-spec.mjs"
   },
-  "author": "you",
+  "author": "MarcBolo; English fork by Eme",
   "license": "MIT",
   "devDependencies": {
-    "@codemirror/state": "^6.7.6",
-    "@codemirror/view": "^6.43.13",
-    "@types/node": "^20.14.0",
-    "esbuild": "^0.23.1",
-    "jsdom": "^29.1.1",
-    "obsidian": "latest",
-    "typescript": "^5.5.4"
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.13",
+    "@types/node": "20.19.43",
+    "esbuild": "0.23.1",
+    "jsdom": "29.1.1",
+    "obsidian": "1.13.1",
+    "typescript": "5.9.3"
   }
 }

@@ -1,7 +1,6 @@
-/**
- * 把纯逻辑模块打成 ESM .mjs，供 insert-actions-spec.mjs 在纯 Node 里断言。
- * insert-actions.ts / constants.ts 都不依赖 obsidian 运行时（只有 type import）。
- */
+/* *
+ * Type the pure logic module into ESM .mjs for insert-actions-spec.mjs to assert in pure Node.
+ * None of insert-actions.ts / constants.ts depends on the obsidian runtime (only type import). */
 import { build } from 'esbuild';
 import { mkdirSync } from 'node:fs';
 

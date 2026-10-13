@@ -3,72 +3,70 @@ import type { BlockRange } from './types';
 import { getLines } from './util';
 
 /**
- * 分栏双向拖拽的共享落点计算（需求 A：文档块 → 分栏新增栏；需求 B：栏 → 分栏外普通块）。
+ * Shared drop point calculation for two-way dragging of columns (requirement A: document block → new column in sub-column; requirement B: column → ordinary block outside the column).
  *
- * 为什么单独成模块：两个需求的判定方向相反，但都要在同一份分栏结构上做
- * 「DOM 命中 / 文档坐标 ↔ 栏索引」的换算。原先这些换算散落在 drag.ts 的
- * 四向落区分支里，再各写一份必然漂移，故集中到此。
+ * Why separate modules: The determination directions of the two requirements are opposite, but they must be done on the same column structure
+ * Conversion of "DOM hit/document coordinate ↔ column index". Originally these conversions were scattered in drag.ts
+ * If you write another copy of each of the four branches in the falling area, it will inevitably drift, so it is concentrated here.
  *
- * 关键前提：Live Preview 的自渲染分栏是一个整体 widget（Decoration.replace({block:true}），
- * 栏不是文档块，CM6 的 posAtCoords 对栏内只能给出整个区间的替换位置，拿不到"第几栏"。
- * 因此需求 A 的命中判定必须走 DOM（elementFromPoint），不能依赖 CM 坐标。
- */
+ * Key premise: Live Preview’s self-rendering column is a whole widget (Decoration.replace({block:true}),
+ * The column is not a document block. CM6's posAtCoords can only give the replacement position of the entire interval in the column, but cannot get the "column number".
+ * Therefore, the hit determination of requirement A must go through DOM (elementFromPoint) and cannot rely on CM coordinates. */
 
-/** 栏间插入带命中半径（px）：指针距两栏之间的中缝越近越优先命中「新栏插这里」 */
+/** Insert between columns with hit radius (px): The closer the pointer is to the gap between the two columns, the priority will be to hit "Insert new column here" */
 export const COL_GAP_BAND = 18;
 
-/** 命中区分类 */
+/** Hit area classification */
 export type ColHitKind =
-  /** 命中两栏之间的插入带 → 在 insertIndex 处插入新栏（两栏之间） */
+  /** Hit the insert band between two columns → insert a new column at insertIndex (between the two columns) */
   | 'gap'
-  /** 命中栏的左半区 → 插到该栏之前 */
+  /** Hit the left half of the column → insert before the column */
   | 'before'
-  /** 命中栏的右半区 → 插到该栏之后（末栏时即追加到行末） */
+  /** Hit the right half of the column → insert after the column (at the end of the column, it is appended to the end of the line) */
   | 'after';
 
-/** 分栏内一次命中的完整结果 */
+/** Complete results of a hit within a column */
 export interface ColDropHit {
   kind: ColHitKind;
-  /** 插入索引：0 = 最前，texts.length = 末尾追加 */
+  /** Insertion index: 0 = first, texts.length = append at the end */
   insertIndex: number;
-  /** 命中栏的全局索引（kind='gap' 时为右邻栏索引，末栏缝隙为栏数） */
+  /** The global index of the hit column (when kind='gap' is the index of the right adjacent column, the gap in the last column is the number of columns) */
   colIndex: number;
-  /** 命中栏的 DOM 盒（可视区，用于画描边 / 竖线） */
+  /** DOM box of hit bar (visible area, used for drawing strokes/vertical lines) */
   box: { left: number; right: number; top: number; bottom: number } | null;
 }
 
-/** 一行分栏的 DOM/结构信息（由调用方从 widget 取出） */
+/** A row of column-based DOM/structure information (retrieved from the widget by the caller) */
 export interface ColRowInfo {
-  /** 该行包含的栏 DOM 元素（按显示顺序） */
+  /** The column DOM elements contained in this row (in order of display) */
   cols: HTMLElement[];
-  /** 各栏在 widget 全局 texts 中的下标（多行分栏时用于换算 insertIndex） */
+  /** The subscript of each column in the widget's global texts (used to convert insertIndex when multiple lines are divided into columns) */
   globalIdx: number[];
 }
 
-/** 一整个分栏 widget 的行 / 栏信息 */
+/** Row/column information of an entire column widget */
 export interface ColLayoutInfo {
   rows: ColRowInfo[];
-  /** widget 总栏数 */
+  /** Total number of widget columns */
   total: number;
 }
 
 /**
- * 按几何判定分栏内命中区。
+ * Determine hit areas in columns based on geometry.
  *
- * 优先级（自高而低）：
- *   1. gap   —— 指针落在两栏之间的中缝（±COL_GAP_BAND）→ 插在两栏之间
- *   2. after —— 栏的右半区
- *   3. before—— 栏的左半区（含最左栏左半区 = 插到最前面）
+ *Priority (from high to low):
+ * 1. gap - the pointer falls on the gap between the two columns (±COL_GAP_BAND) → inserted between the two columns
+ * 2. after - the right half of the column
+ * 3. before - the left half of the column (including the left half of the leftmost column = inserted to the front)
  *
- * gap 优先于半区是刻意的：栏 1 右半区与栏 2 左半区算出的 insertIndex 本就相同，
- * 若让半区先抢，同一物理位置会出现"有时命中带、有时命中半区"的不确定行为。
- * 中央正文区按确认的方案并入右半区（after），不留白区。
+ * The priority of gap over half area is deliberate: the insertIndex calculated for the right half area of column 1 and the left half area of column 2 is the same.
+ * If the half area is allowed to grab first, the same physical position will have an uncertain behavior of "sometimes hitting the zone and sometimes hitting the half area".
+ * The central text area will be merged into the right half area (after) according to the confirmed plan, leaving no white space.
  *
- * @param layout 分栏 DOM 布局
- * @param x 指针视口横坐标
- * @param y 指针视口纵坐标
- * @returns 命中区；指针不在任何行内时返回 null
- */
+ * @param layout Column DOM layout
+ * @param x pointer viewport abscissa
+ * @param y pointer viewport ordinate
+ * @returns hit area; returns null if the pointer is not in any line */
 export function hitColumnsLayout(
   layout: ColLayoutInfo,
   x: number,
@@ -78,13 +76,13 @@ export function hitColumnsLayout(
     if (!row.cols.length) continue;
     const first = row.cols[0].getBoundingClientRect();
     const last = row.cols[row.cols.length - 1].getBoundingClientRect();
-    // 纵向闸门：指针须落在本行的垂直范围内（行与行之间的空隙不命中）
+    // Vertical gate: the pointer must fall within the vertical range of the row (the gap between rows does not hit)
     if (y < first.top || y > last.bottom) continue;
 
     const rects = row.cols.map((c) => c.getBoundingClientRect());
     const toBox = (r: DOMRect) => ({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
 
-    // 1) 栏间插入带：优先命中
+    // 1) Insert tape between columns: hit first
     for (let i = 0; i < rects.length - 1; i++) {
       const boundary = (rects[i].right + rects[i + 1].left) / 2;
       if (Math.abs(x - boundary) > COL_GAP_BAND) continue;
@@ -97,7 +95,7 @@ export function hitColumnsLayout(
       };
     }
 
-    // 2)/3) 栏内：左半区 before、右半区 after（含最左/最右栏的外缘）
+    // 2)/3) Within the column: left half area before, right half area after (including the outer edge of the leftmost/rightmost column)
     for (let i = 0; i < rects.length; i++) {
       const r = rects[i];
       if (x < r.left || x > r.right) continue;
@@ -109,7 +107,7 @@ export function hitColumnsLayout(
       return { kind: 'after', insertIndex: gi + 1, colIndex: gi, box: toBox(r) };
     }
 
-    // 落在本行的行内空隙（栏被 flex 挤开时的空隙）：退回最后一栏之后
+    // The intra-row gap that falls on this row (the gap when the column is squeezed out by flex): after returning to the last column
     const r = rects[rects.length - 1];
     const gi = row.globalIdx[rects.length - 1];
     return { kind: 'after', insertIndex: gi + 1, colIndex: gi, box: toBox(r) };
@@ -118,9 +116,8 @@ export function hitColumnsLayout(
 }
 
 /**
- * 把行信息拆成 ColLayoutInfo：colEls 为 widget 内全部栏元素（按全局顺序），
- * rowLens 为每行栏数（空数组 = 单行）。
- */
+ * Split the row information into ColLayoutInfo: colEls is all column elements in the widget (in global order),
+ * rowLens is the number of columns in each row (empty array = single row). */
 export function buildColLayout(
   colEls: HTMLElement[],
   rowLens: number[]
@@ -139,27 +136,26 @@ export function buildColLayout(
 }
 
 /**
- * 把被拖块的行文本转成"栏内容"文本：剥掉每层的引用前缀，
- * 保留 markdown 结构（列表缩进 / 标题 / 代码围栏原样）。
+ * Convert the line text of the dragged block into "column content" text: strip off the reference prefix of each layer,
+ * Keep markdown structure (list indents/titles/code fences as is).
  *
- * 分栏栏内容在 markdown 层是不带 `>> ` 前缀的裸内容（buildColumnsMarkdown 写回时补前缀），
- * 所以这里必须剥一次，否则会出现 `>> >> 文本` 的双重前缀。
+ * The column content in the markdown layer is bare content without the `>> ` prefix (buildColumnsMarkdown adds the prefix when writing back),
+ * So it must be stripped once here, otherwise the double prefix of `>> >> text` will appear.
  *
- * 与 scanRegions 的 stripToColLevel 同构，但要**全剥到裸内容**（需求 A 的拖源
- * 恒在分栏之外，已被资格校验排除，故无需保留相对层级）。
+ * Isomorphic to stripToColLevel of scanRegions, but **strip all to naked content** (requires the drag source of A
+ * It is always outside the column and has been excluded by the qualification check, so there is no need to retain the relative level).
  *
- * 两个容易写错的点，均已由 temp/verify/assert.mjs 断言覆盖：
+ * Two easy-to-write errors have been covered by the temp/verify/assert.mjs assertion:
  *
- * 1) 不能用 `replace(/^((?:>\s*)+)/, '')` —— `\s*` 会连带吃掉 `>` 之后的空格，
- *    把 `>>   sub`（子项缩进 2）压成 `sub`（缩进 0），列表层级被静默破坏。
- *    故逐字符扫描：吃掉连续的 `>`，其后**至多一个**空格，其余空白原样加回。
+ * 1) You cannot use `replace(/^((?:>\s*)+)/, '')` - `\s*` will also eat the spaces after `>`.
+ * Squeeze `>>   sub` (subitem indent 2) into `sub` (indent 0), the list hierarchy is silently destroyed.
+ * Therefore, scan character by character: eat the consecutive `>`, followed by ** at most ** spaces, and add back the remaining blanks as they are.
  *
- * 2) 围栏检测必须在**剥完前缀之后**做。若按原文检测（要求 ``` 前是空白），
- *    `>> ```js` 这类带引用前缀的围栏行永远匹配不上，状态机不启用 ——
- *    代码块里出现的 `[!col]` 会被误当新栏，把一栏劈成两栏。
- *    围栏内容同样要剥（与 scanRegions 的 segFence 分支一致，保证写入的栏内容
- *    与读取端 stripToColLevel 的产物同构）。
- */
+ * 2) Fence detection must be done after stripping the prefix. If detected according to the original text (requirement ``` The front is blank），
+ *    `>> ```js`), such fence lines with reference prefixes will never be matched, and the state machine will not be enabled -
+ * `[!col]` appearing in the code block will be mistaken for a new column, splitting one column into two columns.
+ * The fence content must also be stripped (consistent with the segFence branch of scanRegions to ensure that the written column content
+ * Isomorphic to the product of read-side stripToColLevel). */
 export function stripQuotePrefixes(lines: string[]): string {
   const out: string[] = [];
   let fenceCh: string | null = null;
@@ -168,7 +164,7 @@ export function stripQuotePrefixes(lines: string[]): string {
       out.push('');
       continue;
     }
-    // 剥引用层：吃 `>` 与其后至多一个空格，其余空白原样保留（保住列表缩进）
+    // Peel off the reference layer: eat `>` followed by at most one space, and leave the remaining spaces as they are (preserving the indentation of the list)
     let i = 0;
     while (l[i] === '>') i++;
     let t: string;
@@ -178,8 +174,8 @@ export function stripQuotePrefixes(lines: string[]): string {
     } else {
       t = l.replace(/^\s+/, '');
     }
-    // 围栏状态机（在剥完前缀的文本上判定，与 scanRegions 的 segFence 同构）：
-    // 开启围栏后，代码内容里的 `[!col]` 不能被当成新栏标记
+    // Fence state machine (determined on the prefix-stripped text, isomorphic to segFence of scanRegions):
+    // After the fence is turned on, `[!col]` in the code content cannot be regarded as a new column mark.
     const fence = t.match(/^(`{3,}|~{3,})(.*)$/);
     if (fence) {
       if (fenceCh === null) fenceCh = fence[1][0];
@@ -191,43 +187,41 @@ export function stripQuotePrefixes(lines: string[]): string {
 }
 
 /**
- * 需求 B 的合法落点：**分栏区间外的任意行**。
+ * The legal placement point of requirement B: **Any row outside the column range**.
  *
- * 早期版本只允许「紧邻上/下行」，实测限制性太强（用户反馈「不能随意拖拽位置」），
- * 故放宽为：只要目标行不在分栏区间 [shellStart, shellEnd] 内即合法。
- * shellEnd + 1 是分栏后的分隔空行，也合法（= 紧贴分栏之后）。
+ * The early version only allowed "immediately up/downward", which was too restrictive in actual testing (users reported that "you cannot drag and drop the position at will").
+ * Therefore, it is relaxed to: as long as the target line is not within the column interval [shellStart, shellEnd], it is legal.
+ * shellEnd + 1 is the separated empty line after the column, which is also legal (= immediately after the column).
  *
- * 历史坑（保留以备回归）：widget 是 `Decoration.replace({block:true})`，
- * 外壳行与末行都不渲染，指针在 widget 上/下方只能命中 start-1 / end+2 这类
- * 「视觉相邻行」。若按「必须 === 某行」判定就会恒不成立。放宽到区间外任意行后
- * 这类几何问题自然消失。
+ * Historical pit (reserved for return): The widget is `Decoration.replace({block:true})`,
+ * The shell row and the last row are not rendered. The pointer can only hit start-1 / end+2 when the pointer is above/below the widget.
+ * "Visually adjacent rows". If you press "must === a certain row" to determine, it will never be established. After relaxing to any row outside the range
+ *Such geometric problems disappear naturally.
  *
- * @param shellStart 分栏外壳行号（0-based）
- * @param shellEnd   分栏末行行号（0-based）
- * @param line       目标插入行号（0-based，插到该行之前；=== 总行数 表示追加到文末）
- * @returns 合法返回原值，区间内返回 null
- */
+ * @param shellStart Column shell line number (0-based)
+ * @param shellEnd The last line number of the column (0-based)
+ * @param line target insertion line number (0-based, inserted before the line; === total number of lines means appended to the end of the text)
+ * @returns Returns the original value legally, returns null within the range */
 export function resolveExtractLine(shellStart: number, shellEnd: number, line: number): number | null {
   if (line < 0) return null;
   if (line < shellStart) return line;
-  // 区间内部（外壳行 ~ 末行）非法；shellEnd+1（分隔空行）及其之后合法
+  // The inside of the interval (shell line ~ last line) is illegal; shellEnd+1 (blank line separated) and thereafter are legal
   if (line > shellEnd) return line;
   return null;
 }
 
 /**
- * 自由落点的插入文本：把栏内容 `plain` 插到第 `line` 行之前
- * （`line === lines.length` 表示追加到文末），并自动补齐两侧空行分隔，
- * 保证拖出来的块是独立段落，不会与相邻块粘连。
+ * Insert text with free drop point: insert column content `plain` before line `line`
+ * (`line === lines.length` means appending to the end of the text), and automatically completes the blank lines on both sides.
+ * Ensure that the dragged block is an independent paragraph and will not stick to adjacent blocks.
  *
- * 补齐规则由插入点的文本上下文决定：
- *  - 前邻已是空行 → 不补前导；否则补 `\n`（前邻是分栏文本时同样按非空处理）
- *  - 后邻（第 line 行）是空行 → 补 `\n`；否则补 `\n\n`
- *  - 追加到文末时原文末尾没有换行，需补 `\n\n`（末行已是空行则补 `\n`）
+ * Completion rules are determined by the text context of the insertion point:
+ * - The previous neighbor is already a blank line → do not add the leading edge; otherwise, add `\n` (when the previous neighbor is column text, it will also be treated as non-empty)
+ * - The next neighbor (line) is a blank line → add `\n`; otherwise add `\n\n`
+ * - When appending to the end of the text, there is no line break at the end of the original text, so `\n\n` needs to be added (if the last line is already a blank line, `\n` must be added)
  *
- * @param lines  原文全部行（0-based）
- * @param region 分栏区间，用于判断「插入点的前邻是分栏文本还是普通行」
- */
+ * @param lines All lines of the original text (0-based)
+ * @param region Column interval, used to determine "whether the previous neighbor of the insertion point is column text or an ordinary line" */
 export function buildExtractInsertText(
   plain: string,
   lines: string[],
@@ -238,7 +232,7 @@ export function buildExtractInsertText(
   if (!body) return '';
   void region.hasBreak;
 
-  // 追加到文末：原文末尾无换行，需自行补齐
+  // Append to the end of the text: There is no line break at the end of the original text, you need to complete it yourself
   if (line >= lines.length) {
     const lastEmpty = (lines[lines.length - 1] ?? '') === '';
     return (lastEmpty ? '\n' : '\n\n') + body;
@@ -247,7 +241,7 @@ export function buildExtractInsertText(
   let prevBlank: boolean;
   if (line === 0) prevBlank = true;
   else if (line > region.end && line === region.end + 1) {
-    // 紧贴分栏末行之后：前邻是分栏文本（非空），必须自己补空行
+    // Immediately after the last line of the column: the previous neighbor is the column text (not empty), you must fill in the blank line yourself
     prevBlank = false;
   } else prevBlank = (lines[line - 1] ?? '') === '';
 
@@ -258,36 +252,34 @@ export function buildExtractInsertText(
 }
 
 /**
- * 把栏内容转成可作为普通块插入的文本（需求 B：栏拖出分栏）。
+ * Convert the column content into text that can be inserted as a normal block (Requirement B: Drag the column out of the column).
  *
- * **刻意不做剥前缀**：widget 的 `texts[i]` 已由 scanRegions 的 stripToColLevel
- * 剥到栏级（列级），其中残留的单个 `> ` 是**栏内的真实内容** —— 例如某栏里
- * 嵌了一个 callout，存的就是 `> [!note] xxx`。若这里再剥一层，拖出后该嵌套
- * callout 会被静默压成普通文本（丢结构，且原文里的引用语义消失）。
+ * **Deliberately not stripping prefix**: widget's `texts[i]` has been replaced by scanRegions's stripToColLevel
+ * Stripped to the column level (column level), the remaining single `> ` is the **real content in the column** - for example, in a certain column
+ * A callout is embedded, and the saved one is `> [!note] xxx`. If you peel off another layer here, it will be nested after dragging it out.
+ * callout will be silently compressed into ordinary text (the structure will be lost, and the reference semantics in the original text will disappear).
  *
- * 所以本函数只负责 trim 尾部空白，空行由调用方按落点方向补。
- */
+ * Therefore, this function is only responsible for trimming the trailing blanks, and the blank lines are filled in by the caller according to the direction of the landing point. */
 export function columnToPlainBlock(text: string): string {
   return text.replace(/\s+$/, '').replace(/^\n+/, '');
 }
 
 /**
- * 计算「区间重写 + 区间外插入」合并后的 CM6 changes 数组。
+ * Calculate the CM6 changes array after the merger of "range rewriting + outside range insertion".
  *
- * 为什么要合并：两条需求都要求单步撤销。分栏写回本身是整区间重写
- * （commitDoc 的语义），若再单独派发一次插入，就会变成两步撤销。
- * CM6 的单个 Transaction 接受 changes 数组，可一次应用多段编辑，
- * 撤销时整体回滚 —— 已用 temp/verify-single-trx.mjs 验证：
- *   - 数组形式（区间重写 + 区间外零宽插入）合法
- *   - 插入点与区间起点同位（拖到上方）也不冲突
- *   - invert() 能干净还原原文
+ * Why merge: Both requirements require single-step undo. Column writeback itself is an entire interval rewrite
+ * (Semantics of commitDoc), if an insert is dispatched separately, it will become a two-step undo.
+ * A single Transaction of CM6 accepts a changes array and can apply multiple edits at one time.
+ * Full rollback when undoing - verified with temp/verify-single-trx.mjs:
+ * - Array form (range rewriting + zero-width insertion outside the range) is legal
+ * - The insertion point will not conflict with the starting point of the range (drag it to the top)
+ * - invert() can cleanly restore the original text
  *
- * @param regionFrom 分栏区间起点（含）
- * @param regionTo   分栏区间终点（不含）
- * @param regionText 新的分栏区间文本
- * @param outside    区间外的插入（位置 + 文本），无则 null
- * @returns 可直接放进 state.update({changes}) 的数组
- */
+ * @param regionFrom starting point of column interval (inclusive)
+ * @param regionTo The end of the column interval (exclusive)
+ * @param regionText new column range text
+ * @param outside Insertion outside the interval (position + text), if not, null
+ * @returns can be directly put into the array of state.update({changes}) */
 export function buildCombinedChanges(
   regionFrom: number,
   regionTo: number,
@@ -301,12 +293,12 @@ export function buildCombinedChanges(
   return changes;
 }
 
-/** 拖出后剩余栏不足 2 栏时，是否应降级为取消分栏（还原为普通段落） */
+/** When there are less than 2 columns left after dragging out, whether it should be downgraded to cancel column division (revert to normal paragraph) */
 export function shouldUnwrapAfterExtract(remaining: number): boolean {
   return remaining < 2;
 }
 
-/** 取被拖块的全部行文本（多选时按行号升序拼接） */
+/** Get all lines of text of the dragged block (splicing in ascending order of line numbers when multiple selections are made) */
 export function collectDraggedLines(editor: Editor, ranges: BlockRange[]): string[] {
   const sorted = [...ranges].sort((a, b) => a.start - b.start);
   const lines: string[] = [];

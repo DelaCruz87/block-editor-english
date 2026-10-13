@@ -1,35 +1,33 @@
-/*
- * block-editor 颜色标记承载改造回归测试（node scripts/block-color-spec.cjs）
+/* * block-editor color mark carries transformation regression test (node scripts/block-color-spec.cjs)
  *
- * 覆盖（对应本次改造验收清单）：
- *  A. 实时预览 CM6 装饰（blockColorField）：
- *     A1 正文段落 span 形态 <span data-block-color="..."></span> → mark + line 装饰
- *     A2 存量 %% block-color:<c> %% 形态兼容 → mark + line 装饰
- *     A3 span 双值 light|dark → line 装饰含 --be-block-color-dark
- *     A4 空文档 → 不抛错、0 装饰
- *     A5 文档末尾标记（末行无换行）→ from/to 不越界
- *     A6 非法 span（未闭合）→ 不匹配、不抛错
- *  B. 阅读模式扫描（applyBlockColorToDom）：
- *     B1 span 形态 → 父块上色（data-block-color + --be-block-color-light）
- *     B2 存量 %% 文本形态 → 上色且标记原文被清除
- *     B3 存量注释形态（<!--...-->）→ 上色
- *     B4 三形态共存同块 → 仅应用一次（done 去重）
- *     B5-B11 源文本驱动回放（applyBlockColorFromSource，方案 1）：DOM 中标记被
- *     Obsidian 清洗时，按段落源文本解析 + 文本锚点对齐上色
- *  C. 写回逻辑（BlockConverter.setBlockColor / clearBlockColor）：
- *     C1 空行写回 span
- *     C2 存量 %% 标记被清理并改写 span
- *     C3 已有 span 颜色替换
- *     C4 多行块写回块末行
- *     C5 callout 内写回不崩溃 + 分栏提示 Notice
- *     C6 clearBlockColor 清 span / %% 两种形态
- */
+ * Coverage (corresponding to the acceptance list of this transformation):
+ * A. Real-time preview of CM6 decoration (blockColorField):
+ * A1 text paragraph span form <span data-block-color="..."></span> → mark + line decoration
+ * A2 stock %% block-color:<c> %% format compatible → mark + line decoration
+ * A3 span double value light|dark → line decoration includes --be-block-color-dark
+ * A4 empty document → no errors, 0 decorations
+ * A5 document end mark (last line without line break) → from/to does not cross the boundary
+ * A6 illegal span (not closed) → does not match, does not throw an error
+ * B. Reading mode scanning (applyBlockColorToDom):
+ * B1 span shape → parent block color (data-block-color + --be-block-color-light)
+ * B2 stock %% text form → colored and marked original text cleared
+ * B3 stock comment form (<!--...-->) → colored
+ * B4 three forms coexist in the same block → only applied once (done deduplication)
+ * B5-B11 Source text-driven playback (applyBlockColorFromSource, scenario 1): Marker in DOM is
+ * When cleaning Obsidian, it is analyzed based on paragraph source text + text anchor point alignment and coloring
+ * C. Write back logic (BlockConverter.setBlockColor/clearBlockColor):
+ * C1 blank line is written back to span
+ * C2 inventory %% tag cleaned and rewritten span
+ * C3 already has span color replacement
+ * C4 multi-line block writes back the last line of the block
+ * Write back in C5 callout without crash + Column prompt Notice
+ * C6 clearBlockColor clear span / %% two forms */
 'use strict';
 
 const path = require('path');
 const Module = require('module');
 
-// ---- jsdom 全局环境 ----
+// ---- jsdom global environment ----
 const { JSDOM } = require('jsdom');
 const dom = new JSDOM('<!doctype html><html><body><div id="host"></div></body></html>', {
   pretendToBeVisual: true,
@@ -57,7 +55,7 @@ global.Text = dom.window.Text;
 global.NodeFilter = dom.window.NodeFilter;
 global.Node = dom.window.Node;
 
-// ---- obsidian 桩 ----
+// ---- obsidian pile ----
 const { StateField } = require('@codemirror/state');
 const stub = {
   Plugin: class PluginStub {},
@@ -98,13 +96,13 @@ Module._load = function (request, parent, isMain) {
   return origLoad.call(this, request, parent, isMain);
 };
 
-// ---- 被测代码（构建产物） ----
+// ---- Code under test (build product) ----
 const main = require(path.join(__dirname, '..', 'main.js'));
 const { blockColorField, applyBlockColorToDom, applyBlockColorFromSource, BlockConverter } = main;
 const { EditorState } = require('@codemirror/state');
 const { EditorView } = require('@codemirror/view');
 
-// ---- 极简断言 ----
+// ---- Minimalist assertion ----
 let passed = 0;
 let failed = 0;
 const failures = [];
@@ -122,13 +120,13 @@ function section(name) {
   console.log('\n== ' + name + ' ==');
 }
 
-// ================= A. 实时预览 CM6 装饰 =================
+// ================= A. Live preview of CM6 decorations =================
 function decosOf(doc) {
   const view = new EditorView({
     state: EditorState.create({ doc, extensions: [blockColorField] }),
     parent: document.getElementById('host'),
   });
-  // create 阶段无事务不触发 update：dispatch 空事务强制完成首次全量扫描
+  // If there is no transaction in the create phase, update will not be triggered: dispatch empty transaction will force the first full scan to be completed.
   view.dispatch({});
   const deco = view.state.field(blockColorField).decorations;
   const marks = [];
@@ -144,171 +142,171 @@ function decosOf(doc) {
   return { marks, lines };
 }
 
-section('A1. 正文段落 span 形态装饰');
+section("A1. Text paragraph span shape decoration");
 {
-  const doc = '正文段落<span data-block-color="red"></span>';
+  const doc = '\u6b63\u6587\u6bb5\u843d<span data-block-color="red"></span>';
   const { marks, lines } = decosOf(doc);
-  ok(marks.length === 1, 'span 标签范围应有 1 个 mark 装饰', marks);
-  ok(lines.length === 1 && lines[0].from === 0, '应有 1 个行背景 line 装饰且 from===0', lines);
-  ok(lines[0].style.includes('--be-block-color-light:red'), 'line 样式含 light 变量', lines[0].style);
-  ok(marks[0].style.includes('display:none'), 'span 标签本体 display:none 无痕', marks[0].style);
+  ok(marks.length === 1, "The span tag range should have 1 mark decoration", marks);
+  ok(lines.length === 1 && lines[0].from === 0, "There should be 1 line background line decorated with from===0", lines);
+  ok(lines[0].style.includes('--be-block-color-light:red'), "line style contains light variable", lines[0].style);
+  ok(marks[0].style.includes('display:none'), "span tag body display:none invisible", marks[0].style);
 }
 
-section('A2. 存量 %% 形态装饰');
+section("A2. Stock %% shape decoration");
 {
-  const doc = '段落 %% block-color:blue %%';
+  const doc = '\u6bb5\u843d %% block-color:blue %%';
   const { marks, lines } = decosOf(doc);
-  ok(marks.length === 1, '%% 标记应有 1 个 mark 装饰', marks);
-  ok(lines.length === 1 && lines[0].style.includes('--be-block-color-light:blue'), 'line 装饰含 light=blue', lines);
+  ok(marks.length === 1, "%% mark should have 1 mark decoration", marks);
+  ok(lines.length === 1 && lines[0].style.includes('--be-block-color-light:blue'), "line decoration contains light=blue", lines);
 }
 
-section('A3. span 双值 light|dark');
+section("A3. span double value light|dark");
 {
-  const doc = '正文<span data-block-color="#f1f3f5|#2a2a2a"></span>';
+  const doc = '\u6b63\u6587<span data-block-color="#f1f3f5|#2a2a2a"></span>';
   const { lines } = decosOf(doc);
   ok(
     lines.length === 1 &&
       lines[0].style.includes('--be-block-color-light:#f1f3f5') &&
       lines[0].style.includes('--be-block-color-dark:#2a2a2a'),
-    'line 样式同时含 light/dark 变量',
+    "The line style also contains light/dark variables",
     lines
   );
 }
 
-section('A4. 空文档');
+section("A4. Empty document");
 {
   const { marks, lines } = decosOf('');
-  ok(marks.length === 0 && lines.length === 0, '空文档 0 装饰、不抛错', { marks, lines });
+  ok(marks.length === 0 && lines.length === 0, "Empty document 0 decoration, no error thrown", { marks, lines });
 }
 
-section('A5. 文档末尾标记（末行无换行）');
+section("A5. End of document mark (no line break in the last line)");
 {
-  const doc = '最后一行<span data-block-color="green"></span>';
+  const doc = '\u6700\u540e\u4e00\u884c<span data-block-color="green"></span>';
   const { marks, lines } = decosOf(doc);
   const len = doc.length;
-  ok(marks.length === 1 && marks[0].to <= len, 'mark 不越界', { marks, len });
-  ok(lines.length === 1 && lines[0].from <= len, 'line 不越界', { lines, len });
+  ok(marks.length === 1 && marks[0].to <= len, "mark does not cross the line", { marks, len });
+  ok(lines.length === 1 && lines[0].from <= len, "line does not cross the line", { lines, len });
 }
 
-section('A6. 非法 span（未闭合）不匹配不抛错');
+section("A6. Illegal span (unclosed) does not match and does not throw an error");
 {
-  const doc = '正文<span data-block-color="red"';
+  const doc = '\u6b63\u6587<span data-block-color="red"';
   const { marks, lines } = decosOf(doc);
-  ok(marks.length === 0 && lines.length === 0, '未闭合 span 不产生装饰', { marks, lines });
+  ok(marks.length === 0 && lines.length === 0, "Unclosed span does not generate decoration", { marks, lines });
 }
 
-// ================= B. 阅读模式扫描 =================
-section('B1. span 形态 → 父块上色');
+// ================= B. Reading mode scanning =================
+section("B1. span shape → parent block color");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<p>正文<span data-block-color="red"></span></p>';
+  root.innerHTML = '<p>\u6b63\u6587<span data-block-color="red"></span></p>';
   applyBlockColorToDom(root);
   const p = root.querySelector('p');
-  ok(p.getAttribute('data-block-color') === 'red', '父块 p 打 data-block-color=red', p.outerHTML);
-  ok(p.style.getPropertyValue('--be-block-color-light') === 'red', '父块设置 light 变量', p.style.cssText);
+  ok(p.getAttribute('data-block-color') === 'red', "Parent block p hits data-block-color=red", p.outerHTML);
+  ok(p.style.getPropertyValue('--be-block-color-light') === 'red', "The parent block sets the light variable", p.style.cssText);
 }
 
-section('B2. 存量 %% 文本形态 → 上色 + 清理原文');
+section("B2. Stock %% text form → color + clean original text");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<p>正文 %% block-color:blue %%</p>';
+  root.innerHTML = '<p>\u6b63\u6587 %% block-color:blue %%</p>';
   applyBlockColorToDom(root);
   const p = root.querySelector('p');
-  ok(p.getAttribute('data-block-color') === 'blue', '父块 p 打 data-block-color=blue', p.outerHTML);
-  ok(!p.textContent.includes('%%'), '标记原文被清除', p.textContent);
+  ok(p.getAttribute('data-block-color') === 'blue', "Parent block p hits data-block-color=blue", p.outerHTML);
+  ok(!p.textContent.includes('%%'), "Mark original text cleared", p.textContent);
 }
 
-section('B3. 存量注释形态 → 上色');
+section("B3. Stock annotation form → coloring");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<p>正文<!--block-color:green--></p>';
+  root.innerHTML = '<p>\u6b63\u6587<!--block-color:green--></p>';
   applyBlockColorToDom(root);
   const p = root.querySelector('p');
-  ok(p.getAttribute('data-block-color') === 'green', '注释形态命中并上色', p.outerHTML);
+  ok(p.getAttribute('data-block-color') === 'green', "Annotation shape hit and color", p.outerHTML);
 }
 
-section('B4. 三形态共存 → 仅应用一次');
+section("B4. Three forms coexist → apply only once");
 {
   const root = document.createElement('div');
   root.innerHTML =
-    '<p>正文<span data-block-color="red"></span> %% block-color:blue %% <!--block-color:green--></p>';
+    '<p>\u6b63\u6587<span data-block-color="red"></span> %% block-color:blue %% <!--block-color:green--></p>';
   applyBlockColorToDom(root);
   const p = root.querySelector('p');
-  // span 形态优先命中，red 先应用；后续 %% / 注释形态因 done 集去重跳过
-  ok(p.getAttribute('data-block-color') === 'red', '同块只应用一次（span 优先）', p.outerHTML);
+  // span form is hit first, red is applied first; subsequent %% / annotation form is skipped due to done set deduplication
+  ok(p.getAttribute('data-block-color') === 'red', "The same block is only applied once (span takes precedence)", p.outerHTML);
 }
 
-// ---- 源文本驱动回放（方案 1）：DOM 中标记被 Obsidian 清洗时仍能上色 ----
-section('B5. 源文本驱动：span 形态（DOM 无 data 属性）→ 父块上色');
+// ---- Source text-driven playback (Option 1): Markup in the DOM can still be colored even when it is cleaned by Obsidian ----
+section("B5. Source text driver: span form (DOM has no data attribute) → parent block coloring");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<p>正文mark：文本</p>';
-  const n = applyBlockColorFromSource(root, '正文mark：文本<span data-block-color="#d0ebff"></span>');
+  root.innerHTML = '<p>\u6b63\u6587mark：\u6587\u672c</p>';
+  const n = applyBlockColorFromSource(root, '\u6b63\u6587mark：\u6587\u672c<span data-block-color="#d0ebff"></span>');
   const p = root.querySelector('p');
-  ok(n === 1 && p.getAttribute('data-block-color') === '#d0ebff', '父块打 data-block-color', p.outerHTML);
+  ok(n === 1 && p.getAttribute('data-block-color') === '#d0ebff', "The parent block hits data-block-color", p.outerHTML);
   ok(
     p.style.getPropertyValue('--be-block-color-light') === '#d0ebff',
-    '父块设置 light 变量',
+    "The parent block sets the light variable",
     p.style.cssText
   );
 }
 
-section('B6. 源文本驱动：存量 %% 形态（块首行）→ 上色');
+section("B6. Source text driver: Stock %% form (first line of block) → Coloring");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<p>段落</p>';
-  const n = applyBlockColorFromSource(root, '段落 %% block-color:blue %%');
-  ok(n === 1 && root.querySelector('p').getAttribute('data-block-color') === 'blue', '%% 形态命中', root.innerHTML);
+  root.innerHTML = '<p>\u6bb5\u843d</p>';
+  const n = applyBlockColorFromSource(root, '\u6bb5\u843d %% block-color:blue %%');
+  ok(n === 1 && root.querySelector('p').getAttribute('data-block-color') === 'blue', "%% form hit", root.innerHTML);
 }
 
-section('B7. 源文本驱动：中间无标记块不串位');
+section("B7. Source text driver: unmarked blocks in the middle do not string bits");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<p>第一块</p><p>第二块</p><p>第三块</p>';
+  root.innerHTML = '<p>\u7b2c\u4e00\u5757</p><p>\u7b2c\u4e8c\u5757</p><p>\u7b2c\u4e09\u5757</p>';
   applyBlockColorFromSource(
     root,
-    '第一块<span data-block-color="red"></span>\n\n第二块\n\n第三块<span data-block-color="green"></span>'
+    '\u7b2c\u4e00\u5757<span data-block-color="red"></span>\n\n\u7b2c\u4e8c\u5757\n\n\u7b2c\u4e09\u5757<span data-block-color="green"></span>'
   );
   const ps = root.querySelectorAll('p');
-  ok(ps[0].getAttribute('data-block-color') === 'red', '第一块上色 red', ps[0].outerHTML);
-  ok(ps[1].getAttribute('data-block-color') === null, '第二块未被误上色', ps[1].outerHTML);
-  ok(ps[2].getAttribute('data-block-color') === 'green', '第三块上色 green', ps[2].outerHTML);
+  ok(ps[0].getAttribute('data-block-color') === 'red', "The first piece is colored red", ps[0].outerHTML);
+  ok(ps[1].getAttribute('data-block-color') === null, "The second piece was not mistakenly colored", ps[1].outerHTML);
+  ok(ps[2].getAttribute('data-block-color') === 'green', "The third piece is colored green", ps[2].outerHTML);
 }
 
-section('B8. 源文本驱动：内联 Markdown 锚点（**粗体**）');
+section("B8. Source text driven: inline Markdown anchors (**bold**)");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<p>粗体文本</p>';
-  applyBlockColorFromSource(root, '**粗体**文本<span data-block-color="red"></span>');
-  ok(root.querySelector('p').getAttribute('data-block-color') === 'red', '去语法后仍命中', root.innerHTML);
+  root.innerHTML = '<p>\u7c97\u4f53\u6587\u672c</p>';
+  applyBlockColorFromSource(root, '**\u7c97\u4f53**\u6587\u672c<span data-block-color="red"></span>');
+  ok(root.querySelector('p').getAttribute('data-block-color') === 'red', "Still hit after removing the grammar", root.innerHTML);
 }
 
-section('B9. 源文本驱动：嵌套容器取最近块级元素（li > p）');
+section("B9. Source text driver: Nested container takes the nearest block-level element (li > p)");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<ul><li><p>项目一</p></li></ul>';
-  applyBlockColorFromSource(root, '- 项目一<span data-block-color="red"></span>');
-  ok(root.querySelector('p').getAttribute('data-block-color') === 'red', '颜色落到最近的 p', root.innerHTML);
-  ok(root.querySelector('li').getAttribute('data-block-color') === null, '外层 li 不被上色', root.innerHTML);
+  root.innerHTML = '<ul><li><p>\u9879\u76ee\u4e00</p></li></ul>';
+  applyBlockColorFromSource(root, '- \u9879\u76ee\u4e00<span data-block-color="red"></span>');
+  ok(root.querySelector('p').getAttribute('data-block-color') === 'red', "Color falls to nearest p", root.innerHTML);
+  ok(root.querySelector('li').getAttribute('data-block-color') === null, "The outer layer li is not colored", root.innerHTML);
 }
 
-section('B10. 源文本驱动：表格行标记（tr）');
+section("B10. Source text driver: table row mark (tr)");
 {
   const root = document.createElement('div');
   root.innerHTML = '<table><tbody><tr><td>ssd</td><td>sdf</td></tr></tbody></table>';
   applyBlockColorFromSource(root, '| ssd | sdf |<span data-block-color="red"></span>');
-  ok(root.querySelector('tbody tr').getAttribute('data-block-color') === 'red', '表格行上色', root.innerHTML);
+  ok(root.querySelector('tbody tr').getAttribute('data-block-color') === 'red', "Table row coloring", root.innerHTML);
 }
 
-section('B11. 源文本驱动：无标记 → 0 次上色');
+section("B11. Source text driver: no mark → 0 colors");
 {
   const root = document.createElement('div');
-  root.innerHTML = '<p>普通段落</p>';
-  const n = applyBlockColorFromSource(root, '普通段落\n\n另一个段落');
-  ok(n === 0, '无标记不上色', n);
+  root.innerHTML = '<p>\u666e\u901a\u6bb5\u843d</p>';
+  const n = applyBlockColorFromSource(root, '\u666e\u901a\u6bb5\u843d\n\n\u53e6\u4e00\u4e2a\u6bb5\u843d');
+  ok(n === 0, "No marking, no coloring", n);
 }
 
-// ================= C. 写回逻辑 =================
+// ================= C. Write back logic =================
 function makeEditor(initialLines) {
   const lines = initialLines.slice();
   return {
@@ -325,63 +323,63 @@ function makeConverter() {
   return new BlockConverter({ handle: { hideHandle() {} } });
 }
 
-section('C1. 空行写回 span');
+section("C1. Write blank lines back to span");
 {
-  const ed = makeEditor(['正文']);
+  const ed = makeEditor(['\u6b63\u6587']);
   makeConverter().setBlockColor({ editor: ed, start: 0, end: 0 }, 'red');
-  ok(ed.lines[0] === '正文<span data-block-color="red"></span>', '行尾追加空 span', ed.lines[0]);
+  ok(ed.lines[0] === '\u6b63\u6587<span data-block-color="red"></span>', "Append an empty span at the end of the line", ed.lines[0]);
 }
 
-section('C2. 存量 %% 标记清理并改写 span');
+section("C2. Inventory %% tag cleans and rewrites span");
 {
-  const ed = makeEditor(['正文 %% block-color:blue %%']);
+  const ed = makeEditor(['\u6b63\u6587 %% block-color:blue %%']);
   makeConverter().setBlockColor({ editor: ed, start: 0, end: 0 }, 'red');
   ok(
-    ed.lines[0] === '正文<span data-block-color="red"></span>' && !ed.lines[0].includes('%%'),
-    '%% 标记被替换为 span',
+    ed.lines[0] === '\u6b63\u6587<span data-block-color="red"></span>' && !ed.lines[0].includes('%%'),
+    "%% tags are replaced by span",
     ed.lines[0]
   );
 }
 
-section('C3. 已有 span 颜色替换');
+section("C3. There is span color replacement");
 {
-  const ed = makeEditor(['正文<span data-block-color="blue"></span>']);
+  const ed = makeEditor(['\u6b63\u6587<span data-block-color="blue"></span>']);
   makeConverter().setBlockColor({ editor: ed, start: 0, end: 0 }, 'red');
-  ok(ed.lines[0] === '正文<span data-block-color="red"></span>', 'span 颜色被替换', ed.lines[0]);
+  ok(ed.lines[0] === '\u6b63\u6587<span data-block-color="red"></span>', "span color is replaced", ed.lines[0]);
 }
 
-section('C4. 多行块写回块末行');
+section("C4. Multi-line block writes back to the last line of the block");
 {
-  const ed = makeEditor(['第一行', '第二行']);
+  const ed = makeEditor(['\u7b2c\u4e00\u884c', '\u7b2c\u4e8c\u884c']);
   makeConverter().setBlockColor({ editor: ed, start: 0, end: 1 }, 'red');
-  ok(ed.lines[0] === '第一行', '首行不变', ed.lines[0]);
-  ok(ed.lines[1] === '第二行<span data-block-color="red"></span>', '末行追加 span', ed.lines[1]);
+  ok(ed.lines[0] === '\u7b2c\u4e00\u884c', "The first line remains unchanged", ed.lines[0]);
+  ok(ed.lines[1] === '\u7b2c\u4e8c\u884c<span data-block-color="red"></span>', "Append span to the last line", ed.lines[1]);
 }
 
-section('C5. callout 内写回不崩溃 + 分栏提示');
+section("C5. Write back in callout without crash + column prompt");
 {
   stub.Notice.last = null;
-  const ed = makeEditor(['> [!multi-column]', '>', '>> [!col]', '>> 内容']);
+  const ed = makeEditor(['> [!multi-column]', '>', '>> [!col]', '>> \u5185\u5bb9']);
   makeConverter().setBlockColor({ editor: ed, start: 3, end: 3 }, 'red');
-  ok(ed.lines[3] === '>> 内容<span data-block-color="red"></span>', 'callout 内写回成功', ed.lines[3]);
-  ok(typeof stub.Notice.last === 'string' && stub.Notice.last.includes('分栏'), '弹出分栏提示 Notice', stub.Notice.last);
+  ok(ed.lines[3] === '>> \u5185\u5bb9<span data-block-color="red"></span>', "Write back successfully in callout", ed.lines[3]);
+  ok(typeof stub.Notice.last === 'string' && stub.Notice.last.includes('\u5206\u680f'), "Pop up column prompt Notice", stub.Notice.last);
 }
 
-section('C6. clearBlockColor 清 span / %% 两种形态');
+section("C6. clearBlockColor clear span / %% two forms");
 {
-  const ed1 = makeEditor(['正文<span data-block-color="red"></span>']);
+  const ed1 = makeEditor(['\u6b63\u6587<span data-block-color="red"></span>']);
   makeConverter().clearBlockColor({ editor: ed1, start: 0, end: 0 });
-  ok(ed1.lines[0] === '正文', '清 span 形态', ed1.lines[0]);
+  ok(ed1.lines[0] === '\u6b63\u6587', "clear span form", ed1.lines[0]);
 
-  const ed2 = makeEditor(['正文 %% block-color:blue %%']);
+  const ed2 = makeEditor(['\u6b63\u6587 %% block-color:blue %%']);
   makeConverter().clearBlockColor({ editor: ed2, start: 0, end: 0 });
-  ok(ed2.lines[0] === '正文', '清 %% 形态', ed2.lines[0]);
+  ok(ed2.lines[0] === '\u6b63\u6587', "Clear %% form", ed2.lines[0]);
 }
 
-// ---- 汇总 ----
-console.log('\n==== 汇总: ' + passed + ' passed, ' + failed + ' failed ====');
+// ---- Summary ----
+console.log("==== Summary:" + passed + ' passed, ' + failed + ' failed ====');
 if (failed > 0) {
-  console.error('失败用例:');
+  console.error("Failure use case:");
   for (const f of failures) console.error('  - ' + f);
   process.exit(1);
 }

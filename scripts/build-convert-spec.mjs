@@ -1,12 +1,12 @@
-/** 抽出 buildColumnsMarkdown 供 e2e 套件复用（纯字符串逻辑；obsidian 只有类型无运行时，需打桩） */
+/* * Extract buildColumnsMarkdown for reuse by e2e suite (pure string logic; obsidian only has type but no runtime, stubbing is required) */
 import { build } from 'esbuild';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 mkdirSync('temp/verify', { recursive: true });
 
-// convert.ts 顶部 import 了 obsidian（Notice 等），但 buildColumnsMarkdown 是纯字符串逻辑，
-// 这里给最小桩件，让 esbuild 内联进产物，运行时无需真实 Obsidian。
+// The top of convert.ts imports obsidian (Notice, etc.), but buildColumnsMarkdown is pure string logic,
+// Here is the minimum stub, allowing esbuild to be inlined into the product, without the need for real Obsidian at runtime.
 const stubPath = resolve('temp/verify/obsidian-stub.mjs');
 writeFileSync(stubPath, 'export class Notice { constructor(){} }\nexport function setIcon(){}\n');
 

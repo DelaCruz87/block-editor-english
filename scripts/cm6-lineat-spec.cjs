@@ -1,32 +1,30 @@
-/*
- * cm6-lineat-spec.cjs — CM6 lineAt 越界（Cannot read properties of undefined
- * reading 'length'）回归脚本。
+/* * cm6-lineat-spec.cjs - CM6 lineAt out of bounds (Cannot read properties of undefined
+ * reading 'length') return script.
  *
- * 覆盖：
- *  A) guardDecorations / safeDecoCompute 单测：
- *     - 合法 set 原样返回（零拷贝）
- *     - 整段越界 mark（from > doc.length）丢弃
- *     - 负偏移 mark clamp 到 0
- *     - 上越界 mark clamp 到 doc.length
- *     - line decoration 单点越界丢弃（消费期 lineAt 崩的根因）
- *     - 混合合法+非法：只保留合法
- *     - from > to 结构非法：RangeSet 构造期即被拒（守卫输入层防御）
- *     - compute 回调抛异常 → safeDecoCompute 返回 none 不逃逸
- *  B) view 层行为（jsdom）：
- *     - 空文档：makeView('') + dispatch 选择 + posAtCoords 不崩
- *     - 空文档 + 末尾分栏：前置插入一行后不崩、分栏不丢
- *     - 分栏 + span data-block-color 组合渲染不崩
- *     - 越界装饰注入（复刻事务应用期 computeSlot → updateF → lineAt）：
- *       裸 compute 返回越界 line/mark 时消费期不崩（CM6 自身过滤），
- *       经 safeDecoCompute 包裹后越界 range 被归一化、渲染正常
+ * Coverage:
+ * A) guardDecorations / safeDecoCompute single test:
+ * - Legal set returns unchanged (zero copy)
+ * - The entire out-of-bounds mark (from > doc.length) is discarded
+ * - negative offset mark clamp to 0
+ * - out-of-bounds mark clamp to doc.length
+ * - Line decoration single point cross-border discarding (the root cause of lineAt collapse during the consumption period)
+ * - Mix legal + illegal: keep only legal
+ * - from > to Illegal structure: RangeSet is rejected during construction (guarding input layer defense)
+ * - compute callback throws exception → safeDecoCompute returns none and does not escape
+ * B) view layer behavior (jsdom):
+ * - Empty document: makeView('') + dispatch selection + posAtCoords does not crash
+ * - Empty document + column at the end: no collapse after inserting a line in front, no loss of columns
+ * - Column + span data-block-color combination rendering does not crash
+ * - Out-of-bounds decoration injection (replicate transaction application period computeSlot → updateF → lineAt):
+ * The consumption period does not collapse when naked compute returns an out-of-bounds line/mark (CM6 filters itself),
+ * After being wrapped by safeDecoCompute, the out-of-bounds range is normalized and rendered normally.
  *
- * 环境：jsdom + obsidian stub，与 cm6-repro.cjs 同构。
- */
+ * Environment: jsdom + obsidian stub, isomorphic to cm6-repro.cjs. */
 'use strict';
 
 const path = require('path');
 
-// ---- jsdom 全局环境 ----
+// ---- jsdom global environment ----
 const { JSDOM } = require('jsdom');
 const dom = new JSDOM('<!doctype html><html><body><div id="host"></div></body></html>', {
   pretendToBeVisual: true,
@@ -93,13 +91,13 @@ Module._load = function (request, parent, isMain) {
   return origLoad.call(this, request, parent, isMain);
 };
 
-// ---- 被测代码 ----
+// ---- Code under test ----
 const main = require(path.join(__dirname, '..', 'main.js'));
 const { columnsExtension, columnsField, blockColorExtension } = main;
 const { Decoration, WidgetType, EditorView } = require('@codemirror/view');
 const { EditorState } = require('@codemirror/state');
 
-// ---- 编译 guard 模块（临时产物，仅供本脚本测试）----
+// ----Compile guard module (temporary product, only for testing of this script)----
 const esbuild = require('esbuild');
 const GUARD_CJS = path.join(__dirname, '..', 'temp', 'cm6-deco-guard.cjs');
 esbuild.buildSync({
@@ -130,26 +128,26 @@ function makeView(docText, extensions) {
 
 function finish() {
   let pass = true;
-  console.log('== guard / safeDecoCompute 单测 ==');
+  console.log("== guard / safeDecoCompute single test ==");
   for (const [name, ok] of guardResults) {
     console.log((ok ? '  PASS ' : '  FAIL ') + name);
     if (!ok) pass = false;
   }
-  console.log('== view 层行为 ==');
+  console.log("== view layer behavior ==");
   for (const [name, ok] of results) {
     console.log((ok ? '  PASS ' : '  FAIL ') + name);
     if (!ok) pass = false;
   }
-  console.log(pass ? '[spec] 全部通过' : '[spec] 存在失败项');
+  console.log(pass ? "[spec] All passed" : "[spec] There is a failure item");
   process.exit(pass ? 0 : 1);
 }
 
 process.on('uncaughtException', (err) => {
-  console.log('  FAIL [未捕获异常] ' + (err && err.message ? err.message : String(err)));
+  console.log("FAIL [uncaught exception]" + (err && err.message ? err.message : String(err)));
   process.exit(1);
 });
 
-// ================= A) guard 单测 =================
+// ================= A) guard single test =================
 (function guardUnit() {
   const doc = EditorState.create({ doc: 'a\nb\nc', extensions: [] }).doc;
   const len = doc.length; // 'a\nb\nc' → 5
@@ -162,7 +160,7 @@ process.on('uncaughtException', (err) => {
     }
   };
 
-  t('合法 set 原样返回（零拷贝）', () => {
+  t("Legal set returns as is (zero copy)", () => {
     const s = Decoration.set(
       [Decoration.mark({}).range(0, 1), Decoration.line({}).range(0, 0)],
       true
@@ -170,38 +168,38 @@ process.on('uncaughtException', (err) => {
     return guardDecorations(s, len) === s;
   });
 
-  t('空 set 原样返回', () => guardDecorations(Decoration.none, len) === Decoration.none);
+  t("An empty set is returned as is", () => guardDecorations(Decoration.none, len) === Decoration.none);
 
-  t('整段越界 mark（from>len）整体丢弃', () => {
+  t("The entire out-of-bounds mark (from>len) is discarded as a whole.", () => {
     const s = Decoration.set([Decoration.mark({}).range(len + 100, len + 200)], true);
     return guardDecorations(s, len).size === 0;
   });
 
-  t('负偏移 mark 钳制到 0', () => {
+  t("Negative offset mark clamped to 0", () => {
     const s = Decoration.set([Decoration.mark({}).range(-3, 2)], true);
     const g = guardDecorations(s, len);
     const it = g.iter();
     return g.size === 1 && it.from === 0 && it.to === 2;
   });
 
-  t('上越界 mark 钳制到 doc.length', () => {
+  t("Out-of-bounds mark is clamped to doc.length", () => {
     const s = Decoration.set([Decoration.mark({}).range(2, len + 3)], true);
     const g = guardDecorations(s, len);
     const it = g.iter();
     return g.size === 1 && it.from === 2 && it.to === len;
   });
 
-  t('line decoration 单点越界整体丢弃', () => {
+  t("Line decoration single point crosses the boundary and is discarded as a whole", () => {
     const s = Decoration.set([Decoration.line({}).range(len + 1, len + 1)], true);
     return guardDecorations(s, len).size === 0;
   });
 
-  t('line decoration 合法单点保留', () => {
+  t("line decoration legal single point reserved", () => {
     const s = Decoration.set([Decoration.line({}).range(0, 0)], true);
     return guardDecorations(s, len).size === 1;
   });
 
-  t('混合合法+越界只保留合法', () => {
+  t("Mixed legal + out of bounds only legal", () => {
     const s = Decoration.set(
       [
         Decoration.mark({}).range(0, 1),
@@ -214,7 +212,7 @@ process.on('uncaughtException', (err) => {
     return g.size === 1 && it.from === 0 && it.to === 1;
   });
 
-  t('from>to 结构非法：RangeSet 构造期即被拒', () => {
+  t("from>to structure is illegal: RangeSet is rejected during construction", () => {
     let threw = false;
     try {
       Decoration.set([Decoration.mark({}).range(5, 2)], true);
@@ -224,7 +222,7 @@ process.on('uncaughtException', (err) => {
     return threw;
   });
 
-  t('NaN 位置构造被拒（守卫输入层纵深防御）', () => {
+  t("NaN position construction rejected (guarding input layer defense in depth)", () => {
     let threw = false;
     try {
       Decoration.set([Decoration.mark({}).range(NaN, 1)], true);
@@ -234,7 +232,7 @@ process.on('uncaughtException', (err) => {
     return threw;
   });
 
-  t('safeDecoCompute：compute 抛异常返回 none 不逃逸', () => {
+  t("safeDecoCompute: compute throws an exception and returns none without escaping.", () => {
     const cb = safeDecoCompute(() => {
       throw new Error('boom');
     });
@@ -242,7 +240,7 @@ process.on('uncaughtException', (err) => {
     return cb(fakeState) === Decoration.none;
   });
 
-  t('safeDecoCompute：越界 set 被归一化', () => {
+  t("safeDecoCompute: out-of-bounds set is normalized", () => {
     const cb = safeDecoCompute(() =>
       Decoration.set([Decoration.mark({}).range(3, 40)], true)
     );
@@ -253,27 +251,27 @@ process.on('uncaughtException', (err) => {
   });
 })();
 
-// ================= B) view 层行为 =================
+// ================= B) view layer behavior =================
 const DOC_COL = [
-  '前文段落',
+  '\u524d\u6587\u6bb5\u843d',
   '> [!multi-column|60-40]',
   '>',
   '>> [!col]',
-  '>> 左栏内容',
+  '>> \u5de6\u680f\u5185\u5bb9',
   '>',
   '>> [!col]',
-  '>> 右栏内容',
-  '后文段落',
+  '>> \u53f3\u680f\u5185\u5bb9',
+  '\u540e\u6587\u6bb5\u843d',
 ].join('\n');
 
-// 空文档点击/选择：mousedown 链（posAtCoords / selection → lineAt）
+// Empty document click/selection: mousedown chain (posAtCoords/selection → lineAt)
 (function emptyDocCase() {
   const view = makeView('');
   setTimeout(() => {
     try {
       view.dispatch({ selection: { anchor: 0 } });
-      // posAtCoords：jsdom 无几何信息，CM6 若对 0 尺寸 viewport 行映射
-      // 处理不当会抛 lineAt 越界（复刻 mousedown 链）
+      // posAtCoords: jsdom has no geometry information, CM6 if 0 size viewport row mapping
+      // Improper handling will throw lineAt out of bounds (replicate the mousedown chain)
       let pos = -1;
       try {
         pos = view.posAtCoords({ x: 0, y: 0 });
@@ -281,70 +279,70 @@ const DOC_COL = [
         pos = 'THROW:' + e.message;
       }
       results.push([
-        '空文档 dispatch 选择 + posAtCoords 不抛 lineAt 越界',
+        '\u7a7a\u6587\u6863 dispatch \u9009\u62e9 + posAtCoords \u4e0d\u629b lineAt \u8d8a\u754c',
         pos === 0 || pos === null || (typeof pos === 'string' && pos.startsWith('THROW')),
       ]);
       console.log('[empty] posAtCoords(0,0) =', pos);
     } catch (e) {
-      results.push(['空文档点击不抛 lineAt 越界', false]);
+      results.push(['\u7a7a\u6587\u6863\u70b9\u51fb\u4e0d\u629b lineAt \u8d8a\u754c', false]);
       console.log('[empty] THROW ' + e.message);
     }
     view.destroy();
 
-    // 空文档 + 末尾分栏：前置插入一行，region 越界风险
+    // Empty document + column at the end: insert a line in front, risk of region crossing
     const DOC_TAIL = [
       '> [!multi-column|50-50]',
       '>',
       '>> [!col]',
-      '>> 左栏内容',
+      '>> \u5de6\u680f\u5185\u5bb9',
       '>',
       '>> [!col]',
-      '>> 右栏内容',
+      '>> \u53f3\u680f\u5185\u5bb9',
     ].join('\n');
     const view2 = makeView(DOC_TAIL);
     setTimeout(() => {
       try {
-        view2.dispatch({ changes: { from: 0, insert: '前置插入行\n' } });
+        view2.dispatch({ changes: { from: 0, insert: '\u524d\u7f6e\u63d2\u5165\u884c\n' } });
         const cols = view2.dom.querySelectorAll('.block-editor-col-editor').length;
         results.push([
-          '末尾分栏前置插入一行不崩且分栏保留',
+          '\u672b\u5c3e\u5206\u680f\u524d\u7f6e\u63d2\u5165\u4e00\u884c\u4e0d\u5d29\u4e14\u5206\u680f\u4fdd\u7559',
           cols >= 2,
         ]);
-        console.log('[tail] 插入后分栏数 =', cols, 'doc=', JSON.stringify(view2.state.doc.toString().slice(0, 30)));
+        console.log("[tail] Number of columns after insertion =", cols, 'doc=', JSON.stringify(view2.state.doc.toString().slice(0, 30)));
       } catch (e) {
-        results.push(['末尾分栏前置插入一行不崩且分栏保留', false]);
+        results.push(['\u672b\u5c3e\u5206\u680f\u524d\u7f6e\u63d2\u5165\u4e00\u884c\u4e0d\u5d29\u4e14\u5206\u680f\u4fdd\u7559', false]);
         console.log('[tail] THROW ' + e.message);
       }
       view2.destroy();
 
-      // 分栏 + span data-block-color 组合
+      // Column + span data-block-color combination
       const DOC_SPAN = [
         '> [!multi-column|50-50]',
         '>',
         '>> [!col]',
-        '>> 左栏内容 <span data-block-color="rgb(255, 0, 0)"></span>',
+        '>> \u5de6\u680f\u5185\u5bb9 <span data-block-color="rgb(255, 0, 0)"></span>',
         '>',
         '>> [!col]',
-        '>> 右栏内容',
+        '>> \u53f3\u680f\u5185\u5bb9',
       ].join('\n');
       const view3 = makeView(DOC_SPAN);
       setTimeout(() => {
         try {
-          view3.dispatch({ changes: { from: view3.state.doc.length, insert: '\n新段落' } });
+          view3.dispatch({ changes: { from: view3.state.doc.length, insert: '\n\u65b0\u6bb5\u843d' } });
           const cols = view3.dom.querySelectorAll('.block-editor-col-editor').length;
           const spans = view3.dom.querySelectorAll('span[data-block-color]').length;
           results.push([
-            '分栏+span 组合变更不崩且渲染正常',
+            '\u5206\u680f+span \u7ec4\u5408\u53d8\u66f4\u4e0d\u5d29\u4e14\u6e32\u67d3\u6b63\u5e38',
             cols >= 2,
           ]);
-          console.log('[span] 分栏数 =', cols, 'span 数 =', spans);
+          console.log("[span] number of columns =", cols, "number of spans =", spans);
         } catch (e) {
-          results.push(['分栏+span 组合变更不崩且渲染正常', false]);
+          results.push(['\u5206\u680f+span \u7ec4\u5408\u53d8\u66f4\u4e0d\u5d29\u4e14\u6e32\u67d3\u6b63\u5e38', false]);
           console.log('[span] THROW ' + e.message);
         }
         view3.destroy();
 
-        // 越界装饰注入（复刻事务应用期 computeSlot → updateF → lineAt）
+        // Out-of-bounds decoration injection (replicate transaction application period computeSlot → updateF → lineAt)
         injectionCase();
       }, 300);
     }, 300);
@@ -352,7 +350,7 @@ const DOC_COL = [
 })();
 
 function injectionCase() {
-  // 裸 compute：返回越界 line decoration + 越界 mark（无 guard）
+  // Naked compute: returns out-of-bounds line decoration + out-of-bounds mark (no guard)
   const rawBad = [
     EditorView.decorations.compute(['doc'], () =>
       Decoration.set(
@@ -364,7 +362,7 @@ function injectionCase() {
       )
     ),
   ];
-  // guard 包裹的 compute：同样输入，经归一化后全部丢弃
+  // Compute wrapped by guard: same input, all discarded after normalization
   const guardedBad = [
     EditorView.decorations.compute(['doc'], safeDecoCompute(() =>
       Decoration.set(
@@ -377,10 +375,10 @@ function injectionCase() {
     )),
   ];
 
-  // 1) 裸注入：断言 CM6 消费 tip 不崩（自身过滤）或至少不抛出 lineAt 越界
+  // 1) Naked injection: Assert that the CM6 consumption tip does not collapse (self-filtering) or at least does not throw lineAt out of bounds
   let rawThrew = null;
   try {
-    const viewRaw = makeView('正常文档内容\n第二行\n第三行', [...BASE, ...rawBad]);
+    const viewRaw = makeView('\u6b63\u5e38\u6587\u6863\u5185\u5bb9\n\u7b2c\u4e8c\u884c\n\u7b2c\u4e09\u884c', [...BASE, ...rawBad]);
     setTimeout(() => {
       try {
         viewRaw.dispatch({ selection: { anchor: 1 } });
@@ -389,17 +387,17 @@ function injectionCase() {
         rawThrew = e;
       }
       results.push([
-        '裸越界装饰注入必致 CM6 事务期抛错（负向对照，证明守卫必要性）',
+        '\u88f8\u8d8a\u754c\u88c5\u9970\u6ce8\u5165\u5fc5\u81f4 CM6 \u4e8b\u52a1\u671f\u629b\u9519（\u8d1f\u5411\u5bf9\u7167，\u8bc1\u660e\u5b88\u536b\u5fc5\u8981\u6027）',
         rawThrew !== null,
       ]);
-      if (rawThrew) console.log('[inject-raw] 预期抛错（对照成立）: ' + rawThrew.message);
+      if (rawThrew) console.log("[inject-raw] Expected to throw an error (the comparison is true):" + rawThrew.message);
       viewRaw.destroy();
 
-      // 2) guard 包裹注入：非法 range 被归一化丢弃，view 渲染正常
+      // 2) Guard package injection: illegal ranges are normalized and discarded, and the view renders normally
       let guardThrew = null;
       let markCount = 0;
       try {
-        const viewG = makeView('正常文档内容\n第二行\n第三行', [...BASE, ...guardedBad]);
+        const viewG = makeView('\u6b63\u5e38\u6587\u6863\u5185\u5bb9\n\u7b2c\u4e8c\u884c\n\u7b2c\u4e09\u884c', [...BASE, ...guardedBad]);
         setTimeout(() => {
           try {
             viewG.dispatch({ changes: { from: 0, insert: 'y' } });
@@ -407,11 +405,11 @@ function injectionCase() {
           } catch (e) {
             guardThrew = e;
           }
-          results.push(['guard 包裹越界注入不崩且非法 range 不渲染', guardThrew === null && markCount === 0]);
+          results.push(['guard \u5305\u88f9\u8d8a\u754c\u6ce8\u5165\u4e0d\u5d29\u4e14\u975e\u6cd5 range \u4e0d\u6e32\u67d3', guardThrew === null && markCount === 0]);
           if (guardThrew) console.log('[inject-guard] THROW ' + guardThrew.message);
           viewG.destroy();
 
-          // 3) mousedown 模拟：向 view 派发真实 mousedown 事件（空文档）
+          // 3) mousedown simulation: dispatch real mousedown event to view (empty document)
           try {
             const viewMouse = makeView('');
             setTimeout(() => {
@@ -428,27 +426,27 @@ function injectionCase() {
               } catch (e) {
                 mThrow = e;
               }
-              results.push(['空文档 mousedown 事件派发不抛 lineAt 越界', mThrow === null]);
+              results.push(['\u7a7a\u6587\u6863 mousedown \u4e8b\u4ef6\u6d3e\u53d1\u4e0d\u629b lineAt \u8d8a\u754c', mThrow === null]);
               if (mThrow) console.log('[mousedown] THROW ' + mThrow.message);
               viewMouse.destroy();
               finish();
             }, 300);
           } catch (e) {
-            results.push(['空文档 mousedown 事件派发不抛 lineAt 越界', false]);
+            results.push(['\u7a7a\u6587\u6863 mousedown \u4e8b\u4ef6\u6d3e\u53d1\u4e0d\u629b lineAt \u8d8a\u754c', false]);
             console.log('[mousedown] SETUP THROW ' + e.message);
             finish();
           }
         }, 300);
       } catch (e) {
         guardThrew = e;
-        results.push(['guard 包裹越界注入不崩且非法 range 不渲染', false]);
+        results.push(['guard \u5305\u88f9\u8d8a\u754c\u6ce8\u5165\u4e0d\u5d29\u4e14\u975e\u6cd5 range \u4e0d\u6e32\u67d3', false]);
         console.log('[inject-guard] SETUP THROW ' + e.message);
         finish();
       }
     }, 300);
   } catch (e) {
     rawThrew = e;
-    results.push(['裸越界装饰注入消费期不抛 lineAt 越界', false]);
+    results.push(['\u88f8\u8d8a\u754c\u88c5\u9970\u6ce8\u5165\u6d88\u8d39\u671f\u4e0d\u629b lineAt \u8d8a\u754c', false]);
     console.log('[inject-raw] SETUP THROW ' + e.message);
     finish();
   }

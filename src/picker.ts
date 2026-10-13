@@ -2,7 +2,7 @@ import { TEXT } from './strings';
 import { Notice, SuggestModal } from 'obsidian';
 import type { App, TFile } from 'obsidian';
 
-/** 子序列模糊打分：前缀 > 连续子串 > 分散子序列；不匹配返回 -1 */
+/** Subsequence fuzzy scoring: prefix > continuous subsequence > dispersed subsequence; no match returns -1 */
 function scoreName(text: string, query: string): number {
   if (!query) return 0;
   if (text.startsWith(query)) return 100;
@@ -21,7 +21,7 @@ function scoreName(text: string, query: string): number {
   return score;
 }
 
-/** 文件选择浮层：按文件名模糊搜索 */
+/** File selection floating layer: fuzzy search by file name */
 class FileSuggest extends SuggestModal<TFile> {
   constructor(
     app: App,
@@ -53,13 +53,13 @@ class FileSuggest extends SuggestModal<TFile> {
   }
 }
 
-/** 块选择项：id + 内容摘要 */
+/** Block selection: id + content summary */
 interface BlockItem {
   id: string;
   preview: string;
 }
 
-/** 块选择浮层：显示 `^id` 与块内容摘要 */
+/** Block selection floating layer: display `^id` and block content summary */
 class BlockSuggest extends SuggestModal<BlockItem> {
   constructor(
     app: App,
@@ -90,7 +90,7 @@ class BlockSuggest extends SuggestModal<BlockItem> {
   }
 }
 
-/** 独立 ID 行的摘要：向上跳过空行取第一条非空行 */
+/** Summary of independent ID lines: skip up empty lines and take the first non-empty line */
 function previewBefore(lines: string[], i: number): string {
   for (let j = i - 1; j >= 0; j--) {
     const t = lines[j].trim();
@@ -99,7 +99,7 @@ function previewBefore(lines: string[], i: number): string {
   return '';
 }
 
-/** 按扩展名过滤 vault 内文件并弹出选择器 */
+/** Filter files in the vault by extension and pop up the selector */
 export function pickFile(
   app: App,
   exts: string[],
@@ -111,12 +111,12 @@ export function pickFile(
   new FileSuggest(app, files, placeholder, onPick).open();
 }
 
-/** 选择笔记（扩展名 md） */
+/** Select note (extension md) */
 export function pickNote(app: App, onPick: (file: TFile) => void): void {
   pickFile(app, ['md'], TEXT.message0263, onPick);
 }
 
-/** 扫描文本中的块 ID：独立行 `^\s*\^id\s*$` 与行尾 `\s\^id\s*$` 两种形态 */
+/** Scan the block ID in the text: two forms: independent line `^\s*\^id\s*$` and end of line `\s\^id\s*$` */
 export function scanBlockIds(text: string): { id: string; preview: string }[] {
   const lines = text.split('\n');
   const items: { id: string; preview: string }[] = [];
@@ -132,7 +132,7 @@ export function scanBlockIds(text: string): { id: string; preview: string }[] {
   return items;
 }
 
-/** 选择某笔记中的一个块：扫描 `^block-id`（独立行与行尾两种形态） */
+/** Select a block in a note: scan `^block-id` (independent line and end of line) */
 export function pickBlock(app: App, file: TFile, onPick: (blockId: string) => void): void {
   app.vault.cachedRead(file).then((text) => {
     const items = scanBlockIds(text);
@@ -144,18 +144,18 @@ export function pickBlock(app: App, file: TFile, onPick: (blockId: string) => vo
   }).catch(() => new Notice(TEXT.message0265));
 }
 
-/** 「含块 ID 的笔记」路径缓存：null 表示尚未扫描过 */
+/** "Notes with block ID" path cache: null means it has not been scanned yet */
 let notesWithBlocks: string[] | null = null;
 
-/** 清空「含块 ID 的笔记」缓存（vault 变更时调用） */
+/** Clear the "notes with block ID" cache (called when vault is changed) */
 export function invalidateNotesWithBlocks(): void {
   notesWithBlocks = null;
 }
 
-/** 按路径集合打开笔记选择器 */
+/** Open note selector by path collection */
 function openNoteSuggest(app: App, paths: string[], onPick: (file: TFile) => void): void {
   const set = new Set(paths);
-  // 不引入 TFile 值导入：用路径集合过滤（vault.getFiles 为内存操作，开销可忽略）
+  // Do not introduce TFile value import: use path collection filtering (vault.getFiles is a memory operation, the overhead is negligible)
   const files = app.vault.getFiles().filter((f) => f.extension === 'md' && set.has(f.path));
   if (!files.length) {
     new Notice(TEXT.message0266);
@@ -164,7 +164,7 @@ function openNoteSuggest(app: App, paths: string[], onPick: (file: TFile) => voi
   new FileSuggest(app, files, TEXT.message0267, onPick).open();
 }
 
-/** 只列出「含块 ID」的笔记；命中集合做会话级缓存 */
+/** Only list notes containing "block ID"; hit collection is used for session-level caching */
 export function pickNoteWithBlocks(app: App, onPick: (file: TFile) => void): void {
   if (notesWithBlocks) {
     openNoteSuggest(app, notesWithBlocks, onPick);

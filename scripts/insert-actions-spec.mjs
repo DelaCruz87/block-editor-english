@@ -1,14 +1,13 @@
-/**
- * 斜杠「插入类」命令扩展的回归断言（纯逻辑，无需 Obsidian 环境）。
+/* *
+ * Regression assertion for slash "insert class" command expansion (pure logic, no Obsidian environment required).
  *
- * 覆盖用户拍板的决策：
- *  - 命令集合：日期 / 时间 / 日期时间 / 行内公式 / 行内代码 / 高亮 / 笔记链接 /
- *    嵌入笔记 / 块引用 / 嵌入块（**不含**剪贴板粘贴图片）
- *  - 光标居中：$ $、` `、== == 插完光标停在中间
- *  - 设置里逐项开关（媒体 4 项常驻，不给关）
+ * Cover the user's decision-making:
+ * - Command collection: date / time / date time / inline formula / inline code / highlight / note link /
+ * Embed notes/block quotes/embed blocks (**not included** clipboard paste pictures)
+ * - The cursor is centered: $ $, ` `, == == The cursor stops in the middle after inserting
+ * - Switch items one by one in settings (media 4 items are permanent and cannot be turned off)
  *
- * 运行：node scripts/build-insert-actions-spec.mjs && node scripts/insert-actions-spec.mjs
- */
+ * Run: node scripts/build-insert-actions-spec.mjs && node scripts/insert-actions-spec.mjs */
 import { readFileSync } from 'node:fs';
 import {
   formatDateTime,
@@ -35,118 +34,118 @@ const eq = (a, b, l) =>
     `${l}（got ${JSON.stringify(a)}, want ${JSON.stringify(b)}）`
   );
 
-/** 固定时间：2026-10-07 09:05:03，避免断言依赖运行时刻 */
+/* * Fixed time: 2026-10-07 09:05:03, to avoid assertions relying on runtime */
 const NOW = new Date(2026, 9, 7, 9, 5, 3);
-const WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-const WD = WEEKDAYS[NOW.getDay()];
-const WD_FULL = '星期' + WD.slice(1);
+const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const WD = WEEKDAYS[NOW.getDay()].slice(0, 3);
+const WD_FULL = WEEKDAYS[NOW.getDay()];
 const CTX = { now: NOW, dateFormat: 'YYYY-MM-DD', timeFormat: 'HH:mm' };
 
-console.log('\n=== 1. formatDateTime：token 替换 ===');
+console.log("=== 1. formatDateTime: token replacement ===");
 {
-  eq(formatDateTime(NOW, 'YYYY-MM-DD'), '2026-10-07', '默认日期格式');
-  eq(formatDateTime(NOW, 'HH:mm'), '09:05', '默认时间格式（补零）');
-  eq(formatDateTime(NOW, 'HH:mm:ss'), '09:05:03', '秒');
-  eq(formatDateTime(NOW, `YYYY-MM-DD ${WD_FULL}`), `2026-10-07 ${WD_FULL}`, 'dddd 星期全称');
-  eq(formatDateTime(NOW, 'YYYY/MM/DD ddd'), `2026/10/07 ${WD}`, 'ddd 周简称');
-  eq(formatDateTime(NOW, 'YYYY年MM月DD日'), '2026年10月07日', '中文字符原样保留');
-  eq(formatDateTime(NOW, 'YY-MM'), '26-10', 'YY 两位年');
-  eq(formatDateTime(NOW, ''), '', '空格式串 → 空结果');
-  // 反例守卫：短 token 若先替换会把长 token 截断（dddd → ddd + d）
-  ok(formatDateTime(NOW, 'dddd') === WD_FULL, 'dddd 不被 ddd 截断');
-  ok(formatDateTime(NOW, 'YYYY') === '2026', 'YYYY 不被 YY 截断');
+  eq(formatDateTime(NOW, 'YYYY-MM-DD'), '2026-10-07', "Default date format");
+  eq(formatDateTime(NOW, 'HH:mm'), '09:05', "Default time format (zero padding)");
+  eq(formatDateTime(NOW, 'HH:mm:ss'), '09:05:03', "seconds");
+  eq(formatDateTime(NOW, 'YYYY-MM-DD dddd'), `2026-10-07 ${WD_FULL}`, "dddd full name of week");
+  eq(formatDateTime(NOW, 'YYYY/MM/DD ddd'), `2026/10/07 ${WD}`, "ddd week abbreviation");
+  eq(formatDateTime(NOW, 'YYYY\u5e74MM\u6708DD\u65e5'), '2026\u5e7410\u670807\u65e5', "Chinese characters are retained as they are");
+  eq(formatDateTime(NOW, 'YY-MM'), '26-10', "YY two years");
+  eq(formatDateTime(NOW, ''), '', "empty format string → empty result");
+  // Counterexample guard: If the short token is replaced first, the long token will be truncated (dddd → ddd + d)
+  ok(formatDateTime(NOW, 'dddd') === WD_FULL, "dddd is not truncated by ddd");
+  ok(formatDateTime(NOW, 'YYYY') === '2026', "YYYY is not truncated by YY");
 }
 
-console.log('\n=== 2. resolveSnippet：静态片段与光标居中 ===');
+console.log("=== 2. resolveSnippet: Static snippet centered with cursor ===");
 {
-  eq(resolveSnippet({ kind: 'snippet', text: '$$', caret: 1 }, CTX), { text: '$$', caret: 1 }, '行内公式：光标在两个 $ 中间');
+  eq(resolveSnippet({ kind: 'snippet', text: '$$', caret: 1 }, CTX), { text: '$$', caret: 1 }, "Inline formula: cursor between two $");
   eq(
     resolveSnippet({ kind: 'snippet', text: '``', caret: 1 }, CTX),
     { text: '``', caret: 1 },
-    '行内代码：光标在两个反引号中间'
+    "Inline code: cursor between two backticks"
   );
   eq(
     resolveSnippet({ kind: 'snippet', text: '====', caret: 2 }, CTX),
     { text: '====', caret: 2 },
-    '高亮：光标在 ==|== 中间'
+    "Highlight: The cursor is in the middle of ==|=="
   );
-  // 守卫：caret 越界必须钳制，否则 editor.setCursor 会落在文本外
-  eq(resolveSnippet({ kind: 'snippet', text: '$$', caret: 99 }, CTX), { text: '$$', caret: 2 }, 'caret 越界 → 钳到末尾');
-  eq(resolveSnippet({ kind: 'snippet', text: '$$', caret: -3 }, CTX), { text: '$$', caret: 0 }, 'caret 负数 → 钳到 0');
+  // Guard: caret cross-border must be clamped, otherwise editor.setCursor will fall outside the text
+  eq(resolveSnippet({ kind: 'snippet', text: '$$', caret: 99 }, CTX), { text: '$$', caret: 2 }, "caret cross the line → clamp to the end");
+  eq(resolveSnippet({ kind: 'snippet', text: '$$', caret: -3 }, CTX), { text: '$$', caret: 0 }, "caret negative → clamp to 0");
 }
 
-console.log('\n=== 3. resolveSnippet：日期时间动态片段 ===');
+console.log("=== 3. resolveSnippet: date and time dynamic snippet ===");
 {
-  eq(resolveSnippet({ kind: 'dynamic', dyn: 'date' }, CTX), { text: '2026-10-07', caret: 10 }, '日期：光标在末尾');
-  eq(resolveSnippet({ kind: 'dynamic', dyn: 'time' }, CTX), { text: '09:05', caret: 5 }, '时间：光标在末尾');
+  eq(resolveSnippet({ kind: 'dynamic', dyn: 'date' }, CTX), { text: '2026-10-07', caret: 10 }, "Date: cursor at end");
+  eq(resolveSnippet({ kind: 'dynamic', dyn: 'time' }, CTX), { text: '09:05', caret: 5 }, "Time: Cursor is at the end");
   eq(
     resolveSnippet({ kind: 'dynamic', dyn: 'datetime' }, CTX),
     { text: '2026-10-07 09:05', caret: 16 },
-    '日期时间：日期 + 空格 + 时间'
+    "Date and time: date + space + time"
   );
   const c2 = { now: NOW, dateFormat: 'YYYY/MM/DD', timeFormat: 'HH:mm:ss' };
-  eq(resolveSnippet({ kind: 'dynamic', dyn: 'datetime' }, c2), { text: '2026/10/07 09:05:03', caret: 19 }, '自定义格式生效');
+  eq(resolveSnippet({ kind: 'dynamic', dyn: 'datetime' }, c2), { text: '2026/10/07 09:05:03', caret: 19 }, "Custom format takes effect");
 }
 
-console.log('\n=== 4. resolveSnippet：需要交互的命令没有静态文本 ===');
+console.log("=== 4. resolveSnippet: Commands that require interaction do not have static text ===");
 {
-  eq(resolveSnippet({ kind: 'pick', exts: ['png'] }, CTX), null, 'pick（选媒体）→ null');
-  eq(resolveSnippet({ kind: 'note', embed: false }, CTX), null, 'note（选笔记）→ null');
-  eq(resolveSnippet({ kind: 'blockref', embed: true }, CTX), null, 'blockref（选块）→ null');
+  eq(resolveSnippet({ kind: 'pick', exts: ['png'] }, CTX), null, "pick (select media) → null");
+  eq(resolveSnippet({ kind: 'note', embed: false }, CTX), null, "note (select note) → null");
+  eq(resolveSnippet({ kind: 'blockref', embed: true }, CTX), null, "blockref (select block) → null");
 }
 
-console.log('\n=== 5. enabledInsertIds：设置里逐项开关 ===');
+console.log("=== 5. enabledInsertIds: item-by-item switch in settings ===");
 {
   const ids = INSERT_ACTIONS.map(([id]) => id);
-  eq(enabledInsertIds(ids, null).length, ids.length, 'settings 缺失 → 全部启用');
-  eq(enabledInsertIds(ids, {}).length, ids.length, '空对象（旧配置）→ 全部启用');
+  eq(enabledInsertIds(ids, null).length, ids.length, "settings missing → all enabled");
+  eq(enabledInsertIds(ids, {}).length, ids.length, "Empty object (old configuration) → Enable all");
   const off = enabledInsertIds(ids, { insMath: false, insNote: false });
-  ok(!off.includes('math'), '关掉行内公式 → 剔除');
-  ok(!off.includes('note'), '关掉笔记链接 → 剔除');
-  ok(off.includes('embednote'), '未关的同类命令保留');
-  // 媒体 4 项是插入类基本盘，没有开关，传什么都必须在
+  ok(!off.includes('math'), "Turn off inline formulas → Eliminate");
+  ok(!off.includes('note'), "Close note link → Delete");
+  ok(off.includes('embednote'), "Similar commands that are not closed are retained.");
+  // Media item 4 is a plug-in basic disk, there is no switch, everything must be transferred to
   const all = enabledInsertIds(ids, { insImage: false, insAudio: false });
   for (const m of ['image', 'audio', 'video', 'pdf']) {
-    ok(all.includes(m), `媒体 ${m} 常驻（不受任何开关影响）`);
+    ok(all.includes(m), `media${m}Resident (not affected by any switch)`);
   }
-  ok(Object.values(INSERT_TOGGLE_KEY).every((k) => typeof k === 'string'), '每个可关命令都有对应设置 key');
+  ok(Object.values(INSERT_TOGGLE_KEY).every((k) => typeof k === 'string'), "Each command that can be turned off has a corresponding setting key");
 }
 
-console.log('\n=== 6. INSERT_SPECS 与 INSERT_ACTIONS 一一对应 ===');
+console.log("=== 6. One-to-one correspondence between INSERT_SPECS and INSERT_ACTIONS ===");
 {
   const actionIds = INSERT_ACTIONS.map(([id]) => id);
   const specIds = Object.keys(INSERT_SPECS);
-  eq([...specIds].sort(), [...actionIds].sort(), '规格表的 key 与命令表完全一致');
+  eq([...specIds].sort(), [...actionIds].sort(), "The key of the specification table is exactly the same as that of the command table.");
   for (const [id] of INSERT_ACTIONS) {
-    ok(INSERT_SPECS[id] !== undefined, `${id} 有执行规格`);
+    ok(INSERT_SPECS[id] !== undefined, `${id}There are execution specifications`);
   }
 }
 
-console.log('\n=== 7. 命令范围：不含剪贴板粘贴图片 ===');
+console.log("=== 7. Command scope: excluding clipboard pasting pictures ===");
 {
-  ok(!actionIdsHas('paste'), '没有 paste 命令（用户明确删掉）');
+  ok(!actionIdsHas('paste'), "No paste command (explicitly deleted by user)");
   function actionIdsHas(x) {
     return INSERT_ACTIONS.some(([id]) => id === x) || Object.prototype.hasOwnProperty.call(INSERT_SPECS, x);
   }
   const src = readFileSync('src/slash-suggest.ts', 'utf8');
-  ok(!src.includes('clipboard'), 'slash-suggest.ts 不再引用剪贴板');
-  ok(!src.includes('createBinary'), 'slash-suggest.ts 不再写二进制附件');
+  ok(!src.includes('clipboard'), "slash-suggest.ts no longer references the clipboard");
+  ok(!src.includes('createBinary'), "slash-suggest.ts no longer writes binary attachments");
 }
 
-console.log('\n=== 8. 源码守卫：过滤先于排序 + 3 列网格 ===');
+console.log("=== 8. Source Guard: Filter before sorting + 3-column grid ===");
 {
   const src = readFileSync('src/slash-suggest.ts', 'utf8');
-  // 曾经的 bug：空查询返回过滤后的 pool，非空查询却从未过滤的 items 里排序 →
-  // 行内只要打了查询词就会泄漏转换类条目
-  ok(src.includes('return pool\n    .map('), '非空查询也从过滤后的 pool 排序');
-  ok(!src.includes('return items\n    .map('), '不存在「从未过滤 items 排序」的旧写法');
-  ok(src.includes('block-editor-slash-grid'), 'renderSuggestion 给容器打网格类');
+  // Previous bug: Empty query returns filtered pool, but non-empty query is sorted from unfiltered items →
+  // As long as the query word is entered in the row, the conversion entry will be leaked.
+  ok(src.includes('return pool\n    .map('), "Non-empty queries are also sorted from the filtered pool");
+  ok(!src.includes('return items\n    .map('), "There is no old way of writing \"sort by unfiltered items\"");
+  ok(src.includes('block-editor-slash-grid'), "renderSuggestion gives the container a grid class");
   const css = readFileSync('styles.css', 'utf8');
-  ok(css.includes('grid-template-columns: repeat(3'), '网格为 3 列');
-  ok(css.includes('display: grid !important'), '覆盖 Obsidian 容器的默认 display');
+  ok(css.includes('grid-template-columns: repeat(3'), "Grid is 3 columns");
+  ok(css.includes('display: grid !important'), "Override the default display of the Obsidian container");
 }
 
-console.log('\n=== 9. 设置项落地 ===');
+console.log("=== 9. Implementation of setting items ===");
 {
   const s = readFileSync('src/settings.ts', 'utf8');
   for (const key of [
@@ -161,12 +160,12 @@ console.log('\n=== 9. 设置项落地 ===');
     'insBlockRef',
     'insBlockEmbed',
   ]) {
-    ok(s.includes(`${key}: true`), `默认启用 ${key}`);
-    ok(s.includes(`key: '${key}'`), `设置页有 ${key} 开关`);
+    ok(s.includes(`${key}: true`), `Enabled by default${key}`);
+    ok(s.includes(`key: '${key}'`), `The settings page has${key}switch`);
   }
-  ok(s.includes('dateFormat'), '有日期格式设置');
-  ok(s.includes('timeFormat'), '有时间格式设置');
+  ok(s.includes('dateFormat'), "Have date format settings");
+  ok(s.includes('timeFormat'), "Have time format settings");
 }
 
-console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILED'} — pass=${pass} fail=${fail}`);
+console.log(`\n${fail === 0 ? 'ALL PASS' : 'FAILED'} - pass=${pass} fail=${fail}`);
 process.exit(fail === 0 ? 0 : 1);

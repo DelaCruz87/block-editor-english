@@ -1,8 +1,7 @@
-/**
- * 把 src/columns-droptarget.ts 用 esbuild 打成 ESM .mjs，
- * 供 columns-droptarget-spec.mjs 在纯 Node 里断言（无需 Obsidian 环境）。
- * 该模块只依赖 @codemirror/state 与 ./util，是本插件里唯一不碰 DOM/Obsidian 的拖拽逻辑。
- */
+/* *
+ * Use esbuild to build src/columns-droptarget.ts into ESM .mjs,
+ * For columns-droptarget-spec.mjs to assert in pure Node (no Obsidian environment required).
+ * This module only relies on @codemirror/state and ./util. It is the only drag and drop logic in this plug-in that does not touch DOM/Obsidian. */
 import { build } from 'esbuild';
 import { mkdirSync } from 'node:fs';
 

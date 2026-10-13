@@ -8,7 +8,7 @@ import type { BlockMenuController } from './block-menu';
 import type { HandleController } from './handle';
 import type { DragController } from './drag';
 
-/** getBlockAtLine 能识别出的块形态 */
+/** The block shape recognized by getBlockAtLine */
 export type DetectedBlockType =
   | 'code'
   | 'math'
@@ -20,7 +20,7 @@ export type DetectedBlockType =
   | 'list'
   | 'line';
 
-/** 「转换为」菜单支持的块类型 */
+/** Block types supported by the "Convert to" menu */
 export type TurnIntoType =
   | 'paragraph'
   | 'h1'
@@ -43,14 +43,14 @@ export type TurnIntoType =
 
 export type BlockType = DetectedBlockType | TurnIntoType;
 
-/** 一个块在文档中的行范围与类型（不含编辑器引用） */
+/** The line range and type of a block in the document (excluding editor references) */
 export interface BlockRange {
   start: number;
   end: number;
   type: BlockType;
 }
 
-/** 带编辑器与文件引用的块，供操作与菜单使用 */
+/** Blocks with editor and file references for operations and menus */
 export interface BlockContext extends BlockRange {
   editor: Editor;
   file: TFile | null;
@@ -58,7 +58,7 @@ export interface BlockContext extends BlockRange {
 
 export type TurnIntoItem = [TurnIntoType, string];
 
-/** 斜杠「插入类」动作 id：只插入内容，不改变块类型 */
+/** Slash "insert class" action id: only insert content, do not change the block type */
 export type InsertActionId =
   | 'image'
   | 'audio'
@@ -76,27 +76,26 @@ export type InsertActionId =
   | 'blockembed';
 
 /**
- * 插入类动作的执行规格：决定 BlockInserter 怎么拿内容、插什么。
- * 新增命令只需在 constants.ts 的 INSERT_SPECS 里加一行，执行器按 kind 分派。
- */
+ * Execution specifications of insertion actions: determine how BlockInserter gets content and what to insert.
+ * To add a new command, just add a line to INSERT_SPECS in constants.ts, and the executor will be dispatched according to kind. */
 export type InsertSpec =
-  /** 从 vault 选一个媒体文件（按扩展名过滤） */
+  /** Select a media file from the vault (filter by extension) */
   | { kind: 'pick'; exts: string[] }
-  /** 插入固定文本；caret = 光标相对插入起点的偏移（`$$` → 1，落在两个 $ 中间） */
+  /** Insert fixed text; caret = offset of the cursor relative to the insertion starting point (`$$` → 1, falling between two $) */
   | { kind: 'snippet'; text: string; caret: number }
-  /** 按当前时间格式化后插入（date / time / datetime） */
+  /** Insert after formatting according to the current time (date/time/datetime) */
   | { kind: 'dynamic'; dyn: 'date' | 'time' | 'datetime' }
-  /** 选一篇笔记 → `[[链接]]` 或 `![[嵌入]]` */
+  /** Select a note → `[[link]]` or `![[Embed]]` */
   | { kind: 'note'; embed: boolean }
-  /** 选一篇笔记再选其中一个块 → `[[笔记#^id]]` 或 `![[笔记#^id]]` */
+  /** Select a note and then select one of the blocks → `[[Notes#^id]]` or `![[Notes#^id]]` */
   | { kind: 'blockref'; embed: boolean };
 
-/** 斜杠建议的统一条目：转换块类型 / 插入内容 */
+/** Uniform entry for slash suggestion: convert block type/insert content */
 export type SlashItem =
   | { kind: 'turn'; id: TurnIntoType; title: string }
   | { kind: 'insert'; id: InsertActionId; title: string };
 
-/** 本插件实际用到的 CM6 EditorView 表面 */
+/** The CM6 EditorView surface actually used by this plug-in */
 export interface CMLine {
   from: number;
   to: number;
@@ -115,14 +114,13 @@ export interface CMView {
   contentDOM: HTMLElement;
   state: { doc: CMDoc };
   /**
-   * 分发事务。注意：getCM() 返回的**就是 EditorView 本身**（Editor.cm 即视图），
-   * 不是包着 view 的包装对象 —— 要直接调 cm.dispatch(...)，没有 cm.view。
-   * 多段编辑合并为单事务（单步撤销）时也走这里。
-   */
+   * Distribute transactions. Note: The value returned by getCM() is the EditorView itself (Editor.cm is the view).
+   * It is not a wrapper object that wraps the view - you need to call cm.dispatch(...) directly, there is no cm.view.
+   * This is also used when merging multiple paragraph edits into a single transaction (single-step undo). */
   dispatch(spec: { changes: unknown }): void;
   posAtCoords(coords: { x: number; y: number }): number | null;
   coordsAtPos(pos: number): { top: number; bottom: number; left: number; right: number } | null;
-  /** 取该文档位置所在的 DOM 节点，用于反查所在 .cm-line（找折叠图标） */
+  /** Get the DOM node where the document is located, and use it to check the location of .cm-line (find the fold icon) */
   domAtPos(pos: number): { node: Node; offset: number };
   hasFocus(): boolean;
 }

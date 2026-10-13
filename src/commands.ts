@@ -8,7 +8,7 @@ import { openBlockColorPicker } from './block-color';
 import { getColumnsDiagnostics } from './columns-preview';
 import { getCM } from './util';
 
-/** 诊断信息弹窗：屏幕直接显示，截图即可反馈 */
+/** Diagnostic information pop-up window: displayed directly on the screen, and feedback can be obtained by taking a screenshot */
 class ColumnsDiagModal extends Modal {
   constructor(
     app: App,
@@ -100,8 +100,8 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
       }
       const diag = getColumnsDiagnostics();
       const info: Record<string, unknown> = {
-        // Obsidian 中 Live Preview 的 MarkdownView.getMode() 返回 "source"（渲染变体），
-        // 需结合 editorLivePreviewField 标注，避免误读为源码模式
+        // MarkdownView.getMode() of Live Preview in Obsidian returns "source" (rendering variant),
+        // It needs to be combined with the editorLivePreviewField annotation to avoid misreading it as source code mode.
         mode: mdView.getMode() + (diag.livePreview ? ' (live-preview)' : ''),
         file: mdView.file?.path ?? null,
       };
@@ -127,7 +127,7 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
     },
   });
 
-  // 光标停在哪个块就转哪个块，不必先摸手柄
+  // The cursor moves to whichever block it stops on, without having to touch the handle first.
   for (const [id, title] of TURN_INTO) {
     plugin.addCommand({
       id: 'turn-into-' + id,
@@ -136,7 +136,7 @@ export function registerCommands(plugin: BlockEditorPlugin): void {
     });
   }
 
-  // H5 任意块颜色标记：设置 / 清除（命令面板无鼠标坐标，浮层定位到编辑器视口中央）
+  // H5 arbitrary block color mark: set/clear (no mouse coordinates in the command panel, the floating layer is positioned in the center of the editor viewport)
   const currentBlockOf = (editor: Editor): BlockContext | null => {
     const cursor = editor.getCursor();
     const block = plugin.detector.getBlockAtLine(editor, cursor.line);

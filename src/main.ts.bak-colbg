@@ -29,7 +29,7 @@ export default class BlockEditorPlugin extends Plugin {
     console.log('[block-editor]', this.manifest.version, 'onload');
     await this.loadSettings();
     document.body.classList.toggle('be-columns-live-on', this.settings.livePreviewWidget);
-    // M4：设置默认外观 / 手柄尺寸落到 body CSS 变量（阅读模式原生渲染同样消费）
+    // M4: Set the default appearance/handle size to the body CSS variable (also consumed by native rendering in reading mode)
     applyColumnsCssVars(this.settings);
 
     this.handle.init();
@@ -40,18 +40,18 @@ export default class BlockEditorPlugin extends Plugin {
     this.registerEditorExtension(columnsExtension(this));
     this.registerEditorExtension(blockColorExtension(this));
 
-    // 阅读模式回放：每栏背景色 + 外壳外观参数 + 栏宽。
-    // Obsidian 把 callout 的 `|key=value` 参数解析到 data-callout-metadata 属性：
-    // - 子栏 `[!col|bg=#xxxxxx]` 的 bg 设置栏元素背景，无 bg 参数时保持透明；
-    // - 外壳 `[!multi-column|60-40|gap=12|valign=center|radius=8|border]`：
-    //   外观参数写成 CSS 变量（子栏继承，与 styles.css 的 var() 消费对接），
-    //   border 给子栏加 class；宽度支持多行分组 `60-40/50-50`，数量与直接子栏
-    //   一致时按权重式 flex 设置（与实时预览 ColumnsWidget 一致）。
+    // Reading mode playback: background color of each column + shell appearance parameters + column width.
+    // Obsidian parses the `|key=value` parameter of the callout into the data-callout-metadata attribute:
+    // - The bg of subcolumn `[!col|bg=#xxxxxx]` sets the background of the column element, and remains transparent when there is no bg parameter;
+    // - Shell `[!multi-column|60-40|gap=12|valign=center|radius=8|border]`:
+    // Appearance parameters are written as CSS variables (subcolumn inheritance, connected with var() consumption of styles.css),
+    // border adds class to the sub-column; the width supports multi-line grouping `60-40/50-50`, the number is the same as the direct sub-column
+    // Set by weighted flex when consistent (consistent with Live Preview ColumnsWidget).
     this.registerMarkdownPostProcessor((el) => {
-      // H5 任意块颜色标记回放：独立于分栏 widget 开关（%% block-color:<color> %%）
+      // H5 arbitrary block color mark playback: independent of column widget switch (%% block-color:<color> %%)
       applyBlockColorToDom(el);
-      // 开关关闭时阅读模式不叠加自定义回放（栏宽 / 背景色 / 外观参数），
-      // 与实时预览 widget 的开关行为保持一致：关闭 = 原生 callout 展示
+      // When the switch is turned off, the reading mode does not superimpose custom playback (column width/background color/appearance parameters),
+      // Consistent with the on/off behavior of the live preview widget: off = native callout display
       if (!this.settings.livePreviewWidget) return;
       el.querySelectorAll('.callout[data-callout="col"]').forEach((callout) => {
         const meta = callout.getAttribute('data-callout-metadata') ?? '';
@@ -62,7 +62,7 @@ export default class BlockEditorPlugin extends Plugin {
       el.querySelectorAll('.callout[data-callout="multi-column"]').forEach((shell) => {
         const meta = shell.getAttribute('data-callout-metadata') ?? '';
         const shellEl = shell as HTMLElement;
-        // H1 外观参数 → CSS 变量：未写时不设置，子栏继承 body 上的设置默认值
+        // H1 appearance parameters → CSS variables: not set when not written, the subcolumn inherits the default value set on the body
         const gapM = meta.match(/(?:^|\s)gap=(\d+)(?:\s|$)/);
         if (gapM) shellEl.style.setProperty('--be-col-gap', gapM[1] + 'px');
         const valignM = meta.match(/(?:^|\s)valign=(top|center|bottom|stretch)(?:\s|$)/);
@@ -73,9 +73,9 @@ export default class BlockEditorPlugin extends Plugin {
 
         const content = shell.querySelector(':scope > .callout-content');
         if (!content) return;
-        // 按行分组收集直接子栏：兼容 `.callout-content > .callout[data-callout="col"]`
-        // 与 `.callout-content > .cm-callout > .callout[data-callout="col"]` 两种结构；
-        // colrow 行标记不渲染但作为行分隔点参与分组。
+        // Collect direct subcolumns grouped by row: Compatible with `.callout-content > .callout[data-callout="col"]`
+        // Two structures with `.callout-content > .cm-callout > .callout[data-callout="col"]`;
+        // colrow row markers are not rendered but participate in grouping as row separators.
         const rows: HTMLElement[][] = [];
         let cur: HTMLElement[] = [];
         for (const child of Array.from(content.children)) {
@@ -108,20 +108,20 @@ export default class BlockEditorPlugin extends Plugin {
         if (cur.length) rows.push(cur);
         const cols = rows.flat();
 
-        // H1 border：外壳写了 border 参数才给子栏加描边 class
-        // （设置默认边框由 body 变量 --be-col-border 控制，无需加 class）
+        // H1 border: The shell writes the border parameter before adding a stroke to the subcolumn class
+        // (Setting the default border is controlled by the body variable --be-col-border, no need to add class)
         if (hasBorder) {
           for (const col of cols) col.classList.add('be-col-border');
         }
 
-        // 宽度回放：多行 `60-40/50-50` 按行分组，单行兼容旧 `60-40`
+        // Width playback: multi-line `60-40/50-50` grouped by line, single line compatible with old `60-40`
         const wm = meta.match(/(?:^|\s)(\d+(?:-\d+)+(?:\/\d+(?:-\d+)+)*)(?:\s|$)/);
         if (!wm) return;
         const groups = wm[1].split('/').map((g) => g.split('-').map((x) => Number(x)));
         const flat = groups.flat();
         if (flat.length !== cols.length || flat.some((w) => !Number.isFinite(w) || w <= 0)) return;
         if (groups.length > 1 && groups.length === rows.length) {
-          // 多行：每行套用各自的宽度组
+          // Multiple lines: each line applies its own width group
           rows.forEach((row, ri) => {
             const w = groups[ri];
             if (!w || w.length !== row.length) return;
@@ -137,7 +137,7 @@ export default class BlockEditorPlugin extends Plugin {
       });
     });
 
-    // 鼠标移动：拖拽优先，其次决定是否显示手柄
+    // Mouse movement: Drag first, then decide whether to display the handle
     this.registerDomEvent(
       document,
       'mousemove',
@@ -147,7 +147,7 @@ export default class BlockEditorPlugin extends Plugin {
       },
       true
     );
-    // 松手：结束拖拽或弹出块菜单；随后把光标块的手柄接回来
+    // Release: End dragging or pop up the block menu; then take the handle of the cursor block back
     this.registerDomEvent(
       document,
       'mouseup',
@@ -157,9 +157,9 @@ export default class BlockEditorPlugin extends Plugin {
       },
       true
     );
-    // 键盘移动光标后，手柄跟到光标所在块
+    // After the keyboard moves the cursor, the handle follows the block where the cursor is.
     this.registerDomEvent(document, 'keyup', () => this.handle.updateCursorBlock(), true);
-    // Esc 结束多选
+    // Esc ends multiple selection
     this.registerDomEvent(
       document,
       'keydown',
@@ -168,7 +168,7 @@ export default class BlockEditorPlugin extends Plugin {
       },
       true
     );
-    // 滚动 / 改变大小：隐藏手柄、重算高亮与选区
+    // Scroll/Resize: Hide handles, recalculate highlights and selections
     this.registerDomEvent(
       window,
       'scroll',
@@ -184,14 +184,14 @@ export default class BlockEditorPlugin extends Plugin {
       this.handle.renderHighlight();
       this.selection.renderSelection();
     });
-    // 正文改动后行号失效，清掉选区
+    // After the text is changed, the line number becomes invalid and the selection is cleared.
     this.registerEvent(
       this.app.workspace.on('editor-change', (editor) => {
         const sel = this.selection.selection;
         if (sel && sel.editor === editor) this.selection.clearSelection();
       })
     );
-    // 换文件 / 切换叶子前，把编辑中的分栏内容写回文档（blur 可能不触发）
+    // Before changing files/switching leaves, write the contents of the column being edited back to the document (blur may not be triggered)
     this.registerEvent(
       this.app.workspace.on('active-leaf-change', () => {
         flushEditingColumns();
@@ -199,7 +199,7 @@ export default class BlockEditorPlugin extends Plugin {
         this.handle.updateCursorBlock();
       })
     );
-    // 应用退出前兜底写回一次
+    // Write everything back before exiting the application
     this.registerEvent(this.app.workspace.on('quit', () => flushEditingColumns()));
 
     this.addSettingTab(new BlockEditorSettingTab(this));
@@ -221,5 +221,5 @@ async loadSettings(): Promise<void> {
   }
 }
 
-// 供本地 CM6 复现测试使用（scripts/cm6-repro.cjs / colrow-spec.cjs）
+// For local CM6 recurrence testing (scripts/cm6-repro.cjs / colrow-spec.cjs)
 export { columnsExtension, columnsField, getColumnsDiagnostics } from './columns-preview';

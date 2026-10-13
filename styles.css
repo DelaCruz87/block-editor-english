@@ -1,51 +1,51 @@
 /* ============================================================
- * block-editor styles.css — 样式隔离说明
- * 本文件为插件独立样式（非内联），修改后需在 Obsidian 禁用再启用插件生效。
+ * block-editor styles.css - style isolation instructions
+ * This file is a plug-in independent style (not inline). After modification, you need to disable and enable the plug-in in Obsidian to take effect.
  *
- * ── 一、变量依赖与兜底清单 ──────────────────────────────────
- * 依赖 Obsidian 全局主题变量（主题覆盖后会影响对应外观）：
- *   高频（≥6 次）：--text-normal(15) 正文色 / --background-modifier-border(10)
- *     边框与分隔线 / --interactive-accent(10) 交互强调色（悬停、选中、拖拽、
- *     按钮） / --font-ui-smaller(8) 界面小字号 / --background-modifier-hover(6)
- *     悬停背景。
- *   中频：--text-faint(5) 弱化文字 / --text-on-accent(4) 强调底上的文字色 /
- *     --text-muted(4) 弱化文字 / --background-primary(3) 面板背景 /
- *     --line-height-normal(3) 正文行高 / --p-spacing(3) 段落间距 /
- *     --font-monospace(2) 等宽字体 / --background-secondary(2) /
- *     --text-error(2) 错误色 / --code-background(2) 代码块背景 /
- *     --code-normal(2) 代码文字色。
- *   低频：--font-text(2) 正文字体 / --font-ui-small(1) / --text-selection(1) /
- *     --font-text-size(1) / --radius-m(1) / --size-4-3(1) /
- *     --checkbox-size(1) 复选框尺寸。
- *   fallback 说明：--p-spacing / --radius-m / --size-4-3 / --code-normal /
- *     --line-height-normal(部分) / --code-background(部分) 已带兜底值；
- *     其余高频变量依赖 Obsidian 标准主题变量存在（未带 fallback），
- *     主题覆盖后会影响插件外观（属预期内跟随主题），变量缺失时回退
- *     到浏览器默认，可能导致插件控件观感异常——排查时优先核对以上变量。
+ * ── 1. Variable dependency and cover list ─────────────────────────────────
+ * Depends on Obsidian global theme variables (theme overwriting will affect the corresponding appearance):
+ * High frequency (≥6 times): --text-normal(15) text color / --background-modifier-border(10)
+ * Borders and dividers / --interactive-accent(10) interactive accent color (hover, select, drag,
+ * button) / --font-ui-smaller(8) interface small font size / --background-modifier-hover(6)
+ * Hover background.
+ * IF: --text-faint(5) weakens the text / --text-on-accent(4) emphasizes the text color on the bottom /
+ * --text-muted(4) weaken text / --background-primary(3) panel background /
+ * --line-height-normal(3) text line height / --p-spacing(3) paragraph spacing /
+ * --font-monospace(2) Monospace font / --background-secondary(2) /
+ * --text-error(2) error color / --code-background(2) code block background /
+ * --code-normal(2) Code text color.
+ * Low frequency: --font-text(2) text font / --font-ui-small(1) / --text-selection(1) /
+ * --font-text-size(1) / --radius-m(1) / --size-4-3(1) /
+ * --checkbox-size(1) Checkbox size.
+ * fallback instructions: --p-spacing / --radius-m / --size-4-3 / --code-normal /
+ * --line-height-normal (part) / --code-background (part) already have the bottom value;
+ * The remaining high-frequency variables rely on the existence of Obsidian standard theme variables (without fallback),
+ * After the theme is overwritten, it will affect the appearance of the plug-in (it is expected to follow the theme), and it will fall back when the variable is missing.
+ * Resetting to browser default may cause plug-in controls to look and feel abnormal - check the above variables first when troubleshooting.
  *
- * ── 二、!important 策略（共 64 处）──────────────────────────
- * 保留必要性：插件 CSS 注入宿主应用，面对不可控的第三方主题 / snippet；选择器
- *   特异性无法战胜 !important，且实测主题在状态选择器上的特异性也高于插件编辑
- *   态选择器，故此类竞争只能由 !important 压制。保留区：
- *   1. callout 去 chrome（分栏外壳 / 阅读模式子栏 / 源码视图 widget 外层）：
- *      背景 / 边框 / 圆角 / 内外边距 / 阴影。
- *   2. widget 渲染态快照（.block-editor-col-content）排版兜底：全局 margin /
- *      padding 归零（L338-345，分栏内所有后代）、列表 / 复选框 / 代码块 /
- *      ::marker 等与阅读模式对齐。
- *   3. 编辑态 textarea 去默认表单外观：border / border-width / background-color /
- *      outline / border-radius / box-shadow（主题的 textarea:focus / :is(...):focus
- *      会盖过特化选择器，如 Baseline body.input-material textarea:focus=(0,2,2)、
- *      Velocity :is(input,textarea,…):focus=(0,2,1)，故不能靠提高特异性替代）。
- *   4. 压过同文件内保留规则者：.be-col-border、M4 默认边框。
- *   5. 需压过核心 CSS 的 widget 布局：display: flex（核心
- *      .markdown-source-view.mod-cm6 .cm-content > * 设 display:block）。
- * 已移除（无需 !important）：仅命中插件私有 class、外部 CSS 不会命中的区域，
- *   以及与本文件保留的归零规则完全重复（删除后级联结果不变）的规则：
- *   - .block-editor-col-editor 的 border / border-width / border-radius；
- *   - .block-editor-col-content 内 p / li / ul 的 margin-block / padding-block
- *     归零与 .task-list-item-checkbox 的负 margin 归零（前者由 L338-345 兜底）。
- * 维护红线：新增规则禁止随意加 !important；删除上述保留区前需在目标主题下
- *   目视验证，并跑回归脚本（block-color-spec.cjs / cm6-lineat-spec.cjs / 分栏 spec）。
+ * ── 2. !important strategy (64 in total)───────────────────────────
+ * Retain necessity: plug-in CSS is injected into the host application to face uncontrollable third-party themes/snippet; selector
+ * Specificity cannot beat !important, and the specificity of the tested theme on the status selector is also higher than that of the plug-in editor
+ * stateful selector, so such competition can only be suppressed by !important. Reserved area:
+ * 1. Callout to chrome (column shell/reading mode sub-column/source code view widget outer layer):
+ * Background/border/rounded corners/inner and outer margins/shadow.
+ * 2. Widget rendering state snapshot (.block-editor-col-content) layout cover: global margin /
+ * Padding reset to zero (L338-345, all descendants in the column), list / check box / code block /
+ * ::marker etc. aligned with reading mode.
+ * 3. Edit textarea to change the default form appearance: border / border-width / background-color /
+ * outline / border-radius / box-shadow (theme's textarea:focus / :is(...):focus
+ * will override specialization selectors, such as Baseline body.input-material textarea:focus=(0,2,2),
+ * Velocity: is(input, textarea,…):focus=(0,2,1), so it cannot be replaced by improving specificity).
+ * 4. Override the rules retained in the same file: .be-col-border, M4 default border.
+ * 5. Widget layout that needs to override core CSS: display: flex (core
+ * .markdown-source-view.mod-cm6 .cm-content > * Set display:block).
+ * Removed (no need for !important): only hits plugin private classes, external CSS does not hit areas,
+ * and rules that are completely duplicates of the zeroing rules retained in this document (the cascade result remains unchanged after deletion):
+ * - border / border-width / border-radius of .block-editor-col-editor;
+ * - margin-block / padding-block of p / li / ul inside .block-editor-col-content
+ * Zeroing and zeroing the negative margin of .task-list-item-checkbox (the former is covered by L338-345).
+ * Maintenance red line: Adding new rules prohibits adding !important at will; before deleting the above reserved area, it must be under the target theme
+ * Visually verify and run the regression script (block-color-spec.cjs / cm6-lineat-spec.cjs / column spec).
  * ============================================================ */
 
 .block-editor-handle {
@@ -58,7 +58,7 @@
   border-radius: 4px;
   color: var(--text-faint);
   cursor: grab;
-  /* 挂在 .cm-editor 内（overflow:hidden），z-index 只需高于编辑器正文 */
+  /* Hang inside .cm-editor (overflow:hidden), z-index only needs to be higher than the editor body */
   z-index: 6;
   user-select: none;
   transition: background-color 0.1s ease, color 0.1s ease;
@@ -82,9 +82,9 @@
   opacity: 0.6;
 }
 
-/* 左侧留白连压缩后的手柄都放不下（罕见：极窄面板 + 大号手柄）：
-   手柄被压到最小尺寸仍可能与折叠图标有重叠，此时抬高层级并加底色，
-   保证手柄本身仍可点、且不会和图标糊成一团看不清边界。 */
+/* The left side is left blank and cannot even accommodate the compressed handle (rare: extremely narrow panel + large handle):
+   When the handle is pressed to the minimum size, it may still overlap with the folding icon. At this time, raise the level and add a background color.
+   Make sure that the handle itself can still be clicked and that it will not be blurred with the icon and the boundaries will be unclear. */
 .block-editor-handle.is-squeezed {
   z-index: 7;
   background: var(--background-primary);
@@ -108,10 +108,10 @@
   opacity: 0.95;
 }
 
-/* 拖动动作提示：ghost 上的标签实时显示「松手会执行什么」，消除对拖动结果的猜测。
-   文案由 data-action 决定，未命中任何动作（拖回自身 / 无效区域）时无该属性、不显示。
-   用 ::before 放在文本前：ghost 有 max-width + overflow:hidden，长文本会把尾部
-   徽标裁掉，放前面才能保证任何块内容下都可见。 */
+/* Drag action tips: The label on the ghost shows "what will happen when you let go" in real time, eliminating guesswork about the drag result.
+   The copywriting is determined by data-action. If no action is hit (drag back to self/invalid area), there is no such attribute and it will not be displayed.
+   Use ::before in front of the text: ghost has max-width + overflow:hidden, long text will add the tail
+   The logo is cropped and placed in front to ensure it is visible under any block content. */
 .block-editor-drag-ghost[data-action]::before {
   margin-right: 8px;
   padding: 1px 6px;
@@ -122,73 +122,73 @@
 }
 
 .block-editor-drag-ghost[data-action='move']::before {
-  content: '移动';
+  content: var(--be-hintMove, 'Move');
 }
 .block-editor-drag-ghost[data-action='nest']::before {
-  content: '缩进为子块';
+  content: var(--be-hintNest, 'Nest as child');
 }
 .block-editor-drag-ghost[data-action='copy']::before {
-  content: '复制（Alt）';
+  content: var(--be-hintCopy, 'Copy (Alt)');
 }
 .block-editor-drag-ghost[data-action='move-cross']::before {
-  content: '移动到其他文档';
+  content: var(--be-hintMoveDocument, 'Move to another document');
 }
 .block-editor-drag-ghost[data-action='copy-cross']::before {
-  content: '复制到其他文档（Alt）';
+  content: var(--be-hintCopyDocument, 'Copy to another document (Alt)');
 }
 .block-editor-drag-ghost[data-action='column-left']::before {
-  content: '分栏 · 左';
+  content: var(--be-hintColumnLeft, 'Columns - left');
 }
 .block-editor-drag-ghost[data-action='column-right']::before {
-  content: '分栏 · 右';
+  content: var(--be-hintColumnRight, 'Columns - right');
 }
-/* 需求 A：拖块进分栏 —— 区分「插到新栏」与「复制到新栏（Alt）」 */
+/* Requirement A: Drag blocks into columns - distinguish between "Insert to new column" and "Copy to new column (Alt)" */
 .block-editor-drag-ghost[data-action='col-new']::before {
-  content: '新增一栏';
+  content: var(--be-hintAddColumn, 'Add a column');
 }
 .block-editor-drag-ghost[data-action='col-new-copy']::before {
-  content: '复制到新栏（Alt）';
+  content: var(--be-hintCopyColumn, 'Copy to a new column (Alt)');
 }
 
-/* 分栏类动作：ghost 边框改虚线 accent，与移动的实线边框在形态上区分 */
+/* Column action: change the ghost border to dotted accent, which is morphologically different from the moving solid border. */
 .block-editor-drag-ghost[data-action^='column'],
 .block-editor-drag-ghost[data-action^='col-'] {
   border-color: var(--interactive-accent);
   border-style: dashed;
 }
 
-/* 带标签时放宽上限，避免「复制到其他文档（Alt）」这类长文案被挤掉 */
+/* Relax the upper limit when tagging to prevent long copy such as "Copy to other documents (Alt)" from being squeezed out */
 .block-editor-drag-ghost[data-action] {
   max-width: 460px;
 }
 
-/* 落点线共同外观：**只管长相，不管显隐**。
-   两个消费者对 display 的需求相反 —— drag.ts 的插入线是常驻单例、要默认隐藏；
-   columns-preview 的拖出落点线每次新建、必须一挂上就可见。若把 display 写进
-   本基础类，后者就得靠 `.a.b` 特异性硬盖，改这里的 display 会让它静默变隐形
-   （历史上「怎么拖都拖不出来」正是这个坑）。故本类**不得**声明 display，
-   显隐各由下方的专属类承担。 */
+/* The unique appearance of the landing line: **only care about appearance, regardless of appearance**.
+   The two consumers have opposite needs for display - the insertion line of drag.ts is a resident singleton and should be hidden by default;
+   Each time the drag-out drop line of columns-preview is created, it must be visible as soon as it is hung up. If display is written into
+   For this basic class, the latter relies on `.a.b` specific hard cover. Changing the display here will make it silently invisible.
+   (Historically, "it can't be dragged out no matter how hard it is dragged out" is exactly this pitfall). Therefore, this class must not declare display.
+   Explicitness and concealment are each handled by the exclusive classes below. */
 .block-editor-indicator {
   position: absolute;
   height: 2px;
   background: var(--interactive-accent);
   border-radius: 1px;
   pointer-events: none;
-  /* 挂在 .cm-editor 内（overflow:hidden），z-index 只需高于编辑器正文 */
+  /* Hang inside .cm-editor (overflow:hidden), z-index only needs to be higher than the editor body */
   z-index: 6;
 }
 
-/* drag.ts 的横向插入线：元素在 init 时创建、反复复用，必须默认隐藏，
-   落点成立时由 drag.ts 加 .is-visible 显出。 */
+/* Horizontal insertion line of drag.ts: The element is created during init and reused repeatedly, and must be hidden by default.
+   When the drop point is established, it is displayed by adding .is-visible to drag.ts. */
 .block-editor-insert-line {
   display: none;
 }
 
-/* 落点视觉的「显示」侧统一走 .is-visible 类切换。
-   显隐是这四个元素唯一的共性状态，成组写在一起便于一眼看全、也便于 grep；
-   「默认隐藏」那一半仍写在各元素自己的规则里（就近可读）。
-   drag.ts 相应地不再用 setCssStyles 写内联 display / position ——
-   内联样式会盖住这里的规则，改 CSS 时看不出效果，两边容易走偏。 */
+/* The "display" side of drop point vision adopts .is-visible class switching.
+   Visibility and concealment are the only common states of these four elements. Writing them together in a group makes it easier to see them all at a glance and facilitate grep;
+   The "hidden by default" half is still written in each element's own rules (readable nearby).
+   Drag.ts accordingly no longer uses setCssStyles to write inline display / position--
+   Inline styles will cover the rules here, and the effect will not be visible when changing CSS, and it is easy to go astray on both sides. */
 .block-editor-insert-line.is-visible,
 .block-editor-edge-line.is-visible,
 .block-editor-edge-box.is-visible,
@@ -200,7 +200,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  /* 挂在 .cm-editor 内（overflow:hidden），z-index 只需高于编辑器正文 */
+  /* Hang inside .cm-editor (overflow:hidden), z-index only needs to be higher than the editor body */
   z-index: 5;
 }
 
@@ -211,9 +211,9 @@
   pointer-events: none;
 }
 
-/* 手柄对应块的浅色高亮（只覆盖文本范围，低透明度减弱视觉）
-   颜色 / 透明度由 body 上的 --be-hover-color / --be-hover-opacity 驱动，
-   fallback 保留旧版默认值，确保插件未加载时外观不变。 */
+/* Light highlighting of the block corresponding to the handle (only covers the text range, low transparency weakens vision)
+   Color/opacity driven by --be-hover-color / --be-hover-opacity on body,
+   fallback retains legacy defaults to ensure the same appearance when the plugin is not loaded. */
 .block-editor-hover-block {
   display: none;
   position: absolute;
@@ -221,13 +221,13 @@
   opacity: var(--be-hover-opacity, 0.55);
   border-radius: 4px;
   pointer-events: none;
-  /* 挂在 .cm-editor 内（overflow:hidden），z-index 只需高于编辑器正文 */
+  /* Hang inside .cm-editor (overflow:hidden), z-index only needs to be higher than the editor body */
   z-index: 5;
 }
 
-/* 拖拽全局态：body.block-editor-dragging 为插件运行时专属 class（main.ts
-   拖拽期间挂到 body），命名已带插件前缀，不会命中第三方页面元素；保持现状，
-   不套 be-columns-live-on 前缀（拖拽与分栏开关相互独立）。 */
+/* Dragging global state: body.block-editor-dragging is a plug-in runtime exclusive class (main.ts
+   (hung to the body during dragging), the name has a plug-in prefix, and will not hit third-party page elements; maintain the status quo.
+   Do not use the be-columns-live-on prefix (drag and column switches are independent of each other). */
 body.block-editor-dragging {
   cursor: grabbing !important;
 }
@@ -236,17 +236,17 @@ body.block-editor-dragging .cm-content {
   user-select: none;
 }
 
-/* 块菜单两列布局：转换项多，单列菜单太高。
-   实际 DOM（本机 Obsidian 反查确认）：分区内菜单项装在 .menu-group 里，
-   group 与 .menu-separator 平级挂在 .menu-scroll 下，故 grid 加在每个 group 上，
-   各分区内部两两成行 */
+/* Block menu two-column layout: there are many conversion items and the single-column menu is too tall.
+   Actual DOM (confirmed by native Obsidian reverse check): menu items in the partition are installed in .menu-group,
+   group and .menu-separator are hung under .menu-scroll at the same level, so grid is added to each group.
+   Each partition is arranged in rows of two */
 .block-editor-menu-grid .menu-group {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
 }
 
-/* ===== 分栏：Live Preview 编辑态（拖拽手柄 + 分隔条 + 新增） ===== */
+/* ===== Column: Live Preview editing state (drag handle + separator bar + new) ===== */
 .block-editor-columns-editing {
   margin: 4px 0;
 }
@@ -255,16 +255,16 @@ body.block-editor-dragging .cm-content {
   display: flex;
   align-items: stretch;
   gap: 0;
-  /* H3 窄屏响应式堆叠：编辑态行内放不下时同样换行 */
+  /* H3 narrow-screen responsive stacking: line breaks even when the editing state cannot fit within the line */
   flex-wrap: wrap;
 }
 
-/* 拖拽调宽分隔条 */
+/* Drag and drop to adjust the width of the divider bar */
 .block-editor-col-resizer {
   flex: 0 0 8px;
-  /* 分隔条须始终与整行等高：行的 align-items 会随「垂直对齐」设置变为
-     flex-start / center / flex-end，若不显式 stretch，分隔条会塌陷为 0 高，
-     导致竖线不可见、也点不到无法拖拽调宽。align-self 覆盖行的 align-items。 */
+  /* The separator bar must always be the same height as the entire row: the row's align-items will change with the "vertical alignment" setting.
+     flex-start / center / flex-end, if stretch is not explicitly used, the divider will collapse to 0 height.
+     As a result, the vertical lines are invisible and cannot be clicked to adjust the width by dragging. align-self overrides the row's align-items. */
   align-self: stretch;
   cursor: col-resize;
   position: relative;
@@ -274,14 +274,14 @@ body.block-editor-dragging .cm-content {
   content: '';
   position: absolute;
   left: 50%;
-  /* 竖线高度比分隔条整体缩短 30%：上下各缩进父高的 15%（随栏高自适应） */
+  /* The vertical line height is 30% shorter than the overall separator bar: the upper and lower indents are 15% of the parent height (adaptive with column height) */
   top: 15%;
   bottom: 15%;
   width: 2px;
   transform: translateX(-50%);
   border-radius: 1px;
   background: var(--text-faint);
-  /* 需求：在当前 --text-faint 基础上再减淡 50%（悬停/拖拽时恢复，保持可用性） */
+  /* Requirements: Faint another 50% based on the current --text-faint (recover on hover/drag to maintain usability) */
   opacity: 0.5;
   transition: background-color 0.1s ease, top 0.1s ease, bottom 0.1s ease, opacity 0.1s ease;
 }
@@ -294,33 +294,33 @@ body.block-editor-dragging .cm-content {
   opacity: 1;
 }
 
-/* 栏容器：手柄 + 文本区（flex: 1 1 0 为无宽度元数据时的均分兜底，
-   与 render() 内联的权重式 flex 配合，避免栏宽退化为内容宽）。
-   简洁风：移除卡片背景/边框/圆角/阴影，背景与页面一致（同阅读模式）。
-   min-width 240px：H3 窄屏响应式堆叠的断点基准（行内放不下时 wrap 到下一行） */
+/* Column container: handle + text area (flex: 1 1 0 is the even bottom when there is no width metadata,
+   Cooperate with the weighted flex inline in render() to prevent column width from degenerating into content width).
+   Simple style: remove the card background/border/rounded corners/shadow, and make the background consistent with the page (same as reading mode).
+   min-width 240px: The breakpoint benchmark for H3 narrow-screen responsive stacking (wrap to the next line when it cannot fit in the line) */
 .block-editor-col-editor {
   display: flex;
   flex-direction: column;
   flex: 1 1 0;
   min-width: 240px;
-  /* 栏自身的交叉轴对齐跟随 --be-col-valign：
-     - stretch（默认等高）：栏被拉伸到行高，背景填满；
-     - flex-start / center / flex-end：栏高度 = 内容高度，按上/中/下定位。
-     显式写 align-self 而非只依赖 row 的 align-items，确保非拉伸模式下
-     短栏不会被行高撑满（否则「只有一行内容时栏太高」）。 */
+  /* Cross-axis alignment of the column itself follows --be-col-valign:
+     - stretch (default equal height): the column is stretched to the row height and the background is filled;
+     - flex-start / center / flex-end: column height = content height, positioned by top/center/bottom.
+     Explicitly write align-self instead of relying only on row's align-items to ensure that in non-stretch mode
+     Short columns will not be filled by the row height (otherwise "the column is too tall when there is only one line of content"). */
   align-self: var(--be-col-valign, stretch);
   padding: 4px 6px;
   background: transparent;
-  border: none; /* 容器不描边，防主题默认边框 */
+  border: none; /* The container does not have a stroke and is anti-theme default border */
   border-width: 0;
-  border-radius: 0; /* 容器直角：去主题默认圆角，视觉更简洁 */
+  border-radius: 0; /* Container right angles: remove the default rounded corners of the theme, making the vision more concise */
 }
 
-/* 实时预览 widget 子栏描边：
-   - 默认读设置变量 --be-col-border（由 applyColumnsCssVars 写到 body，见 settings.ts），
-     与阅读模式子栏一致；
-   - 分栏外壳写了 `border` 参数时，插件给对应 row 加 .block-editor-columns-border
-     （columns-preview.ts），用更高特异性强制 1px 描边，覆盖默认值与上方 border:none。 */
+/* Real-time preview of widget sub-column stroke:
+   - Default read setting variable --be-col-border (written to body by applyColumnsCssVars, see settings.ts),
+     Consistent with the reading mode subcolumn;
+   - When the column shell writes the `border` parameter, the plug-in adds .block-editor-columns-border to the corresponding row.
+     (columns-preview.ts), forces a 1px stroke with higher specificity, overriding the default with border:none above. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-editor {
   border-style: solid;
   border-color: var(--background-modifier-border);
@@ -331,14 +331,14 @@ body.be-columns-live-on .block-editor-columns-row.block-editor-columns-border .b
   border: 1px solid var(--background-modifier-border);
 }
 
-/* 拖拽排序手柄（⠿）
-   命中区必须够大：grip 只有一个 12px 字形，早期版本无 padding，实际可点区域
-   仅约 13×12px，实测「按住图标拖不动」（点不中 / 按住时目标已偏移）。
-   现在用 padding 把命中区撑到整栏宽 × 20px，并让字形仍居中显示：
-     - width 100% + text-align center：横向覆盖整栏，无需精确对准字形
-     - padding 4px 0：纵向留出可点余量（> 8px 双击阈值）
-     - margin-bottom 2px 保持与内容的间距
-   cursor: grab 反馈可拖；-webkit-user-select 防止拖拽时选中文字。 */
+/* Drag the sort handle (⠿)
+   The hit area must be large enough: grip only has a 12px glyph, early versions have no padding, and the actual clickable area
+   It is only about 13×12px. According to the actual measurement, "press and hold the icon and drag it" (the click misses/the target has shifted when you press and hold).
+   Now use padding to expand the hit area to the full column width × 20px, and keep the glyph still centered:
+     - width 100% + text-align center: cover the entire column horizontally without precise alignment of fonts
+     - padding 4px 0: Leave a clickable margin vertically (> 8px double-click threshold)
+     - margin-bottom 2px maintains spacing from content
+   cursor: grab feedback can be dragged; -webkit-user-select prevents text from being selected when dragging. */
 .block-editor-col-grip {
   cursor: grab;
   color: var(--text-faint);
@@ -348,14 +348,14 @@ body.be-columns-live-on .block-editor-columns-row.block-editor-columns-border .b
   letter-spacing: 3px;
   user-select: none;
   -webkit-user-select: none;
-  /* 扩大命中区：横向铺满整栏、纵向留 4px 余量 */
+  /* Expand the hit area: fill the entire column horizontally and leave a 4px margin vertically */
   width: 100%;
   padding: 4px 0;
   margin-bottom: 2px;
-  /* 负 margin 抵消 padding，保证栏内总高度不因命中区而变多 */
+  /* Negative margin offsets padding to ensure that the total height of the column does not increase due to the hit area. */
   margin-top: -4px;
   border-radius: 3px;
-  /* 悬停时给出可见反馈，暗示"这里可以拖" */
+  /* Give visible feedback on hover, suggesting "you can drag here" */
   transition: background-color 0.1s ease, color 0.1s ease;
 }
 
@@ -370,33 +370,33 @@ body.be-columns-live-on .block-editor-columns-row.block-editor-columns-border .b
   background: var(--background-modifier-hover);
 }
 
-/* 拖拽排序时的目标高亮 */
+/* Target highlighting during drag sorting */
 .block-editor-col-editor.block-editor-col-drop {
   outline: 2px dashed var(--interactive-accent);
   outline-offset: -2px;
 }
 
-/* 被抓起的源栏：半透明 + 虚线描边。
-   没有它时，按住 ⠿ 拖动后界面毫无变化，用户无法判断「拖拽是否已开始」，
-   会把「落点判定失败」误读成「手柄拖不动」。 */
+/* Grabbed source bar: translucent + dashed stroke.
+   Without it, there will be no change in the interface after holding down ⠿ and dragging, and the user cannot determine whether "drag has started".
+   "Failed to determine the landing point" will be misinterpreted as "the handle cannot be dragged". */
 .block-editor-col-editor.block-editor-col-dragging {
   opacity: 0.45;
   outline: 2px dashed var(--text-faint);
   outline-offset: -2px;
 }
 
-/* 需求 B「拖出分栏」的落点插入线。
-   与 drag.ts 的插入线共用外观基类 .block-editor-indicator，但显隐完全独立：
-   本元素每次 mousemove 新建、用完即删，**不存在「隐藏」状态**，所以自带
-   display: block（0,1,0 特异性，基础类已不含 display，不存在互相覆盖）。
-   不要为了「统一」把 display 挪回基础类 —— 那会让本线依赖特异性压制，
-   改基础类时它会静默隐形，表现为「拖不出来」。 */
+/* Requirement B: "Drag out the column" drop point to insert the line.
+   It shares the appearance base class .block-editor-indicator with the insertion line of drag.ts, but its visibility is completely independent:
+   This element is created every time mousemove is used and is deleted after use. **There is no "hidden" state**, so it comes with
+   display: block (0,1,0 specificity, the base class no longer contains display, and there is no mutual coverage).
+   Don't move display back to the basic class for the sake of "unification" - that will make this line rely on specific suppression.
+   When the basic class is changed, it will be silently invisible and "cannot be dragged out". */
 .block-editor-col-outline {
   display: block;
 }
 
-/* 斜杠命令弹窗：条目多（转换类 30+ 项），单列会把弹窗拉得很长 → 3 列网格。
-   容器类由 renderSuggestion 打在 .suggestion（条目元素上溯一层）上。 */
+/* Slash command pop-up window: There are many items (conversion class 30+ items), and a single column will make the pop-up window very long → 3-column grid.
+   The container class is placed on .suggestion (one level upstream of the entry element) by renderSuggestion. */
 .block-editor-slash-grid {
   display: grid !important;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -413,28 +413,28 @@ body.be-columns-live-on .block-editor-columns-row.block-editor-columns-border .b
   text-overflow: ellipsis;
 }
 
-/* 栏内容：默认保证最小可点区域（防空栏/小内容高度塌陷无法双击）；
-   空栏加占位提示 "点击编辑此栏" */
+/* Column content: The minimum clickable area is guaranteed by default (the air defense column/small content is highly collapsed and cannot be double-clicked);
+   Add a placeholder prompt to an empty column "Click to edit this column" */
 .block-editor-col-content {
   flex: 1;
   min-height: 28px;
-  /* 强制继承主题正文行高，防止 CM6 编辑器或主题对内部元素设置更大的行高 */
+  /* Force inheritance of theme body line height to prevent the CM6 editor or theme from setting a larger line height for internal elements */
   line-height: var(--line-height-normal, 1.5);
-  /* 关键修复：CM6 的 .cm-content 设了 white-space: break-spaces，widget 作为其
-     后代继承该属性。break-spaces 会保留 MarkdownRenderer 输出中块级元素之间的
-     换行符，把 <p>/<li> 之间的每个 \n 渲染成一整行空行（约 1 行高），表现为
-     段落、列表项、待办项之间的间距异常大（实测相邻 li 间距 51px = 26px 内容
-     + 25.5px 空行）。此处显式恢复 normal，让块级元素之间的换行正常折叠。
-     代码块由下方 pre { white-space: pre-wrap } 单独恢复，不受影响。 */
+  /* Key fix: CM6’s .cm-content sets white-space: break-spaces, widget as its
+     Descendants inherit this property. break-spaces will preserve the space between block-level elements in MarkdownRenderer output.
+     Newline character, render each \n between <p>/<li> into a whole empty line (about 1 line high), expressed as
+     The spacing between paragraphs, list items, and to-do items is abnormally large (measured spacing between adjacent li's is 51px = 26px content
+     + 25.5px empty line). Explicitly restore normal here, allowing line breaks between block-level elements to collapse normally.
+     The code block is restored individually by pre { white-space: pre-wrap } below and is not affected. */
   white-space: normal;
 }
 
-/* 全局垂直间距归零：widget 内所有元素的上下 margin/padding 强制归零，
-   使分栏内段间距/列表项间距与主题行距一致（用户诉求：与全站行间距统一）。
-   说明：分栏间距过大的主因是 white-space 继承（见上方 .block-editor-col-content
-   的说明）；此处的 margin/padding 归零用于消除浏览器默认段落 margin（p 默认
-   1em）等额外垂直间距，二者缺一不可。具体元素（如代码块）的内边距由下方
-   更具体的选择器单独补回。 */
+/* Global vertical spacing is reset to zero: the upper and lower margins/padding of all elements within the widget are forced to zero.
+   Make the paragraph spacing/list item spacing in the columns consistent with the subject line spacing (user demand: consistent with the line spacing of the entire site).
+   Note: The main reason for the excessive column spacing is white-space inheritance (see .block-editor-col-content above
+   description); the margin/padding here is used to eliminate the browser default paragraph margin (p default
+   1em) and other additional vertical spacing, both are indispensable. The padding of specific elements (such as code blocks) is determined by the following
+   More specific selectors are added separately. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content,
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content * {
   margin-block-start: 0 !important;
@@ -455,26 +455,26 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content.b
 }
 
 .block-editor-col-content.block-editor-col-empty::before {
-  content: '点击编辑此栏';
+  content: var(--be-hintEditColumn, 'Click to edit this column');
 }
 
 .block-editor-col-textarea {
   width: 100%;
   min-height: 90px;
-  /* 高度完全由 JS 依据内容显式设置（autosizeTextarea，见 columns-preview.ts）：
-     flex 不参与尺寸计算（basis:auto 取显式高度、grow/shrink 均为 0）。
-     若用 flex:1（basis:0），textarea 对栏高贡献为 0，长内容会被 min-height
-     截成约 3 行，整块高度错误地以最矮的栏为准。 */
+  /* The height is set explicitly by JS based on the content (autosizeTextarea, see columns-preview.ts):
+     Flex does not participate in size calculation (basis:auto takes the explicit height and grow/shrink to 0).
+     If flex:1 (basis:0) is used, the textarea contributes 0 to the column height, and long content will be min-height
+     Cut into about 3 rows, with the overall height incorrectly based on the shortest column. */
   flex: 0 0 auto;
   resize: vertical;
-  /* 以下 6 条须 !important：主题对 textarea:focus 等状态选择器的特异性高于本
-     选择器（如 Baseline body.input-material textarea:focus=(0,2,2)、Velocity
-     :is(input,textarea,…):focus=(0,2,1)），编辑栏聚焦时会被主题表单样式覆盖，
-     故不能靠提高特异性替代。 */
-  border: none !important; /* 边框线宽度归 0，防 Obsidian 主题 textarea 默认边框 */
+  /* The following 6 must be !important: The theme is more specific to state selectors such as textarea:focus than this one.
+     Selectors (such as Baseline body.input-material textarea:focus=(0,2,2), Velocity
+     :is(input,textarea,…):focus=(0,2,1)), when the edit bar is focused, it will be overwritten by the theme form style.
+     Therefore, it cannot be replaced by improving specificity. */
+  border: none !important; /* The border line width is returned to 0, preventing the default border of the Obsidian theme textarea */
   border-width: 0 !important;
   background: transparent;
-  /* 与容器背景一致：透出栏内联背景色，防 Obsidian 主题给 textarea 的默认白底 */
+  /* Consistent with the container background: reveal the inline background color of the column, and prevent the default white background of the textarea given by the Obsidian theme */
   background-color: transparent !important;
   color: var(--text-normal);
   font-family: var(--font-text);
@@ -483,11 +483,11 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content.b
   padding: 0;
   outline: none !important;
   box-sizing: border-box;
-  border-radius: 0 !important; /* 编辑框直角，与容器齐平 */
-  box-shadow: none !important; /* 去主题 textarea 内嵌阴影/边框感 */
+  border-radius: 0 !important; /* The edit box is at right angles and flush with the container */
+  box-shadow: none !important; /* Go to theme textarea with inline shadow/border sense */
 }
 
-/* grip 命令菜单（横排纯图标：设置背景色 / 新增栏 / 删除栏） */
+/* grip command menu (horizontal pure icon: set background color/add column/delete column) */
 .block-editor-col-menu {
   position: fixed;
   z-index: 1000;
@@ -530,7 +530,7 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content.b
   cursor: default;
 }
 
-/* 设置背景色选色浮层（5 预设色 + 自定义选色窗 + 清除），简洁风 */
+/* Set the background color selection floating layer (5 preset colors + custom color selection window + clear), simple style */
 .block-editor-col-picker {
   position: fixed;
   z-index: 1001;
@@ -571,7 +571,7 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content.b
   outline-offset: 1px;
 }
 
-/* 自定义选色窗：原生取色器 + hex 输入 同一行 */
+/* Custom color picker: native color picker + hex input same line */
 .block-editor-col-picker-custom {
   display: flex;
   align-items: center;
@@ -640,44 +640,44 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content.b
   color: var(--text-on-accent);
 }
 
-/* ===== 分栏：Live Preview 渲染态 widget ===== */
+/* ===== Column: Live Preview rendering state widget ===== */
 .block-editor-columns-widget {
   display: flex !important;
   align-items: var(--be-col-valign, stretch);
   gap: var(--be-col-gap, 10px);
   margin: 4px 0;
   width: 100%;
-  /* viewport 行高防御：MarkdownRenderer 异步填充完成前保持最小可见高度，
-     防止 CM6 把 widget 当 0 高块导致 posAtCoords 行映射越界（与
-     ColumnsWidget.estimatedHeight 对齐） */
+  /* Viewport line height defense: MarkdownRenderer maintains the minimum visible height before asynchronous filling is completed.
+     Prevent CM6 from treating the widget as a 0-high block causing the posAtCoords row mapping to go out of bounds (with
+     ColumnsWidget.estimatedHeight alignment) */
   min-height: 48px;
-  /* H3 窄屏响应式堆叠：容器换行，行内放不下时自动纵向堆叠 */
+  /* H3 narrow screen responsive stacking: container wraps and automatically stacks vertically when it cannot fit in the row */
   flex-wrap: wrap;
 }
 
-/* row 必须占满 widget 可用宽，且每行独占一整行：
-   - 占满宽：widget 是 flex 容器时 row 是 flex item，默认 flex: 0 1 auto 会收缩为
-     内容宽导致右侧留白（阅读模式 callout-content 占满所以正常）；
-   - 独占一行：basis 取 100%（而非 0）——basis 0 + min-width 0 会让多行假设主轴
-     尺寸为 0，flex-wrap 永不触发，多行被并排放在同一行（「新增的行没有另起一行」）；
-     basis 100% 时每行都超过容器宽 → 强制换行，多行纵向堆叠。
-     语义与原生渲染路径的 colrow（flex: 1 0 100%，见 H2 段落）保持一致。 */
+/* The row must occupy the available width of the widget, and each row must occupy an entire row:
+   - Full width: When the widget is a flex container, the row is a flex item. The default flex: 0 1 auto will shrink to
+     The wide content results in a blank space on the right side (reading mode callout-content is full, so it is normal);
+   - Exclusive row: basis takes 100% (instead of 0) - basis 0 + min-width 0 will make multiple rows assume the main axis
+     The size is 0, flex-wrap is never triggered, and multiple rows are placed side by side on the same row ("the new row does not start a new row");
+     When basis is 100%, each row exceeds the width of the container → forced line wrapping, and multiple rows are stacked vertically.
+     The semantics are consistent with the native rendering path's colrow (flex: 1 0 100%, see paragraph H2). */
 .block-editor-columns-widget > .block-editor-columns-row {
   flex: 1 1 100%;
   min-width: 0;
-  /* 栏的垂直对齐由 row 的 align-items 决定（栏是 row 的 flex item）；
-     消费 --be-col-valign，使「顶部/居中/底部对齐」在实时预览下生效
-     （widget 容器的 align-items 只影响 row 相对 widget 的位置，不控制栏） */
+  /* The vertical alignment of the column is determined by the align-items of the row (the column is the flex item of the row);
+     Consume --be-col-valign to make "top/center/bottom alignment" take effect in Live Preview
+     (The align-items of the widget container only affects the position of the row relative to the widget, and does not control the column) */
   align-items: var(--be-col-valign, stretch);
-  /* H3 窄屏响应式堆叠：行内栏同样可换行 */
+  /* H3 narrow screen responsive stacking: inline columns can also be wrapped */
   flex-wrap: wrap;
   gap: var(--be-col-gap, 10px);
 }
 
-/* 防止 Obsidian 的 callout 容器在 widget 外再套一层框。
-   作用域收窄：widget 仅在 live-on 渲染（columns-preview.ts：开关关闭
-   不渲染 widget），:has(.block-editor-columns-widget) 在 live-off 本不
-   匹配，补 body.be-columns-live-on 前缀不改变任何行为，只做显式隔离。 */
+/* Prevent Obsidian's callout container from placing another layer of frames outside the widget.
+   Scope narrowing: widget is only rendered in live-on (columns-preview.ts: switch is turned off
+   widget is not rendered), :has(.block-editor-columns-widget) does not work in live-off
+   Matching, adding the body.be-columns-live-on prefix does not change any behavior, only explicit isolation. */
 body.be-columns-live-on .markdown-source-view .cm-callout:has(.block-editor-columns-widget) > .callout {
   background: transparent !important;
   border: none !important;
@@ -689,8 +689,8 @@ body.be-columns-live-on .markdown-source-view .cm-callout:has(.block-editor-colu
   display: none;
 }
 
-/* ===== 分栏：multi-column callout ===== */
-/* 外壳去 chrome（!important 防主题/内部样式竞争） */
+/* ===== Column: multi-column callout ===== */
+/* Shell go to chrome (!important to prevent theme/internal style competition) */
 body.be-columns-live-on .callout[data-callout='multi-column'] {
   background: transparent !important;
   border: none !important;
@@ -702,26 +702,26 @@ body.be-columns-live-on .callout[data-callout='multi-column'] > .callout-title {
   display: none;
 }
 
-/* 光标落在标记行时临时显示标题，保证 `[!multi-column]` 可编辑 */
+/* Temporarily display the title when the cursor falls on the marked line to ensure that `[!multi-column]` is editable */
 body.be-columns-live-on .callout[data-callout='multi-column'] > .callout-title:has(.cm-active) {
   display: flex;
 }
 
-/* 内容横向排：仅外壳直接内容容器（> 收紧），不命中子栏的 callout-content。
-   gap / align-items 用 CSS 变量（M4 设置默认值；外壳参数由回放脚本写内联覆盖）；
-   flex-wrap 为 H3 窄屏响应式堆叠 */
+/* Content horizontally aligned: shell direct content container only (> tightened), not hitting subcolumn's callout-content.
+   gap / align-items using CSS variables (M4 sets default values; shell parameters are overridden inline by playback script writing);
+   flex-wrap is H3 narrow screen responsive stacking */
 body.be-columns-live-on .callout[data-callout='multi-column'] > .callout-content {
   display: flex;
   align-items: var(--be-col-valign, stretch);
   gap: var(--be-col-gap, 10px);
   flex-wrap: wrap;
-  /* 收敛潜在垂直 padding（主题若给 callout-content 默认 padding 会放大上下间距） */
+  /* Convergence of potential vertical padding (if the theme gives callout-content the default padding, it will enlarge the upper and lower spacing) */
   padding: 0 !important;
 }
 
-/* 阅读模式专用：外壳上下间距 1em（不再左右缩进），外壳与子栏圆角统一。
-   圆角值读 CSS 变量（M4 设置默认；外壳 radius= 参数由回放脚本写内联覆盖）。
-   仅限 reading/preview 视图，不影响 Live Preview widget */
+/* Special for reading mode: The top and bottom spacing of the shell is 1em (no more left and right indentation), and the rounded corners of the shell and sub-column are unified.
+   Rounding values ​​read CSS variables (M4 sets default; shell radius= parameter is overridden by the playback script writing inline).
+   Only reading/preview view, does not affect Live Preview widget */
 body.be-columns-live-on .markdown-reading-view .callout[data-callout='multi-column'],
 body.be-columns-live-on .markdown-preview-view .callout[data-callout='multi-column'] {
   margin: 1em 0 !important;
@@ -739,10 +739,10 @@ body.be-columns-live-on .markdown-preview-view
   border-radius: var(--be-col-radius, 8px) !important;
 }
 
-/* 阅读模式专用：子栏内部文字距背景色边缘 +5px。
-   子栏 callout 的 padding 已在上方清零（0），callout-content 主题无默认 padding，
-   实际现状间距为 0，故按实际默认 +5px 落地为 5px；只动左右，上下保持默认。
-   同时覆盖子栏被 .cm-callout 包装的结构。仅限 reading/preview 视图 */
+/* Reading mode only: The text inside the subcolumn is +5px from the edge of the background color.
+   The padding of the subcolumn callout has been cleared (0) at the top, and the callout-content theme has no default padding.
+   The actual current spacing is 0, so according to the actual default +5px, the landing is 5px; only move left and right, and keep the default up and down.
+   Also overwrites the structure of the subcolumn wrapped by .cm-callout. reading/preview view only */
 body.be-columns-live-on .markdown-reading-view
   .callout[data-callout='multi-column']
   .callout-content
@@ -769,9 +769,9 @@ body.be-columns-live-on .markdown-preview-view
   padding-right: 5px !important;
 }
 
-/* 实时预览渲染态专用：子栏内部文字距背景色边缘 +5px（与阅读模式一致）。
-   覆盖直接子级与 .cm-callout 包装两种结构；
-   不命中编辑态 .block-editor-col-editor（其已有 padding: 4px 6px） */
+/* Special for Live Preview rendering state: the text inside the subcolumn is +5px from the edge of the background color (consistent with reading mode).
+   Cover both direct children and .cm-callout wrapper structures;
+   Does not hit the editing state .block-editor-col-editor (it already has padding: 4px 6px) */
 body.be-columns-live-on .markdown-source-view
   .callout[data-callout='multi-column']
   .callout-content
@@ -787,10 +787,10 @@ body.be-columns-live-on .markdown-source-view
   padding-right: 5px !important;
 }
 
-/* 栏：兼容直接子级与容器包装（.cm-callout）两种结构，去 chrome 并均分。
-   背景用无 !important 的 background-color（非 shorthand）兜底透明：
-   阅读模式 MarkdownPostProcessor 按 `[!col|bg=#xxxxxx]` 设置的内联 background-color 才能覆盖
-   min-width 240px：H3 窄屏响应式堆叠的断点基准 */
+/* Column: Compatible with both direct child and container wrapper (.cm-callout) structures, go to chrome and divide equally.
+   Use background-color without !important (not shorthand) to make the background completely transparent:
+   Reading mode MarkdownPostProcessor can be overridden by the inline background-color set by `[!col|bg=#xxxxxx]`
+   min-width 240px: Breakpoint benchmark for H3 narrow-screen responsive stacking */
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .callout,
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .cm-callout {
   flex: 1 1 0;
@@ -803,10 +803,10 @@ body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content >
   margin: 0 !important;
 }
 
-/* 实时预览渲染态：.cm-callout 内层还有一层 .callout（子栏本体），
-   必须一并去 chrome（snippet 全局 .callout{padding:5px} 会作用到它，
-   且 Obsidian 默认 callout 有左侧边框），否则左右 padding 叠加不对称。
-   背景用无 !important 的 background-color 兜底透明，不覆盖内联背景色 */
+/* Real-time preview of rendering state: .cm-callout has an inner layer of .callout (subcolumn body).
+   You must go to chrome together (snippet global .callout{padding:5px} will affect it,
+   And Obsidian's default callout has a left border), otherwise the left and right padding will be superimposed asymmetrically.
+   Use background-color without !important to make the background completely transparent and not cover the inline background color. */
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .cm-callout > .callout {
   padding: 0 !important;
   margin: 0 !important;
@@ -821,14 +821,14 @@ body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content >
   display: none;
 }
 
-/* 栏标记行被编辑时临时显示其标题 */
+/* Column marker rows temporarily display their titles when they are edited */
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content .callout-title:has(.cm-active) {
   display: flex;
 }
 
-/* 栏间结构性节点：
-   阅读视图空段直接隐藏；
-   Live Preview 渲染为 1px 竖直分隔线（不用 display:none，避免干扰编辑器容器测量） */
+/* Structural nodes between columns:
+   Empty sections in the reading view are directly hidden;
+   Live Preview is rendered as a 1px vertical divider (without display:none to avoid interfering with the editor container measurement) */
 body.be-columns-live-on .markdown-reading-view
   .callout[data-callout='multi-column']
   > .callout-content
@@ -857,16 +857,16 @@ body.be-columns-live-on .markdown-source-view
   color: transparent;
 }
 
-/* ===== 分栏：H1 border 参数 / 阅读模式回放 class ===== */
-/* 外壳写了 border 参数（或设置默认开）时，回放脚本给子栏加 .be-col-border，
-   此处描边（覆盖上方子栏去 chrome 的 border:none） */
+/* ===== Column: H1 border parameter / reading mode playback class ===== */
+/* When the shell writes the border parameter (or sets it to be on by default), the playback script adds .be-col-border to the subcolumn.
+   Stroke here (cover the upper subbar and go to chrome's border:none) */
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .callout.be-col-border,
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .cm-callout.be-col-border > .callout {
   border: 1px solid var(--background-modifier-border) !important;
 }
 
-/* M4 默认边框：设置 columnsBorder=true 时（--be-col-border=1px）给子栏描边。
-   优先级低于参数化 class（同特异性后者覆盖），且仅作用于阅读模式/原生渲染的 callout */
+/* M4 default border: When columnsBorder=true is set (--be-col-border=1px), the sub-column is stroked.
+   The priority is lower than the parameterized class (the latter overrides the same specificity), and only affects the callout of reading mode/native rendering. */
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .callout,
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .cm-callout > .callout {
   border-style: solid !important;
@@ -874,9 +874,9 @@ body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content >
   border-width: var(--be-col-border, 0px) !important;
 }
 
-/* ===== 分栏：H2 二维行 colrow 行标记（阅读模式 / 原生渲染） ===== */
-/* colrow 强制整行换行占位：flex 1 0 100% 让它独占一行，height 0 隐藏自身。
-   内容整体隐藏（标题、正文都不渲染），仅作为行分隔点 */
+/* ===== Column: H2 two-dimensional row colrow row mark (reading mode / native rendering) ===== */
+/* colrow forces the entire line to wrap: flex 1 0 100% makes it occupy a line by itself, height 0 hides itself.
+   The entire content is hidden (the title and text are not rendered) and only serve as line separators. */
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .callout[data-callout='colrow'],
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .cm-callout > .callout[data-callout='colrow'] {
   flex: 1 0 100%;
@@ -895,7 +895,7 @@ body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content >
   display: none !important;
 }
 
-/* ===== H4 拖拽贴边快速分栏：贴边指示竖线 ===== */
+/* ===== H4 Drag and drop the welt to quickly divide the columns: the welt indicates the vertical line ===== */
 .block-editor-edge-line {
   display: none;
   position: absolute;
@@ -904,12 +904,12 @@ body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content >
   background: var(--interactive-accent);
   box-shadow: 0 0 6px var(--interactive-accent);
   pointer-events: none;
-  /* 挂在 .cm-editor 内（overflow:hidden），z-index 只需高于编辑器正文 */
+  /* Hang inside .cm-editor (overflow:hidden), z-index only needs to be higher than the editor body */
   z-index: 6;
 }
 
-/* 四向落区·贴边分栏：目标块整体描边（虚线 accent），提示「此块将与拖动块合成分栏」；
-   与移动时的横向插入线（2px 实线）在形态上明确区分，避免两种落点模式混淆 */
+/* Four-way drop area·adjacent column: the target block is overall stroked (dashed line accent), and the prompt "This block will be combined with the dragged block to form a column";
+   It is clearly distinguished from the horizontal insertion line (2px solid line) when moving to avoid confusion between the two drop point modes. */
 .block-editor-edge-box {
   display: none;
   position: absolute;
@@ -919,16 +919,16 @@ body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content >
   background: rgba(128, 128, 128, 0.08);
   background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
   pointer-events: none;
-  /* 挂在 .cm-editor 内（overflow:hidden），z-index 只需高于编辑器正文 */
+  /* Hang inside .cm-editor (overflow:hidden), z-index only needs to be higher than the editor body */
   z-index: 5;
 }
 
-/* ===== 需求 A：拖块进分栏新增一栏 —— 插入位竖条 =====
-   与 .block-editor-edge-line（贴边合成分栏的竖线）刻意区分：
-   - 形态：竖条无光晕、加宽端点，与 edge-line 的发光细线一眼可辨
-   - 语义：edge-line = 「与目标块合成分栏」；本条 = 「新栏插在这里」
-   命中栏间插入带时，参照栏描边（edge-box）也会亮起，两者叠加表示
-   「在两栏之间插入一栏」。 */
+/* ===== Requirement A: Drag the block into the column to add a new column - insert vertical bar =====
+   Deliberately distinguished from .block-editor-edge-line (the vertical line that combines the edges into columns):
+   - Shape: Vertical bars without halo, widened endpoints, and edge-line's glowing thin lines are easily distinguishable at a glance
+   - Semantics: edge-line = "Combined column with target block"; this article = "Insert new column here"
+   When inserting a band between hit columns, the reference column stroke (edge-box) will also light up, and the two will be superimposed.
+   "Insert a column between two columns". */
 .block-editor-col-slot {
   display: none;
   position: absolute;
@@ -936,41 +936,41 @@ body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content >
   border-radius: 1px;
   background: var(--interactive-accent);
   pointer-events: none;
-  /* 端点小圆头，暗示"这里可以插入"而非"这里是一条边" */
+  /* The small round head at the end point implies "here can be inserted" rather than "here is an edge" */
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--interactive-accent) 22%, transparent);
-  /* 高于 edge-box(5) / edge-line(6)，避免被参照栏描边盖住 */
+  /* Above edge-box(5) / edge-line(6) to avoid being covered by the reference bar stroke */
   z-index: 7;
 }
 
-/* ===== H5 任意块颜色标记：阅读模式容器标记 ===== */
-/* 阅读模式回放给块容器加 data-block-color 并设背景；文字色取亮度对比。
-   作用域说明：applyBlockColorToDom 在 main.ts:59 无条件执行（早于
-   livePreviewWidget 开关判断），块颜色标记功能独立于分栏开关，故
-   不可套 body.be-columns-live-on 前缀，保持阅读视图作用域。 */
+/* ===== H5 arbitrary block color mark: reading mode container mark ===== */
+/* In reading mode playback, add data-block-color to the block container and set the background; the text color takes the brightness contrast.
+   Scope description: applyBlockColorToDom is executed unconditionally in main.ts:59 (earlier than
+   livePreviewWidget switch judgment), the block color marking function is independent of the column switch, so
+   The body.be-columns-live-on prefix cannot be used to maintain the scope of the reading view. */
 .markdown-reading-view [data-block-color] {
   border-radius: 6px;
   padding: 2px 6px;
 }
 
-/* span 承载形态（块末行写回产物 <span data-block-color="..."></span>）：
-   空元素自身无文本，display:none 保证阅读模式不产生空白间距、不显示标签
-   原文；颜色由 applyBlockColorToDom 上到父块级容器，span 本身不参与布局。
-   仅命中空 span，用户手写带文本的 span 不受影响。 */
+/* span carrying state (write-back product of the last line of the block <span data-block-color="..."></span>):
+   The empty element itself has no text. display:none ensures that the reading mode does not produce white space and does not display labels.
+   Original text; Color is transferred from applyBlockColorToDom to the parent block-level container, and span itself does not participate in layout.
+   Only empty spans are hit, user-written spans with text are not affected. */
 .markdown-reading-view span[data-block-color]:empty,
 .markdown-source-view span[data-block-color]:empty {
   display: none;
 }
 
-/* ===== 分栏：实时预览 widget 内代码块与阅读模式样式对齐 ===== */
-/* 根因：ColumnsWidget 由 MarkdownRenderer.render 逐栏渲染快照，widget 容器
-   未处于 .markdown-preview-view / .markdown-reading-view 上下文，主题对阅读
-   模式 pre 的容器化样式（背景/边框/圆角/内边距）无法命中；styles.css 此前
-   也无 widget 内 pre 规则，导致代码块紧凑贴边、无容器感。
-   修复：仅对渲染态 .block-editor-col-content 内的 pre 补齐与阅读模式一致的
-   容器化样式（背景 var(--code-background) #f7f7f7、浅灰边框、约 8px 圆角、
-   约 12px 内边距）。选择器只命中 pre，不影响编辑态 textarea，不影响分栏内
-   文本/图片/列表；分栏外壳与子栏布局不变。 */
+/* ===== Column: Live Preview of the code blocks within the widget aligned with the reading mode style ===== */
+/* Root cause: ColumnsWidget renders snapshots column by column by MarkdownRenderer.render, widget container
+   Not in .markdown-preview-view / .markdown-reading-view context, subject pair reading
+   Containerized styles (background/borders/rounded corners/padding) for mode pre cannot be hit; styles.css previously
+   There are also no pre rules within the widget, resulting in code blocks that are compact and have no sense of container.
+   Fix: Only pre completion in rendering state .block-editor-col-content is consistent with reading mode
+   Containerized style (background var(--code-background) #f7f7f7, light gray border, about 8px rounded corners,
+   ~12px padding). The selector only hits pre, does not affect the editing state textarea, does not affect the column
+   Text/picture/list; the column shell and sub-column layout remain unchanged. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content pre {
   background-color: var(--code-background, #f7f7f7) !important;
   border: 1px solid var(--background-modifier-border) !important;
@@ -978,7 +978,7 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content p
   padding: var(--size-4-3, 12px) !important;
 }
 
-/* pre 内 code 归零，避免主题 inline-code / cm-code 样式叠加破坏卡片容器感 */
+/* The code in pre is reset to zero to avoid the theme inline-code / cm-code style overlay destroying the card container feel. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content pre code {
   background: transparent !important;
   border: none !important;
@@ -986,18 +986,18 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content p
   padding: 0 !important;
 }
 
-/* ===== 分栏：实时预览 widget 内待办复选框显示修复 ===== */
-/* 根因：Obsidian 默认 checkbox 使用负 margin（margin-inline-start:
-   calc(var(--checkbox-size) * -1.5)）把复选框拉到 li 行首；阅读模式依赖
+/* ===== Column: Fixed the display of to-do checkbox in the Live Preview widget ===== */
+/* Root cause: Obsidian's default checkbox uses negative margin (margin-inline-start:
+   calc(var(--checkbox-size) * -1.5)) pulls the checkbox to the beginning of the li line; reading mode depends on
    .markdown-rendered ul { padding-inline-start: 0 } + li { margin-inline-start: 3ch }
-   相互抵消，checkbox 落在行首正常显示。ColumnsWidget 由 MarkdownRenderer.render
-   逐栏渲染快照，widget 容器未处于 .markdown-preview-view / .markdown-rendered
-   上下文，列表缩进规则不命中，而 checkbox 负 margin 仍全局命中，导致复选框
-   向左溢出分栏内容区（.block-editor-col-content 无内边距），再被外层
-   .callout 默认 overflow:hidden 裁切 → 复选框不显示或疑似向左溢出分栏。
-   修复：仅对渲染态 .block-editor-col-content 内的待办复选框将负 margin 归零，
-   改为行内流式排列（margin-inline-end 0.6em 与文本隔开），与阅读模式视觉对齐。
-   选择器只命中 widget 渲染态 checkbox，不影响编辑态 textarea，不影响普通列表。 */
+   Offset each other, the checkbox falls at the beginning of the line and is displayed normally. ColumnsWidget by MarkdownRenderer.render
+   Column-by-column rendering snapshot, widget container is not in .markdown-preview-view / .markdown-rendered
+   Context, the list indentation rule does not hit, while the checkbox negative margin still hits globally, resulting in the checkbox
+   Overflow the column content area to the left (.block-editor-col-content has no padding), and then be
+   .callout defaults to overflow:hidden cropping → the checkbox is not displayed or seems to overflow the column to the left.
+   Fix: Only zero the negative margin for to-do checkboxes in render state .block-editor-col-content.
+   Change to inline flow (margin-inline-end 0.6em separated from text) to visually align with reading mode.
+   The selector only hits the widget rendering state checkbox, and does not affect the editing state textarea, nor the ordinary list. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content ul > li.task-list-item > p > .task-list-item-checkbox,
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content ul > li.task-list-item > .task-list-item-checkbox {
   margin-inline-start: 0;
@@ -1006,12 +1006,12 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content u
   top: 0.2em;
 }
 
-/* 同步兜底：widget 渲染态列表缩进与阅读模式一致。
-   采用标准列表布局：ul/ol 给 padding-inline-start 容纳 outside 圆点，
-   li 不再用 margin-inline-start 左移（否则 outside 圆点被挤到 ul 左边缘外、
-   被 callout overflow:hidden 裁切而不可见）。
-   同时归零 ul/ol 自身垂直 margin 与 padding，消除浏览器默认 1em 上下边距
-   及潜在 padding-block 造成的列表前后空隙。 */
+/* Synchronization: The indentation of the widget rendering state list is consistent with the reading mode.
+   Use standard list layout: ul/ol to padding-inline-start to accommodate outside dots,
+   li no longer uses margin-inline-start to move left (otherwise the outside dot will be squeezed outside the left edge of ul,
+   Cropped and not visible by callout overflow:hidden).
+   At the same time, reset ul/ol's own vertical margin and padding to zero, and eliminate the browser's default 1em top and bottom margins.
+   and gaps before and after the list caused by potential padding-block. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content ul,
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content ol {
   margin-block-start: 0;
@@ -1029,8 +1029,8 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content o
   list-style-type: decimal !important;
 }
 
-/* 显式恢复 li 的 list-item 显示与圆点颜色（widget 脱离 .markdown-rendered
-   上下文，主题/编辑器可能将 ::marker 设为透明或 list-style 设为 '\200B'） */
+/* Explicitly restore li's list-item display and dot color (widget detached from .markdown-rendered
+   context, the theme/editor may set ::marker to transparent or list-style to '\200B') */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content li {
   display: list-item !important;
   margin-inline-start: 0 !important;
@@ -1040,18 +1040,18 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content l
   color: var(--text-normal) !important;
 }
 
-/* ===== 分栏：实时预览 widget 快照基础排版补齐 ===== */
-/* 根因：ColumnsWidget 快照容器 .block-editor-col-content 不处于
-   .markdown-preview-view / .markdown-rendered 上下文，主题对阅读模式正文的
-   行距（--line-height-normal）、段落间距（--p-spacing）、代码文字色
-   （--code-normal）等基础排版规则均不命中：widget 内文字继承 CM6 编辑器
-   行高（偏紧凑），段落无间距，与阅读模式不一致；同时 span[data-block-color]
-   空元素在阅读/源码视图的 display:none 也不命中，可能产生空白间隙。
-   修复：仅对渲染态 .block-editor-col-content 补齐与阅读模式一致的基础排版，
-   选择器不命中编辑态 textarea、不影响普通列表。
-   行距取主题变量 --line-height-normal，使分栏内文字行距与全站统一；段落间距
-   归零（不再叠加 --p-spacing），令段间距与行距一致，避免分栏内段落之间空隙
-   过大、阅读节奏松散。 */
+/* ===== Column: Live Preview widget snapshot basic layout completion ===== */
+/* Root cause: ColumnsWidget snapshot container .block-editor-col-content is not in
+   .markdown-preview-view / .markdown-rendered context, theme for reading mode text
+   Line spacing (--line-height-normal), paragraph spacing (--p-spacing), code text color
+   (--code-normal) and other basic typesetting rules are not hit: the text in the widget inherits the CM6 editor
+   Line height (more compact), no spacing between paragraphs, inconsistent with reading mode; at the same time span[data-block-color]
+   Empty elements also do not hit display:none in the reading/source view, which may result in blank gaps.
+   Repair: Only for rendering state .block-editor-col-content, basic typesetting consistent with reading mode is completed.
+   The selector does not hit the edit state textarea and does not affect the ordinary list.
+   The line spacing takes the theme variable --line-height-normal, so that the text line spacing in the column is consistent with the entire site; the paragraph spacing
+   Return to zero (no longer superimpose --p-spacing), make the paragraph spacing consistent with the line spacing, and avoid gaps between paragraphs in columns
+   Too large and loosely paced to read. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content p,
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content li,
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content h1,
@@ -1068,19 +1068,19 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content p
   margin-block-end: 0;
 }
 
-/* 任务列表项不显示原生圆点（复选框替代） */
+/* Task list items do not display native dots (checkbox replacement) */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content li.task-list-item {
   list-style: none !important;
 }
 
-/* ===== 分栏：widget 内列表项行距收紧（待办行距约 3 倍根因修复） ===== */
-/* 根因：实时预览快照中每个待办项文本位于 li > p 内，主题/默认样式可能给
-   li 内段落叠加垂直 margin，项尾多出整段段落间距，叠加行高后视觉约为
-   正常行高的 3 倍；阅读模式 .markdown-rendered 上下文会将 li 内 p 间距归零
-   （li p { margin: 0 }）使待办项紧凑排列。
-   修复：补阅读模式等效规则——li 自身垂直 margin 与 padding 全归零 + li 内 p
-   垂直 margin 归零。仅命中 widget 渲染态列表项，不影响编辑态 textarea、
-   不影响列表外段落间距，待办项行距与阅读模式一致。 */
+/* ===== Column: The line spacing of the list items in the widget is tightened (to-do line spacing is about 3 times due to repair) ===== */
+/* Root cause: Each to-do item text in the live preview snapshot is located within li > p, and the theme/default style may give
+   The vertical margin is superimposed on the inner paragraphs of li, and the entire paragraph spacing is added at the end of the item. After superimposing the line height, the visual effect is approximately
+   3 times normal line height; reading mode .markdown-rendered context will zero out p spacing within li
+   (li p { margin: 0 }) Make the to-do items compactly arranged.
+   Repair: Complement reading mode equivalent rules - li's own vertical margin and padding are all returned to zero + p inside li
+   Vertical margin is zeroed. Only hits the widget rendering state list item and does not affect the editing state textarea,
+   It does not affect the paragraph spacing outside the list, and the line spacing of to-do items is consistent with the reading mode. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content li {
   margin-block-start: 0;
   margin-block-end: 0;
@@ -1096,9 +1096,9 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content l
   padding-block-end: 0;
 }
 
-/* 任意层级兜底：Obsidian 版本间任务列表渲染层级有差异（可能 li 与 p 之间插入
-   包裹层，或待办项整体渲染为 .task-list-item div 而非 li），直接对语义类
-   .task-list-item 归零垂直 margin，确保待办项之间不叠加段落间距 */
+/* Any level guarantee: There are differences in the task list rendering level between Obsidian versions (possibly inserted between li and p
+   The wrapping layer, or the entire to-do item is rendered as .task-list-item div instead of li), directly to the semantic class
+   .task-list-item zeroes the vertical margin to ensure there is no superimposed paragraph spacing between to-do items */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content .task-list-item,
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content .task-list-item > p,
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content .task-list-item p {
@@ -1108,15 +1108,15 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content .
   padding-block-end: 0;
 }
 
-/* ===== 分栏：widget 内 mark 高亮与阅读模式对齐 ===== */
-/* 根因：ColumnsWidget 快照容器 .block-editor-col-content 不处于
-   .markdown-rendered / .markdown-reading-view 上下文，主题对正文高亮的规则
-   （如 Cupertino 限定 .markdown-reading-view/.markdown-source-view/.markdown-rendered
-   mark）无法命中，mark 背景退化为浏览器默认亮黄色，与分栏外正文
-   （--text-highlight-bg 的浅黄色）不一致。
-   修复：仅对渲染态 .block-editor-col-content 补齐与阅读模式等效的 mark 规则，
-   背景统一走 Obsidian 主题变量 --text-highlight-bg，主题修改高亮色时分栏内外
-   同步变化；不命中编辑态 textarea。 */
+/* ===== Column: Mark highlighting in widget is aligned with reading mode ===== */
+/* Root cause: ColumnsWidget snapshot container .block-editor-col-content is not in
+   .markdown-rendered / .markdown-reading-view context, theme highlighting rules for text
+   (For example, Cupertino limits .markdown-reading-view/.markdown-source-view/.markdown-rendered
+   mark) cannot be hit, the mark background degrades to the browser default bright yellow, and the text outside the column
+   (buff of --text-highlight-bg) is inconsistent.
+   Fix: Only for rendering state .block-editor-col-content, the mark rule equivalent to reading mode is completed.
+   The background is unified using the Obsidian theme variable --text-highlight-bg. When the theme changes the highlight color, it is divided into inside and outside the column.
+   Synchronize changes; does not hit the edit state textarea. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content mark {
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
@@ -1127,48 +1127,48 @@ body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content m
   background-color: var(--text-highlight-bg, #fffb7e);
 }
 
-/* 空块颜色 span：widget 快照内补与阅读/源码视图一致的隐藏（防止产生空白间隙） */
+/* Empty block color span: The widget snapshot is filled with hidden content consistent with the reading/source code view (to prevent blank gaps) */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content span[data-block-color]:empty {
   display: none;
 }
 
-/* 代码文字色与阅读模式一致（pre 背景/边框/圆角已有专门规则） */
+/* The code text color is consistent with the reading mode (pre background/border/rounded corners have special rules) */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content pre code {
   color: var(--code-normal, inherit);
 }
 
-/* 复选框对齐兜底：不依赖 li 直接子级结构（Obsidian 版本间渲染层级有差异），
-   命中 .block-editor-col-content 内任意层级的 checkbox，与上方 li 结构规则
-   互补，保证负 margin 归零、行内流式排列 */
+/* Checkbox alignment: does not rely on li direct sub-level structure (there are differences in rendering levels between Obsidian versions),
+   Hit the checkbox at any level within .block-editor-col-content, consistent with the li structure rules above
+   Complementary, ensuring negative margins are reset to zero and in-line flow arrangement */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content .task-list-item-checkbox {
   margin-inline-start: 0;
   margin-inline-end: 0.6em;
 }
 
-/* ===== 分栏：widget 子栏圆角与阅读模式对齐 ===== */
-/* 阅读模式子栏 callout 有 var(--be-col-radius) 圆角（默认 8px），而 widget 子栏
-   .block-editor-col-editor 被上方全局规则强制直角（border-radius: 0），
-   导致实时预览分栏直角、阅读模式分栏圆角。补一条更高特异性的覆盖，仅限 widget。 */
+/* ===== Column: widget sub-column rounded corners are aligned with reading mode ===== */
+/* Reading mode subcolumn callout has var(--be-col-radius) rounded corners (default 8px), while widget subcolumn
+   .block-editor-col-editor is forced to be right-angled (border-radius: 0) by the global rule above,
+   This causes the Live Preview to have right-angled columns and the reading mode columns to have rounded corners. Add a higher specificity coverage, widget only. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-editor {
   border-radius: var(--be-col-radius, 8px);
 }
 
-/* ===== 分栏：widget 内代码块自动换行防截断 ===== */
-/* 阅读模式 pre 在 .markdown-rendered 上下文默认 white-space: pre-wrap 自动换行；
-   widget 快照脱离该上下文后 pre 回退浏览器默认 white-space: pre，宽代码/长行
-   溢出分栏被外层裁剪（表现为右侧代码显示不全）。补齐换行与断词，与阅读模式一致。 */
+/* ===== Columns: Automatic line wrapping of code blocks within widgets to prevent truncation ===== */
+/* Reading mode pre in .markdown-rendered context defaults to white-space: pre-wrap automatic line wrapping;
+   After the widget snapshot leaves the context, pre falls back to the browser default white-space: pre, wide code/long line
+   The overflow column is clipped by the outer layer (shown as incomplete display of the code on the right side). Complete line breaks and word breaks, consistent with reading mode. */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-content pre {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-/* ===== 分栏：背景色双主题（浅色/深色自动切换） ===== */
-/* 数据模型：子栏内联 --col-bg-light / --col-bg-dark 由阅读模式回放脚本与
-   实时预览 ColumnsWidget 写入（setColBgVars），无背景时移除变量。
-   此处定义 --col-bg 主题作用域：默认取浅色，body.theme-dark 下取深色
-   （无深色时回退浅色）。文字对比色 --col-bg-text 同理：light/dark 各自
-   独立计算（--col-bg-text-light / --col-bg-text-dark），保证两主题下正文
-   可读；链接/代码等仍由各自主题规则覆盖。 */
+/* ===== Column: background color dual theme (light/dark automatic switching) ===== */
+/* Data model: subcolumn inline --col-bg-light / --col-bg-dark by reading mode playback script with
+   Real-time preview of ColumnsWidget writing (setColBgVars), removing variables when there is no background.
+   Define --col-bg theme scope here: light color by default, dark color under body.theme-dark
+   (Return to light color when there is no dark color). Text contrasting color --col-bg-text Same as: light/dark respectively
+   Independent calculation (--col-bg-text-light / --col-bg-text-dark) to ensure that the main text is under two themes
+   Readable; links/code etc. are still covered by respective theme rules. */
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .callout[data-callout='col'],
 body.be-columns-live-on .callout[data-callout='multi-column'] .callout-content > .cm-callout > .callout[data-callout='col'] {
   --col-bg: var(--col-bg-light, transparent);
@@ -1183,7 +1183,7 @@ body.be-columns-live-on.theme-dark .callout[data-callout='multi-column'] .callou
   --col-bg-text: var(--col-bg-text-dark, var(--col-bg-text-light, var(--text-normal)));
 }
 
-/* 实时预览 widget：快照脱离 .markdown-rendered 上下文，需显式补主题作用域规则 */
+/* Real-time preview widget: Snapshot is out of .markdown-rendered context and needs to be explicitly supplemented with theme scope rules */
 body.be-columns-live-on .block-editor-columns-widget .block-editor-col-editor {
   --col-bg: var(--col-bg-light, transparent);
   --col-bg-text: var(--col-bg-text-light, var(--text-normal));
@@ -1196,9 +1196,9 @@ body.be-columns-live-on.theme-dark .block-editor-columns-widget .block-editor-co
   --col-bg-text: var(--col-bg-text-dark, var(--col-bg-text-light, var(--text-normal)));
 }
 
-/* ===== 设置页：支持作者（打赏收款码，可折叠） ===== */
-/* 由 settings.ts donateGroups() 生成：框架为 render 行预留的 info/control
-   容器不参与布局，整行交给 <details> 接管。 */
+/* ===== Settings page: Support the author (reward payment code, foldable) ===== */
+/* Generated by settings.ts donateGroups(): info/control reserved by the framework for render lines
+   The container does not participate in layout, and the entire row is taken over by <details>. */
 .be-donate-row {
   display: block;
 }
@@ -1267,7 +1267,7 @@ body.be-columns-live-on.theme-dark .block-editor-columns-widget .block-editor-co
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  /* 窄面板下换行而不是被压缩，避免二维码被裁切 */
+  /* Line wrapping in narrow panels instead of being compressed prevents the QR code from being cropped */
   flex: 0 0 auto;
   margin: 0;
   padding: 12px;
@@ -1276,7 +1276,7 @@ body.be-columns-live-on.theme-dark .block-editor-columns-widget .block-editor-co
   border-radius: 8px;
 }
 
-/* 二维码底色固定为白，保证深色主题下仍可被正常扫描；点击可放大 */
+/* The background color of the QR code is fixed to white to ensure that it can still be scanned normally under dark themes; click to enlarge */
 .be-donate-code img {
   display: block;
   width: 180px;
@@ -1297,7 +1297,7 @@ body.be-columns-live-on.theme-dark .block-editor-columns-widget .block-editor-co
   font-size: var(--font-ui-smaller, 12px);
 }
 
-/* ===== 收款码放大预览弹窗 ===== */
+/* ===== Payment code enlarged preview pop-up window ===== */
 .modal.be-image-preview-modal {
   width: auto;
   max-width: 90vw;
@@ -1321,22 +1321,22 @@ body.be-columns-live-on.theme-dark .block-editor-columns-widget .block-editor-co
   background: #fff;
 }
 
-/* ===== 块颜色标记：双主题（浅色/深色自动切换） ===== */
-/* 数据模型：元素内联 --be-block-color-light / --be-block-color-dark 由
-   实时预览 CM6 装饰（blockColorField）与阅读模式回放（applyBlockColorToDom）
-   写入（setBlockColorVars）；无 dark 时不设变量，此处回退 light。
-   此处定义 --be-block-color 主题作用域：默认取浅色，body.theme-dark 下
-   取深色（无深色时回退浅色）。文字对比色 --be-block-color-text 同理：
-   light/dark 各自独立计算（--be-block-color-text-light / -dark），命名色
-   不计算对比色时回退主题默认正文色。与分栏背景（--col-bg）同一模式。 */
+/* ===== Block Color Marking: Dual Theme (Light/Dark Automatic Switching) ===== */
+/* Data model: Element inline --be-block-color-light / --be-block-color-dark by
+   Real-time preview of CM6 decoration (blockColorField) and reading mode playback (applyBlockColorToDom)
+   Write (setBlockColorVars); no variable is set when there is no dark, and the light is returned here.
+   Define here --be-block-color theme scope: default to light color, under body.theme-dark
+   Take the dark color (fall back to the light color if there is no dark color). Text contrasting color --be-block-color-text Same as:
+   light/dark are calculated independently (--be-block-color-text-light / -dark), named colors
+   When contrasting colors are not calculated, fall back to the theme's default text color. Same mode as column background (--col-bg). */
 
-/* 实时预览：CM6 line 装饰只把 light/dark 具体值写进 .cm-line 内联变量，
-   主题切换作用域在此定义（内联 style 已消费 var(--be-block-color)）。
-   作用域说明：blockColorField 在 main.ts:42 无条件注册，编辑模式颜色
-   标记独立于 live-on 开关，故不可收窄到 body.be-columns-live-on；
-   .cm-line 是 CM6 编辑器行容器专属元素（仅存在于编辑器 DOM），且
-   此处只定义 --be-block-color* 插件专属变量、不声明任何普通样式属性，
-   全局命中无副作用，保持现状。 */
+/* Real-time preview: CM6 line decoration only writes the specific value of light/dark into the .cm-line inline variable.
+   Theme switching scope is defined here (inline style has consumed var(--be-block-color)).
+   Scope description: blockColorField is unconditionally registered in main.ts:42, editing mode color
+   The tag is independent of the live-on switch, so it cannot be narrowed to body.be-columns-live-on;
+   .cm-line is a CM6 editor line container-specific element (only exists in the editor DOM), and
+   Only the --be-block-color* plugin-specific variables are defined here, and no common style attributes are declared.
+   Global hits have no side effects and maintain the status quo. */
 .cm-line {
   --be-block-color: var(--be-block-color-light, transparent);
   --be-block-color-text: var(--be-block-color-text-light, var(--text-normal));
@@ -1347,7 +1347,7 @@ body.theme-dark .cm-line {
   --be-block-color-text: var(--be-block-color-text-dark, var(--be-block-color-text-light, var(--text-normal)));
 }
 
-/* 阅读模式：回放脚本写内联变量并打 data-block-color 属性，此处消费 */
+/* Reading mode: Playback script writes inline variables and sets the data-block-color attribute, consumed here */
 [data-block-color] {
   --be-block-color: var(--be-block-color-light, transparent);
   --be-block-color-text: var(--be-block-color-text-light, var(--text-normal));
@@ -1360,8 +1360,8 @@ body.theme-dark [data-block-color] {
   --be-block-color-text: var(--be-block-color-text-dark, var(--be-block-color-text-light, var(--text-normal)));
 }
 
-/* ===== 分栏：选色浮层折叠式"覆盖深色"入口 ===== */
-/* 展开后设置深色主题下的背景色；清除后恢复自动推导。 */
+/* ===== Column: Color selection floating layer folding "cover dark" entrance ===== */
+/* Set the background color under dark theme after expansion; restore automatic derivation after clearing. */
 .block-editor-col-picker-dark-toggle {
   border: none;
   box-shadow: none;
@@ -1428,7 +1428,7 @@ body.theme-dark [data-block-color] {
   color: var(--text-on-accent);
 }
 
-/* 分栏诊断弹窗：JSON 文本展示样式（commands.ts ColumnsDiagModal） */
+/* Column diagnostic pop-up window: JSON text display style (commands.ts ColumnsDiagModal) */
 .block-editor-diag-pre {
   font-size: 12px;
   white-space: pre-wrap;

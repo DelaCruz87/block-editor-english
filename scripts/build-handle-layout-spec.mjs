@@ -1,7 +1,6 @@
-/**
- * 把 src/handle-layout.ts 用 esbuild 打成 ESM .mjs，
- * 供 handle-layout-spec.mjs 在纯 Node 里断言（无需 Obsidian / DOM）。
- */
+/* *
+ * Use esbuild to build src/handle-layout.ts into ESM .mjs,
+ * For handle-layout-spec.mjs to assert in pure Node (no Obsidian/DOM required). */
 import { build } from 'esbuild';
 import { mkdirSync } from 'node:fs';
 

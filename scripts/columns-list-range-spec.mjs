@@ -1,16 +1,15 @@
-/**
- * `listColumnRange` 的作用范围探测回归。
+/* *
+ * Scope detection regression for `listColumnRange`.
  *
- * 背景（真实隐患）：`actionRanges` 在单选时只返回光标所在的**那一个**列表项，
- * 而 `getBlockAtLine` 对列表项只返回当前项（不含更深的子项）→ 光标停在子项上时
- * 范围只有一行，切不开栏，菜单项会永远置灰。
- * `listColumnRange` 的职责就是把「整个同级列表」纳入范围。
+ * Background (real hidden danger): `actionRanges` only returns the list item where the cursor is located during single selection.
+ * `getBlockAtLine` only returns the current item (excluding deeper sub-items) for list items → when the cursor stops on the sub-item
+ * The range has only one row, the column cannot be cut, and the menu item will always be grayed out.
+ * The responsibility of `listColumnRange` is to include the "entire peer list" in scope.
  *
- * 该函数是纯几何逻辑，这里按其源码规则复刻并断言，
- * 同时用源码守卫确保实现没有退化回actionRanges。
+ * This function is pure geometric logic. It is reproduced and asserted according to its source code rules.
+ * Also use source code guards to ensure that the implementation does not degenerate back to actionRanges.
  *
- * 运行：node scripts/columns-list-range-spec.mjs
- */
+ * Run: node scripts/columns-list-range-spec.mjs */
 import { readFileSync } from 'node:fs';
 
 let pass = 0, fail = 0;
@@ -20,7 +19,7 @@ const eq = (a, b, l) => ok(JSON.stringify(a) === JSON.stringify(b), `${l}\n     
 const LIST_ITEM_RE = /^(\s*)(?:[-*+]|\d+[.)])\s+/;
 const indentWidth = (l) => (l.match(/^(\s*)/) || ['', ''])[1].length;
 
-/** listColumnRange 单选分支的镜像实现（多选分支由 selection 负责，此处不测） */
+/* * Mirror implementation of listColumnRange single-selection branch (multi-selection branch is responsible for selection, not tested here) */
 function rangeOf(lines, blockStart, blockEnd) {
   let start = blockStart;
   let base = indentWidth(lines[blockStart]);
@@ -38,72 +37,72 @@ function rangeOf(lines, blockStart, blockEnd) {
   return { start, end: blockEnd };
 }
 
-console.log('\n=== 1. 光标在子项上：向上并入顶层父项 ===');
+console.log("=== 1. The cursor is on the child: merge upward into the top-level parent ===");
 {
-  const lines = ['- 父项', '  - 子项A', '  - 子项B', '段落'];
-  eq(rangeOf(lines, 1, 1), { start: 0, end: 1 }, '从子项向上并入顶层父项');
-  eq(rangeOf(lines, 2, 2), { start: 0, end: 2 }, '从第二个子项向上并入顶层父项');
+  const lines = ['- \u7236\u9879', '  - \u5b50\u9879A', '  - \u5b50\u9879B', '\u6bb5\u843d'];
+  eq(rangeOf(lines, 1, 1), { start: 0, end: 1 }, "Merge from children up to top-level parent");
+  eq(rangeOf(lines, 2, 2), { start: 0, end: 2 }, "Merges upward from the second child into the top-level parent");
 }
 
-console.log('\n=== 1b. 嵌套列表：光标在孙项上并入顶层 ===');
+console.log("=== 1b. Nested list: The cursor merges into the top level on the grandchild ===");
 {
-  const lines = ['- L1', '  - L2', '    - L3', '    - L4', '- 下一个'];
-  eq(rangeOf(lines, 2, 2), { start: 0, end: 2 }, '孙项向上跨两层并入顶层项');
-  eq(rangeOf(lines, 3, 3), { start: 0, end: 3 }, '另一孙项同样并入');
+  const lines = ['- L1', '  - L2', '    - L3', '    - L4', '- \u4e0b\u4e00\u4e2a'];
+  eq(rangeOf(lines, 2, 2), { start: 0, end: 2 }, "The grandchild item crosses two levels upward and merges into the top-level item");
+  eq(rangeOf(lines, 3, 3), { start: 0, end: 3 }, "Another grandchild was also incorporated");
 }
 
-console.log('\n=== 1c. 嵌套列表：光标在中层项上 ===');
+console.log("=== 1c. Nested list: cursor on middle item ===");
 {
-  const lines = ['- L1', '  - L2', '    - L3', '- 下一个'];
-  eq(rangeOf(lines, 1, 1), { start: 0, end: 1 }, '中层项向上并入顶层项');
+  const lines = ['- L1', '  - L2', '    - L3', '- \u4e0b\u4e00\u4e2a'];
+  eq(rangeOf(lines, 1, 1), { start: 0, end: 1 }, "Middle-level items are merged upward into top-level items");
 }
 
-console.log('\n=== 2. 光标在首行父项：范围就是自己 ===');
+console.log("=== 2. The cursor is on the first line of parent: the scope is itself ===");
 {
-  const lines = ['- 甲', '  - 子', '- 乙', '  - 子'];
-  eq(rangeOf(lines, 0, 0), { start: 0, end: 0 }, '父项本身不被扩展');
+  const lines = ['- \u7532', '  - \u5b50', '- \u4e59', '  - \u5b50'];
+  eq(rangeOf(lines, 0, 0), { start: 0, end: 0 }, "The parent itself is not expanded");
 }
 
-console.log('\n=== 3. 向上跨越更深的孙项继续归并 ===');
+console.log("=== 3. Go up to the deeper grandson and continue to merge ===");
 {
-  const lines = ['- 父项', '  - 子项', '    - 孙项', '- 下一个父项'];
-  eq(rangeOf(lines, 2, 2), { start: 0, end: 2 }, '孙项向上仍并入同一父项区间');
+  const lines = ['- \u7236\u9879', '  - \u5b50\u9879', '    - \u5b59\u9879', '- \u4e0b\u4e00\u4e2a\u7236\u9879'];
+  eq(rangeOf(lines, 2, 2), { start: 0, end: 2 }, "The grandchildren are still merged into the same parent range upwards");
 }
-console.log('\n=== 4. 遇到空行停止 ===');
+console.log("=== 4. Stop when encountering a blank line ===");
 {
-  const lines = ['- 甲', '', '- 乙', '  - 子'];
-  eq(rangeOf(lines, 2, 3), { start: 2, end: 3 }, '空行是边界，不跨过');
-}
-
-console.log('\n=== 5. 遇到无缩进的正文停止 ===');
-{
-  const lines = ['正文段落', '- 甲', '  - 子'];
-  eq(rangeOf(lines, 1, 2), { start: 1, end: 2 }, '顶格正文不并入');
+  const lines = ['- \u7532', '', '- \u4e59', '  - \u5b50'];
+  eq(rangeOf(lines, 2, 3), { start: 2, end: 3 }, "Blank lines are boundaries and should not be crossed");
 }
 
-console.log('\n=== 6. 不同缩进的同级项不被误并 ===');
+console.log("=== 5. Stop when encountering unindented text ===");
 {
-  const lines = ['  - 深缩进项', '- 顶格项'];
-  eq(rangeOf(lines, 1, 1), { start: 1, end: 1 }, '顶格项不向上并入更深缩进的行');
+  const lines = ['\u6b63\u6587\u6bb5\u843d', '- \u7532', '  - \u5b50'];
+  eq(rangeOf(lines, 1, 2), { start: 1, end: 2 }, "Top text is not merged");
 }
 
-console.log('\n=== 7. 源码守卫：listColumnRange 不得回退成 actionRanges ===');
+console.log("=== 6. Same-level items with different indentations will not be merged ===");
+{
+  const lines = ['  - \u6df1\u7f29\u8fdb\u9879', '- \u9876\u683c\u9879'];
+  eq(rangeOf(lines, 1, 1), { start: 1, end: 1 }, "Top cell items do not merge upward into more deeply indented lines");
+}
+
+console.log("=== 7. Source code guard: listColumnRange must not fall back to actionRanges ===");
 {
   const src = readFileSync('src/convert.ts', 'utf8');
   const m = src.match(/private listColumnRange[\s\S]*?\n  }\n/);
-  ok(!!m, 'listColumnRange 方法存在');
+  ok(!!m, "listColumnRange method exists");
   if (m) {
     const body = m[0];
-    ok(!body.includes('actionRanges'), '未使用 actionRanges（否则单选时范围只有一项）');
-    ok(body.includes('indentWidth'), '按缩进探测同级列表范围');
+    ok(!body.includes('actionRanges'), "actionRanges is not used (otherwise there is only one item in the range for single selection)");
+    ok(body.includes('indentWidth'), "Detect sibling list range by indentation");
   }
   ok(
     /listColumnCount[\s\S]{0,400}listColumnRange/.test(src),
-    'listColumnCount 使用 listColumnRange 而非 actionRanges'
+    "listColumnCount uses listColumnRange instead of actionRanges"
   );
   ok(
     /wrapListToColumns[\s\S]{0,900}listColumnRange/.test(src),
-    'wrapListToColumns 使用 listColumnRange 而非 actionRanges'
+    "wrapListToColumns uses listColumnRange instead of actionRanges"
   );
 }
 

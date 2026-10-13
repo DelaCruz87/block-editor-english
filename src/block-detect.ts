@@ -14,12 +14,12 @@ interface ScanResult {
   fmEnd: number;
 }
 
-/** 块识别：围栏代码块 / 公式块 / 表格扫描与逐行块定位 */
+/** Block recognition: fence code blocks / formula blocks / table scan and line-by-line block positioning */
 export class BlockDetector {
   private scanCache: ScanResult | null = null;
 
-  // 单次遍历收集「围栏代码块 / 公式块 / 表格 / 属性区范围」。
-  // CM6 文档不可变，可直接用对象身份做缓存键：改一个字就换对象，缓存自动失效
+  // Collect "fence code blocks/formula blocks/tables/attribute area ranges" in a single traversal.
+  // CM6 documents are immutable, and the object identity can be directly used as the cache key: changing a word changes the object, and the cache automatically expires.
   getScan(editor: Editor): { list: ContainerRange[]; fmEnd: number } {
     const cm = getCM(editor);
     if (!cm) return { list: [], fmEnd: -1 };
@@ -33,7 +33,7 @@ export class BlockDetector {
     let mathStart = -1;
     let tableStart = -1;
 
-    // 属性区（frontmatter）只可能出现在开头，扫描上限 500 行，避免畸形文档导致全文扫描
+    // The attribute area (frontmatter) can only appear at the beginning, and the scanning limit is 500 lines to avoid full-text scanning of malformed documents.
     let fmEnd = -1;
     if (/^---\s*$/.test(editor.getLine(0))) {
       const limit = Math.min(total, 500);
@@ -105,7 +105,7 @@ export class BlockDetector {
     return null;
   }
 
-  // 该行之前最后一个「大块」的结束行 + 1，用来防止向上回溯时跨过代码块
+  // The ending line of the last "chunk" before this line + 1, used to prevent the code block from being crossed when backtracking upwards
   getFloorLine(editor: Editor, lineIndex: number): number {
     let floor = 0;
     for (const c of this.getContainers(editor)) {
@@ -118,20 +118,20 @@ export class BlockDetector {
     const total = editor.lineCount();
     if (lineIndex < 0 || lineIndex >= total) return null;
 
-    // 属性区（frontmatter）不给手柄，避免整块被误删
+    // The attribute area (frontmatter) is not given a handle to prevent the entire block from being accidentally deleted.
     const fmEnd = this.getFrontmatterEnd(editor);
     if (fmEnd !== -1 && lineIndex <= fmEnd) return null;
 
-    // 代码块 / 公式块 / 表格
+    // Code Block/Formula Block/Table
     const container = this.findContainerAt(editor, lineIndex);
     if (container) return container;
 
     const line = editor.getLine(lineIndex);
 
-    // 空行：依然给出手柄，方便就地插入新块
+    // Empty row: Still gives handles, making it easy to insert new blocks in place
     if (line.trim() === '') return { start: lineIndex, end: lineIndex, type: 'empty' };
 
-    // 标题：连同下面的正文算作一段（到下一个同级或更高级标题为止）
+    // Title: counts as one paragraph together with the following text (until the next title of the same level or higher)
     const heading = line.match(/^(\s*)(#{1,6})\s/);
     if (heading) {
       const level = heading[2].length;
@@ -145,7 +145,7 @@ export class BlockDetector {
       return { start: lineIndex, end, type: 'heading' };
     }
 
-    // 引用 / Callout：向上回溯到整块首行
+    // Quote/Callout: trace back up to the first line of the entire block
     if (/^\s*>/.test(line)) {
       const floor = this.getFloorLine(editor, lineIndex);
       let start = lineIndex;
@@ -159,7 +159,7 @@ export class BlockDetector {
       return { start, end, type };
     }
 
-    // 列表项（含子项）
+    // List items (including sub-items)
     const listMatch = line.match(/^(\s*)([-*+]|\d+[.)])\s+/);
     if (listMatch) {
       const indent = listMatch[1].length;
@@ -174,7 +174,7 @@ export class BlockDetector {
       return { start: lineIndex, end, type: 'list' };
     }
 
-    // 默认：单行
+    // Default: single line
     return { start: lineIndex, end: lineIndex, type: 'line' };
   }
 }

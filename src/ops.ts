@@ -6,18 +6,17 @@ import type BlockEditorPlugin from './main';
 import { getCM, getIndent, getLines, keepViewport, shiftIndent } from './util';
 import { renumberOrdered, collectLayerStarts, layerKeyOf } from './list-number';
 
-/** 列表标记（序号上限 9 位，与 CommonMark 一致） */
+/** List mark (the upper limit of the serial number is 9 digits, consistent with CommonMark) */
 const LIST_MARK_RE = /^[\t ]*(?:>[\t ]*)*(?:[-*+]|\d{1,9}[.)])[\t ]+/;
 
 /**
- * 把 [from, to] 向外扩到「列表段」边界 —— 同层级 key 的连续列表项全纳入。
+ * Expand [from, to] outward to the "list segment" boundary - all consecutive list items of the same level key are included.
  *
- * 必须外扩的原因：跨列表移动时，落点之后属于目标列表的项在原 span 之外，
- * 不扩进来它们的序号修不到（会在中间插出一个断号）。
+ * The reason why external expansion is necessary: When moving across lists, the items belonging to the target list after the drop point are outside the original span.
+ * Without expansion, their serial numbers cannot be repaired (a broken number will be inserted in the middle).
  *
- * 起始号不在这里定 —— 由 `collectLayerStarts(搬运前的 span)` 负责，
- * 本函数只负责确定「哪些行属于同一个列表」。
- */
+ * The starting number is not determined here - `collectLayerStarts(Before moving span)` is responsible,
+ * This function is only responsible for determining "which rows belong to the same list". */
 function expandToListSpan(editor: Editor, from: number, to: number): { from: number; to: number } {
   const keyOf = (i: number) => layerKeyOf(editor.getLine(i));
   const isItem = (i: number) => LIST_MARK_RE.test(editor.getLine(i));
@@ -37,12 +36,12 @@ function expandToListSpan(editor: Editor, from: number, to: number): { from: num
   return { from: lo, to: hi };
 }
 
-/** 块操作：移动、删除、插入、缩进、复制内容、创建副本与跨文档搬运 */
+/** Block operations: move, delete, insert, indent, copy content, create copies and move across documents */
 export class BlockOps {
   constructor(private ctx: BlockEditorPlugin) {}
 
-  // 把 ranges 里的行整体搬到 insertLine 之前。整段重写一次，保证只产生一步撤销
-  // quotePrefix 非空时给被搬行统一补引用前缀（拖入引用 / callout 嵌套），与 nestCol 互斥
+  // Move the entire line in ranges before insertLine. Rewrite the entire section once to ensure only one step of undoing
+  // When quotePrefix is non-empty, it will uniformly add the quote prefix to the moved lines (drag into the quote/callout nest), and is mutually exclusive with nestCol.
   moveRanges(
     editor: Editor,
     ranges: BlockRange[],
@@ -55,7 +54,7 @@ export class BlockOps {
     const total = editor.lineCount();
     const insertAt = Math.min(Math.max(insertLine, 0), total);
 
-    // 跨列表移动时，落点之后属于目标列表的项在原 span 之外，不扩进来序号修不到
+    // When moving across lists, the items belonging to the target list after the drop point are outside the original span, and the serial number cannot be repaired without extending it.
     const expanded = expandToListSpan(
       editor,
       Math.min(insertAt, ...sorted.map((r) => r.start)),
@@ -69,7 +68,7 @@ export class BlockOps {
     const offsets = sorted.map((r) => ({ from: r.start - minLine, to: r.end - minLine }));
     const kept = span.filter((_, i) => !offsets.some((o) => i >= o.from && i <= o.to));
 
-    // 落点换算到「移除后」的行号
+    // The drop point is converted to the line number "after removal"
     let at = insertAt - minLine;
     for (const o of offsets) {
       if (o.to < insertAt - minLine) at -= o.to - o.from + 1;
@@ -84,24 +83,24 @@ export class BlockOps {
         for (let i = 0; i < moved.length; i++) moved[i] = shiftIndent(moved[i], nestCol - base);
       }
     } else if (quotePrefix != null && moved.length) {
-      // 引用嵌套：行首统一补前缀（原缩进保留在 `> ` 之后）
+      // Reference nesting: uniformly add prefix at the beginning of the line (the original indentation is retained after `> `)
       for (let i = 0; i < moved.length; i++) moved[i] = quotePrefix + moved[i];
     }
 
     const out = kept.slice(0, at).concat(moved, kept.slice(at));
     const oldText = span.join('\n');
 
-    // 有序列表重编号：Live Preview 显示的是源码数字，搬完必须顺着新位置连号。
-    // 起始号取自**搬运前**的层快照 —— 否则「1. 甲」被拖走后剩下的 2. 乙
-    // 会把整段带成 2/3/4。
+    // Ordered list renumbering: Live Preview displays the source code numbers. After moving, the numbers must be continued along the new position.
+    // The starting number is taken from the layer snapshot **before moving** - otherwise the remaining 2. B after "1. A" is towed away
+    // Will bring the whole section to 2/3/4.
     const renumbered = renumberOrdered(out, {
       layerStarts: collectLayerStarts(span),
     });
     const newText = renumbered.lines.join('\n');
     if (oldText === newText) return;
 
-    // 视口锁定：整段重写会让 CM6 按变更重算视口（移动块/栏/行后整页跳动），
-    // 钉住 scrollTop 让视图停留在当前编辑位置。
+    // Viewport Lock: Whole section rewriting will cause CM6 to recalculate the viewport according to changes (full page jumps after moving blocks/columns/rows),
+    // Pin scrollTop to keep the view at the current editing position.
     keepViewport(getCM(editor), () => {
       editor.replaceRange(
         newText,
@@ -111,7 +110,7 @@ export class BlockOps {
     });
   }
 
-  // 把 ranges 的副本插入 insertLine 之前（拖拽 + Alt），不移动原块
+  // Insert a copy of ranges before insertLine (drag + Alt) without moving the original block
   copyRanges(
     editor: Editor,
     ranges: BlockRange[],
@@ -126,8 +125,8 @@ export class BlockOps {
     this.insertLines(editor, lines, insertLine, nestCol, quotePrefix);
   }
 
-  // 把若干行文本插入 insertLine 之前，可按 nestCol 对齐首行缩进（子行保持相对缩进），
-  // 或按 quotePrefix 统一补引用前缀（拖入引用 / callout 嵌套）
+  // Before inserting several lines of text into insertLine, you can press nestCol to align the indentation of the first line (sub-lines remain relatively indented),
+  // Or press quotePrefix to uniformly supplement the quote prefix (drag into quote/callout nesting)
   insertLines(
     editor: Editor,
     lines: string[],
@@ -148,8 +147,8 @@ export class BlockOps {
     const total = editor.lineCount();
     const insertAt = Math.min(Math.max(insertLine, 0), total);
 
-    // 插入会挤动落点之后同列表的项，序号得顺着新位置重排 → span 扩到整个列表段。
-    // 落点落在文档尾时以最后一行为锚（它属于目标列表）。
+    // Insertion will squeeze the items in the same list after the drop point, and the serial numbers must be rearranged along the new position → span will expand to the entire list segment.
+    // When the drop point falls at the end of the document, it is anchored by the last line (it belongs to the target list).
     const anchorLine = Math.min(insertAt, total - 1);
     const expanded = expandToListSpan(editor, anchorLine, anchorLine);
     const from = expanded.from;
@@ -158,13 +157,13 @@ export class BlockOps {
     const span = getLines(editor, from, to);
     const out = span.slice(0, at).concat(moved, span.slice(at));
 
-    // 副本按落点位置取号；起始号同样取自搬运前的快照
+    // The copy is numbered according to its location; the starting number is also taken from the snapshot before the transfer.
     const renumbered = renumberOrdered(out, { layerStarts: collectLayerStarts(span) });
     const newText = renumbered.lines.join('\n');
     const oldText = span.join('\n');
     if (oldText === newText) return;
 
-    // 视口锁定：插入 / 复制同属编辑操作，视图停在当前编辑位置（不因重算视口跳动）
+    // Viewport lock: Insert/copy are both editing operations, and the view stops at the current editing position (no jump due to viewport recalculation)
     keepViewport(getCM(editor), () => {
       editor.replaceRange(
         newText,
@@ -174,7 +173,7 @@ export class BlockOps {
     });
   }
 
-  // 跨文档移动：文本插入目标文档，再从源文档删除。两份文档各产生一步撤销
+  // Cross-document movement: text is inserted into the target document and deleted from the source document. Each of the two documents generates a one-step revocation.
   moveRangesTo(
     targetEditor: Editor,
     sourceEditor: Editor,
@@ -193,10 +192,9 @@ export class BlockOps {
   }
 
   /**
-   * 删除若干行区间。整段重写一次 —— 既保证多段删除只产生一步撤销，
-   * 也能在同一段文本里顺带重编号有序列表（删中间项后序号会断层）。
-   * span 向外扩到列表段边界，避免只修到被删行附近而漏掉后续项。
-   */
+   * Delete several row ranges. Rewrite the entire section once - this ensures that deleting multiple sections only results in one-step undo.
+   * You can also renumber the ordered list in the same paragraph of text (the serial number will be broken after deleting the middle item).
+   * span extends outward to the boundary of the list segment to avoid repairing only to the vicinity of the deleted line and missing subsequent items. */
   removeRanges(editor: Editor, ranges: BlockRange[]): void {
     if (!ranges.length) return;
     const sorted = [...ranges].sort((a, b) => a.start - b.start);
@@ -216,13 +214,13 @@ export class BlockOps {
       (_, i) => !sorted.some((r) => from + i >= r.start && from + i <= r.end)
     );
     const oldText = span.join('\n');
-    // 删除后首行可能变成原来的 2./3.，用搬运前的层快照还原起始值
+    // After deletion, the first row may become the original 2./3.. Use the layer snapshot before the transfer to restore the starting value.
     const newText = renumberOrdered(kept, { layerStarts: collectLayerStarts(span) }).lines.join(
       '\n'
     );
     if (oldText === newText) return;
 
-    // 视口锁定：删除同属编辑操作，视图停在当前编辑位置（不因重算视口跳动）
+    // Viewport lock: Delete the same editing operation, and the view stops at the current editing position (no jump due to viewport recalculation)
     keepViewport(getCM(editor), () => {
       editor.replaceRange(
         newText,
@@ -232,10 +230,10 @@ export class BlockOps {
     });
   }
 
-  // 拖入普通段落 / 标题：Markdown 下只有列表项具备父子结构，故把目标首行「列表化」
-  // （加 `- ` 前缀），并把被拖块插入为其缩进子项；被拖块首行若为普通段落（非列表/
-  // 标题/引用/围栏等），同样补 `- ` 使其成为子列表项。整段重写一次，单步撤销。
-  // copy=true 时保留源块（Alt 拖拽）。
+  // Drag in an ordinary paragraph/title: Only list items under Markdown have a parent-child structure, so the first line of the target is "listed"
+  // (Add `- ` prefix), and insert the dragged block into its indented sub-item; if the first line of the dragged block is an ordinary paragraph (not a list/
+  // title/reference/fence, etc.), also add `- ` to make it a sublist item. Rewrite the entire paragraph once and undo it in one step.
+  // Keep source block when copy=true (Alt drag).
   nestUnderPlainBlock(
     editor: Editor,
     ranges: BlockRange[],
@@ -245,7 +243,7 @@ export class BlockOps {
   ): void {
     if (!ranges.length) return;
     const sources = [...ranges].sort((a, b) => a.start - b.start);
-    // 目标行落在被拖范围内：不处理（防御，正常由调用方保证）
+    // The target row falls within the dragged range: not processed (defense, normality is guaranteed by the caller)
     if (sources.some((r) => targetLine >= r.start && targetLine <= r.end)) return;
 
     const minLine = Math.min(targetLine, sources[0].start);
@@ -265,13 +263,13 @@ export class BlockOps {
 
     const tIdx = keptAbs.indexOf(targetLine);
     if (tIdx < 0) return;
-    // 目标首行列表化：保留缩进与原块标记（如标题 `#`）后加 `- ` 前缀
+    // Listing of the first line of the target: retain the indentation and original block mark (such as the title `#`) followed by the `- ` prefix
     const tLine = kept[tIdx];
     const tIndent = getIndent(tLine);
     kept[tIdx] = tIndent + '- ' + tLine.slice(tIndent.length);
 
-    // 被拖行：整体缩进到 nestCol；首行为普通段落时改为「缩进 + `- ` + 正文」
-    // （否则会被 Markdown 当作上一条目的续行而不成独立子块）
+    // The dragged line: the entire indentation is to nestCol; when the first line is an ordinary paragraph, it is changed to "indent + `- ` + text"
+    // (Otherwise, Markdown will treat it as a continuation of the previous item and not an independent sub-block)
     const moved: string[] = [];
     for (const r of sources) moved.push(...getLines(editor, r.start, r.end));
     const base = getIndent(moved[0]).length;
@@ -301,18 +299,17 @@ export class BlockOps {
   }
 
   /**
-   * 就地复制一份块。副本剥掉块 ID，避免同文出现重复 ID；
-   * 块 ID 独立成行时副本插到 ID 行之后，ID 才仍指向原块。
+   * Make an in-place copy of the block. The copy strips off the block ID to avoid duplicate IDs in the same article;
+   * When the block ID is separated into rows, the ID still points to the original block after the copy is inserted into the ID row.
    *
-   * 整段重写一次：多块副本只产生一步撤销，且能在同一段里重编号有序列表
-   * （副本行标 volatile，序号顺着新位置连）。
-   */
+   * Rewrite the entire section once: multi-block copies only produce one-step undo, and the ordered list can be renumbered in the same section
+   * (The copy row label is volatile, and the serial number is continued along the new position). */
   duplicateBlock(block: BlockContext): void {
     const editor = block.editor;
     const ranges = [...this.ctx.selection.actionRanges(block)].sort((a, b) => a.start - b.start);
     if (!ranges.length) return;
 
-    // 每块的副本插到哪一行之后（块 ID 独立成行时插到 ID 行之后）
+    // After which row is the copy of each block inserted (after the ID row when the block ID is a separate row)
     const copies: { after: number; lines: string[] }[] = [];
     let lo = Infinity;
     let hi = -1;
@@ -361,7 +358,7 @@ export class BlockOps {
     this.ctx.handle.hideHandle();
   }
 
-  // 光标所在块创建副本（命令面板用，不依赖手柄）
+  // Create a copy of the block where the cursor is located (used in the command panel, does not rely on the handle)
   duplicateCurrentBlock(editor: Editor): void {
     const cursor = editor.getCursor();
     const block = this.ctx.detector.getBlockAtLine(editor, cursor.line);
@@ -391,12 +388,12 @@ export class BlockOps {
   }
 
   deleteBlock(block: BlockContext): void {
-    // 自下而上删，避免行号失效
+    // Delete from bottom to top to avoid invalid line numbers
     this.removeRanges(block.editor, this.ctx.selection.actionRanges(block));
     this.ctx.handle.hideHandle();
   }
 
-  // 在块的上面 / 下面开一个空行并落光标，接着就能直接写
+  // Open a blank line above/below the block and place the cursor, then you can write directly
   insertBlock(block: BlockContext, where: 'above' | 'below'): void {
     const editor = block.editor;
     const total = editor.lineCount();
@@ -442,7 +439,7 @@ export class BlockOps {
     editor.setCursor({ line: cursor.line, ch: Math.min(cursor.ch, editor.getLine(cursor.line).length) });
   }
 
-  // 全文里最小的正缩进量当作一档，找不到就用 4 空格
+  // The smallest positive indentation in the full text is treated as one level. If it cannot be found, use 4 spaces.
   detectIndentStep(editor: Editor): number {
     let min = 0;
     for (let i = 0; i < editor.lineCount(); i++) {
@@ -463,7 +460,7 @@ export class BlockOps {
     const editor = block.editor;
     const ranges = this.ctx.selection.actionRanges(block);
     let text = ranges.map((r) => getLines(editor, r.start, r.end).join('\n')).join('\n');
-    // 只有「就复制这一个代码块」时才剥围栏；选中多块合并成一段时不能剥，否则会误删首尾行
+    // The fence can only be peeled off when "just copy this code block"; it cannot be peeled off when multiple blocks are selected and merged into one section, otherwise the first and last lines will be deleted by mistake.
     const single = ranges.length === 1 && ranges[0].start === block.start && ranges[0].end === block.end;
     if (block.type === 'code' && single) {
       const lines = text.split('\n');

@@ -1,10 +1,9 @@
-/**
- * 端到端验证 extractColumnTo 的文本组装（复刻方法内部逻辑，跑真实 CM6）。
- * 目的：确保「栏拖出」产出的 markdown 结构正确，而不只是判定通过。
+/* *
+ * End-to-end verification of text assembly of extractColumnTo (replicate the internal logic of the method and run real CM6).
+ *Purpose: To ensure that the markdown structure produced by "column dragging" is correct, rather than just passing the judgment.
  *
- * 落点语义：`line` = 插到第 line 行**之前**（0-based）；line === 总行数 表示追加到文末。
- * 分栏区间外的任意行都合法（自由定位）。
- */
+ * Drop point semantics: `line` = inserted before line ** (0-based); line === total number of lines means appended to the end of the text.
+ * Any row outside the column range is legal (free positioning). */
 import {
   buildCombinedChanges,
   buildExtractInsertText,
@@ -18,7 +17,7 @@ let pass = 0, fail = 0;
 const ok = (c, l) => { if (c) { pass++; console.log(`  PASS ${l}`); } else { fail++; console.log(`  FAIL ${l}`); } };
 const eq = (a, b, l) => ok(JSON.stringify(a) === JSON.stringify(b), `${l}\n       got  ${JSON.stringify(a)}\n       want ${JSON.stringify(b)}`);
 
-/** 复刻 columns-preview.ts 的 computeEndPos（真实几何，必须一致，否则测的是假货） */
+/* * Replicate computeEndPos of columns-preview.ts (real geometry, must be consistent, otherwise the measured product will be fake) */
 function computeEndPos(doc, endLine) {
   const hasBreak = endLine + 1 < doc.lines;
   if (hasBreak && (endLine + 2 < doc.lines || doc.line(endLine + 2).text !== '')) {
@@ -28,7 +27,7 @@ function computeEndPos(doc, endLine) {
   return { endPos: doc.line(endLine + 1).to, hasBreak: false };
 }
 
-/** 复刻 ColumnsWidget 移除第 i 栏后的状态（removeColumnAt 语义） */
+/* * Replicate the state of ColumnsWidget after removing column i (removeColumnAt semantics) */
 function removeCol(texts, widths, bgs, rows, i) {
   texts.splice(i, 1); bgs.splice(i, 1);
   if (widths.length === texts.length + 1) {
@@ -39,16 +38,16 @@ function removeCol(texts, widths, bgs, rows, i) {
   return { texts, widths, bgs, rows };
 }
 
-/** 复刻 extractColumnTo 的主流程 */
+/* * Replicate the main process of extractColumnTo */
 function extract({ src, i, line, copy = false, opts = {} }) {
   const st = EditorState.create({ doc: src });
   const L = (n) => st.doc.line(n + 1);
-  // 定位 region：找外壳行与末行
+  // Locate region: find shell row and last row
   let start = -1;
   for (let k = 0; k < st.doc.lines; k++) if (/^\s*>\s*\[!multi-column/.test(st.doc.line(k + 1).text)) { start = k; break; }
   let end = start;
   for (let k = start + 1; k < st.doc.lines; k++) { if (!/^>/.test(st.doc.line(k + 1).text)) break; end = k; }
-  // 解析栏（简化：单行分栏）
+  // Analysis column (simplified: single line and column)
   const texts = [], bgs = [];
   for (let k = start + 1; k <= end; k++) {
     const t = st.doc.line(k + 1).text;
@@ -87,8 +86,8 @@ function extract({ src, i, line, copy = false, opts = {} }) {
   }
 
   const removed = removeCol([...texts], widthsOf(st), [...bgs], [], i);
-  // 降级（剩 1 栏 → 取消分栏）与常规路径统一走「区间重写 + 区间外插入」，
-  // 这样拖出内容也能落到任意位置（早期版本把它拼进 region 文本，只能紧邻）
+  // Downgrade (remaining 1 column → cancel column division) and follow the normal path of "interval rewriting + outside interval insertion",
+  // In this way, the dragged content can be dropped to any position (in earlier versions, it was spelled into the region text and could only be immediately adjacent)
   const regionText = shouldUnwrapAfterExtract(removed.texts.length)
     ? removed.texts.map((t) => t.replace(/\s+$/, '')).filter(Boolean).join('\n\n') + (ei.hasBreak ? '\n' : '')
     : buildRegionText(removed.texts, removed.widths, removed.bgs);
@@ -107,117 +106,117 @@ function extract({ src, i, line, copy = false, opts = {} }) {
 const TWO = ['intro', '', '> [!multi-column]', '>', '>> [!col]', '>> left', '>', '>> [!col]', '>> right', '', 'after'].join('\n');
 const THREE = ['> [!multi-column|60-40]', '>', '>> [!col]', '>> a', '>', '>> [!col]', '>> b', '>', '>> [!col]', '>> c', '', 'tail'].join('\n');
 
-console.log('\n=== 1. 三栏拖出末栏（下方紧邻落点）===');
+console.log("=== 1. Drag out the last column of three columns (immediately below the drop point) ===");
 {
-  // lines: 0..9 分栏, 10 空行, 11 tail → 插到 tail 之前
+  // lines: 0..9 columns, 10 blank lines, 11 tail → insert before tail
   const r = extract({ src: THREE, i: 2, line: 11 });
-  ok(!r.skip, '未跳过');
-  ok(r.doc.includes('>> a') && r.doc.includes('>> b'), '剩余两栏保留');
-  ok(!r.doc.includes('>> c'), '被拖出的栏已从分栏移除');
-  ok(r.doc.includes('c'), '被拖出内容成为独立普通块');
-  ok(/\n\nc\n/.test(r.doc), '拖出块与相邻块间有空行');
-  eq(r.doc.split('\n').filter((l) => l === '').length, 2, '空行数量正常（无堆积）');
-  ok(r.undo === THREE, '单步撤销完整还原');
+  ok(!r.skip, "not skipped");
+  ok(r.doc.includes('>> a') && r.doc.includes('>> b'), "Keep the remaining two columns");
+  ok(!r.doc.includes('>> c'), "The dragged column has been removed from the column");
+  ok(r.doc.includes('c'), "The dragged content becomes an independent ordinary block");
+  ok(/\n\nc\n/.test(r.doc), "There is a blank line between the dragged block and the adjacent block");
+  eq(r.doc.split('\n').filter((l) => l === '').length, 2, "The number of blank lines is normal (no accumulation)");
+  ok(r.undo === THREE, "Undo full restore in one step");
 }
 
-console.log('\n=== 2. 两栏拖出一栏 → 降级为取消分栏 ===');
+console.log("=== 2. Drag out one column from two columns → downgrade to cancel column ===");
 {
   const r = extract({ src: TWO, i: 1, line: 10 });
-  ok(!r.skip, '未跳过');
-  ok(!r.doc.includes('[!multi-column]'), '分栏外壳已消失（降级为取消分栏）');
-  ok(!r.doc.includes('[!col]'), '栏标记已消失');
-  ok(r.doc.includes('left') && r.doc.includes('right'), '两栏内容都保留为普通段落');
-  ok(r.undo === TWO, '单步撤销完整还原');
+  ok(!r.skip, "not skipped");
+  ok(!r.doc.includes('[!multi-column]'), "Column shell has disappeared (downgraded to cancel column)");
+  ok(!r.doc.includes('[!col]'), "Column markers have disappeared");
+  ok(r.doc.includes('left') && r.doc.includes('right'), "Both columns of content remain as normal paragraphs");
+  ok(r.undo === TWO, "Undo full restore in one step");
 }
 
-console.log('\n=== 3. Alt 复制：栏保留 + 外新增副本 ===');
+console.log("=== 3. Alt copy: keep the column + add a new copy ===");
 {
   const r = extract({ src: THREE, i: 2, line: 11, copy: true });
-  ok(r.doc.includes('>> a') && r.doc.includes('>> b') && r.doc.includes('>> c'), '三栏全部保留');
-  ok(/\n\nc\n/.test(r.doc), '分栏外多出被复制的普通块');
-  ok(r.undo === THREE, '单步撤销完整还原');
+  ok(r.doc.includes('>> a') && r.doc.includes('>> b') && r.doc.includes('>> c'), "Keep all three columns");
+  ok(/\n\nc\n/.test(r.doc), "There are too many copied ordinary blocks outside the column.");
+  ok(r.undo === THREE, "Undo full restore in one step");
 }
 
-console.log('\n=== 4. 上方落点（3 栏，避免触发降级）===');
+console.log("=== 4. Top landing point (3 columns, avoid triggering downgrade) ===");
 {
   const src = ['> [!multi-column]', '>', '>> [!col]', '>> a', '>', '>> [!col]', '>> b', '>', '>> [!col]', '>> c', '', 'after'].join('\n');
   const r = extract({ src, i: 2, line: 0 });
-  ok(!r.skip && r.doc.includes('c'), '上方拖出成功');
-  ok(r.doc.includes('[!multi-column]'), '仍保留分栏（3 栏剩 2 栏，不降级）');
-  ok(r.doc.indexOf('\nc\n') < r.doc.indexOf('[!multi-column]'), '拖出块位于分栏之前');
-  // 插到首行之前时文档以拖出块开头，前面没有 \n，故用 ^c\n\n 判断
-  ok(/^c\n\n/.test(r.doc), '拖出块在最前，且与分栏之间有空行分隔');
-  ok(r.doc.includes('>> b\n'), '分栏文本本身完整');
-  ok(r.undo === src, '单步撤销完整还原');
+  ok(!r.skip && r.doc.includes('c'), "Dragging from above was successful");
+  ok(r.doc.includes('[!multi-column]'), "Still retain the columns (3 columns and 2 columns left, no downgrade)");
+  ok(r.doc.indexOf('\nc\n') < r.doc.indexOf('[!multi-column]'), "Drag the block before the column");
+  // When inserted before the first line, the document starts with a drag block, and there is no \n in front, so ^c\n\n is used to judge.
+  ok(/^c\n\n/.test(r.doc), "Drag the block to the front and separate it from the column with a blank line");
+  ok(r.doc.includes('>> b\n'), "The column text itself is complete");
+  ok(r.undo === src, "Undo full restore in one step");
 }
 
-console.log('\n=== 4b. 上方落点 + 仅 2 栏 → 降级，顺序正确 ===');
+console.log("=== 4b. Top drop + 2 columns only → downgrade, correct order ===");
 {
   const src = ['> [!multi-column]', '>', '>> [!col]', '>> left', '>', '>> [!col]', '>> right', '', 'after'].join('\n');
   const r = extract({ src, i: 1, line: 0 });
-  ok(!r.skip, '未跳过');
-  ok(!r.doc.includes('[!multi-column]'), '分栏外壳消失（降级）');
-  eq(r.doc, 'right\n\nleft\n\nafter', '降级后：拖出块在前，剩余栏在后，顺序正确');
-  ok(r.undo === src, '单步撤销完整还原');
+  ok(!r.skip, "not skipped");
+  ok(!r.doc.includes('[!multi-column]'), "Column shell disappears (downgraded)");
+  eq(r.doc, 'right\n\nleft\n\nafter', "After downgrading: Drag out the block in front, remaining columns in the back, the order is correct");
+  ok(r.undo === src, "Undo full restore in one step");
 }
 
-console.log('\n=== 5. 空栏不拖出 ===');
+console.log("=== 5. Do not drag out empty columns ===");
 {
   const src = ['> [!multi-column]', '>', '>> [!col]', '>', '>> [!col]', '>> right', '', 'after'].join('\n');
   const r = extract({ src, i: 0, line: 7 });
-  ok(r.skip === true, '空栏被拒绝');
+  ok(r.skip === true, "Empty columns are rejected");
 }
 
-console.log('\n=== 6. 自由落点：拖到文末 ===');
+console.log("=== 6. Free fall point: drag to the end of the article ===");
 {
-  // THREE 共 12 行 → line=12 表示追加到文末
+  // THREE 12 lines in total → line=12 means appending to the end of the text
   const r = extract({ src: THREE, i: 2, line: 12 });
-  ok(!r.skip, '未跳过');
-  ok(r.doc.endsWith('c'), '拖出块落在文档最末尾');
-  ok(/\n\nc$/.test(r.doc), '与 tail 之间有空行分隔');
-  ok(r.doc.indexOf('tail') < r.doc.indexOf('c\n') || r.doc.indexOf('tail') < r.doc.lastIndexOf('c'), '拖出块在 tail 之后');
-  ok(r.undo === THREE, '单步撤销完整还原');
+  ok(!r.skip, "not skipped");
+  ok(r.doc.endsWith('c'), "Drag the block to the end of the document");
+  ok(/\n\nc$/.test(r.doc), "separated by a blank line from tail");
+  ok(r.doc.indexOf('tail') < r.doc.indexOf('c\n') || r.doc.indexOf('tail') < r.doc.lastIndexOf('c'), "Drag out the block after tail");
+  ok(r.undo === THREE, "Undo full restore in one step");
 }
 
-console.log('\n=== 7. 自由落点：拖到远上方（分栏之前还有正文）===');
+console.log("=== 7. Free drop point: drag to the far top (there is text before the column) ===");
 {
-  // TWO: 0 intro, 1 空, 2..8 分栏, 9 空, 10 after → 插到 intro 之前
+  // TWO: 0 intro, 1 empty, 2..8 columns, 9 empty, 10 after → insert before intro
   const r = extract({ src: TWO, i: 1, line: 0 });
-  ok(!r.skip, '未跳过');
-  ok(!r.doc.includes('[!multi-column]'), '2 栏拖出 1 栏 → 降级为取消分栏');
-  eq(r.doc, 'right\n\nintro\n\nleft\n\nafter', '拖出块在最前，其余顺序不变');
-  ok(r.undo === TWO, '单步撤销完整还原');
+  ok(!r.skip, "not skipped");
+  ok(!r.doc.includes('[!multi-column]'), "2 columns drag out 1 column → downgrade to cancel column");
+  eq(r.doc, 'right\n\nintro\n\nleft\n\nafter', "Drag the block to the front and keep the rest in order.");
+  ok(r.undo === TWO, "Undo full restore in one step");
 }
 
-console.log('\n=== 8. 自由落点：拖到文档中间的两个段落之间 ===');
+console.log("=== 8. Free drop point: drag to between two paragraphs in the middle of the document ===");
 {
   const src = [
     '> [!multi-column]', '>', '>> [!col]', '>> a', '>', '>> [!col]', '>> b', '>', '>> [!col]', '>> c',
     '', 'p1', '', 'p2', '', 'p3',
   ].join('\n');
-  // 0..9 分栏, 10 空, 11 p1, 12 空, 13 p2, 14 空, 15 p3 → 插到 p2 之前（line 13）
+  // 0..9 columns, 10 empty, 11 p1, 12 empty, 13 p2, 14 empty, 15 p3 → insert before p2 (line 13)
   const r = extract({ src, i: 2, line: 13 });
-  ok(!r.skip, '未跳过');
-  eq(r.doc.split('\n').filter((l) => l.trim() === 'p1' || l.trim() === 'p2' || l.trim() === 'p3').length, 3, '三个段落都在');
+  ok(!r.skip, "not skipped");
+  eq(r.doc.split('\n').filter((l) => l.trim() === 'p1' || l.trim() === 'p2' || l.trim() === 'p3').length, 3, "All three paragraphs are in");
   const idx = (s) => r.doc.split('\n').indexOf(s);
-  ok(idx('c') > idx('p1') && idx('c') < idx('p2'), '拖出块落在 p1 与 p2 之间');
-  // 段落之间不应出现连续两个空行（空行堆积会让源码看着散）
-  ok(!/\n\n\n/.test(r.doc), '没有连续空行堆积');
-  ok(r.undo === src, '单步撤销完整还原');
+  ok(idx('c') > idx('p1') && idx('c') < idx('p2'), "Drag the block to fall between p1 and p2");
+  // There should not be two consecutive blank lines between paragraphs (accumulation of blank lines will make the source code look scattered)
+  ok(!/\n\n\n/.test(r.doc), "No accumulation of consecutive blank lines");
+  ok(r.undo === src, "Undo full restore in one step");
 }
 
-console.log('\n=== 9. 自由落点：降级路径也能落到远处 ===');
+console.log("=== 9. Free fall point: the downgrade path can also fall far away ===");
 {
   const src = ['> [!multi-column]', '>', '>> [!col]', '>> left', '>', '>> [!col]', '>> right', '', 'p1', '', 'p2'].join('\n');
-  // 0..6 分栏, 7 空, 8 p1, 9 空, 10 p2 → 拖出 right 到 p2 之前（line 10）
+  // 0..6 columns, 7 empty, 8 p1, 9 empty, 10 p2 → drag out right before p2 (line 10)
   const r = extract({ src, i: 1, line: 10 });
-  ok(!r.skip, '未跳过');
-  ok(!r.doc.includes('[!multi-column]'), '降级为取消分栏');
+  ok(!r.skip, "not skipped");
+  ok(!r.doc.includes('[!multi-column]'), "Downgrade to cancel column");
   const idx = (s) => r.doc.split('\n').indexOf(s);
   ok(idx('left') < idx('p1') && idx('p1') < idx('right') && idx('right') < idx('p2'),
-    '顺序：left, p1, right(拖出块), p2');
-  ok(r.undo === src, '单步撤销完整还原');
+    "Sequence: left, p1, right (drag out block), p2");
+  ok(r.undo === src, "Undo full restore in one step");
 }
 
-console.log(`\n${'='.repeat(46)}\n通过 ${pass} / 失败 ${fail}\n${'='.repeat(46)}`);
+console.log(`\n${'='.repeat(46)}Pass${pass}/fail${fail}\n${'='.repeat(46)}`);
 process.exit(fail ? 1 : 0);

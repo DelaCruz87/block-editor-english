@@ -1,16 +1,15 @@
-/**
- * 行内斜杠命令触发判定回归。
+/* *
+ * Inline slash commands trigger decision regression.
  *
- * 决策背景（用户拍板，2026-10-07 第二次修订）：
- *  - **非行首一律只给附件 4 项**（`文字/图`、`sdfs /`、`sdfs/` 都算行内）
- *  - 行首（含缩进、列表符 `- ` 之后）仍是全量菜单（转换 + 插入）
- *  - 路径形态豁免：`/` 前是 `:` / `/` / `\`（C:/、https://）不触发
- *  - 链接 / 行内代码 / 行内数学内部不触发
- *  历史：第一版曾按「仅中文后触发 + 宁可漏」实现，用户实测 `sdfs /` 弹出全量菜单
- *  认为是 bug，遂改为「非行首一律附件」。
+ * Decision background (user decision, second revision on 2026-10-07):
+ * - **Only 4 attachments are given if they are not the first of the line** (`text/Figure`, `sdfs /`, `sdfs/` are all included in the line)
+ * - The beginning of the line (including indentation and after the list character `- `) is still the full menu (convert + insert)
+ * - Path shape exemption: `/` preceded by `:` / `/` / `\` (C:/, https://) does not trigger
+ * - Links / inline code / inline math do not trigger internally
+ * History: The first version was implemented by "Trigger only after Chinese + would rather leak". Users actually tested `sdfs /` to pop up the full menu.
+ * I thought it was a bug, so I changed it to "Attach all non-line headers".
  *
- * 运行：node scripts/build-slash-trigger-spec.mjs && node scripts/slash-trigger-spec.mjs
- */
+ * Run: node scripts/build-slash-trigger-spec.mjs && node scripts/slash-trigger-spec.mjs */
 import { readFileSync } from 'node:fs';
 import { slashTrigger, isBlockedContext, filterSlashItems } from '../temp/verify/slash-trigger.mjs';
 
@@ -18,63 +17,63 @@ let pass = 0, fail = 0;
 const ok = (c, l) => { if (c) { pass++; console.log(`  PASS ${l}`); } else { fail++; console.log(`  FAIL ${l}`); } };
 const eq = (a, b, l) => ok(JSON.stringify(a) === JSON.stringify(b), `${l}（got ${JSON.stringify(a)}, want ${JSON.stringify(b)}）`);
 
-/** 触发结果摘要：null 或 {ch, query, inline} */
+/* * Trigger result summary: null or {ch, query, inline} */
 const t = (s) => slashTrigger(s);
 
-console.log('\n=== 1. 块级触发：/ 之前全是空白（旧行为不变，全量条目）===');
+console.log("=== 1. Block-level trigger: / is all blank before (old behavior remains unchanged, full number of entries) ===");
 {
-  eq(t('/'), { ch: 0, query: '', inline: false }, '行首 / → block');
-  eq(t('/图'), { ch: 0, query: '图', inline: false }, '行首 /图 → block');
-  eq(t('  /img'), { ch: 2, query: 'img', inline: false }, '缩进后 /img → block');
-  eq(t('- /img'), { ch: 2, query: 'img', inline: false }, '列表符 `- ` 后 /img → block（保留列表内转换工作流）');
-  eq(t('1. /img'), { ch: 3, query: 'img', inline: false }, '有序列表符 `1. ` 后 → block');
-  eq(t('> /img'), { ch: 2, query: 'img', inline: false }, '引用符 `> ` 后 → block');
+  eq(t('/'), { ch: 0, query: '', inline: false }, "Beginning of line / → block");
+  eq(t('/\u56fe'), { ch: 0, query: '\u56fe', inline: false }, "start of line/picture → block");
+  eq(t('  /img'), { ch: 2, query: 'img', inline: false }, "After indentation /img → block");
+  eq(t('- /img'), { ch: 2, query: 'img', inline: false }, "List symbol `- ` followed by /img → block (preserves the in-list conversion workflow)");
+  eq(t('1. /img'), { ch: 3, query: 'img', inline: false }, "After the ordered list character `1. ` → block");
+  eq(t('> /img'), { ch: 2, query: 'img', inline: false }, "After the quote character `> ` → block");
 }
 
-console.log('\n=== 2. 非行首：一律行内（只给附件）——本次修订核心 ===');
+console.log("=== 2. Non-line headers: all within the line (only attachments are given) - the core of this revision ===");
 {
-  eq(t('文字/图'), { ch: 2, query: '图', inline: true }, '文字/图 → inline');
-  eq(t('sdfs /'), { ch: 5, query: '', inline: true }, 'sdfs /（空格后）→ inline（用户截图场景）');
-  eq(t('sdfs /'), { ch: 5, query: '', inline: true }, '空查询词也弹（否则用户以为没生效）');
-  eq(t('sdfs/img'), { ch: 4, query: 'img', inline: true }, '英文单词后直接 / → inline');
-  eq(t('文字/img'), { ch: 2, query: 'img', inline: true }, '中文 + 英文查询词 → inline');
-  eq(t('文字、/图'), { ch: 3, query: '图', inline: true }, '中文标点（、）后 → inline');
-  eq(t('2026/图'), { ch: 4, query: '图', inline: true }, '数字后 → inline（a/b、1/2 的查询词匹配不到条目，菜单自动隐藏）');
+  eq(t('\u6587\u5b57/\u56fe'), { ch: 2, query: '\u56fe', inline: true }, "text/image → inline");
+  eq(t('sdfs /'), { ch: 5, query: '', inline: true }, "sdfs / (after space) → inline (user screenshot scenario)");
+  eq(t('sdfs /'), { ch: 5, query: '', inline: true }, "Empty query words are also played (otherwise the user will think it is not effective)");
+  eq(t('sdfs/img'), { ch: 4, query: 'img', inline: true }, "Directly after an English word / → inline");
+  eq(t('\u6587\u5b57/img'), { ch: 2, query: 'img', inline: true }, "Chinese + English query → inline");
+  eq(t('\u6587\u5b57、/\u56fe'), { ch: 3, query: '\u56fe', inline: true }, "After Chinese punctuation (,) → inline");
+  eq(t('2026/\u56fe'), { ch: 4, query: '\u56fe', inline: true }, "After the number → inline (the query words a/b, 1/2 cannot match the entry, and the menu is automatically hidden)");
 }
 
-console.log('\n=== 3. 路径形态豁免（宁可漏的残留）===');
+console.log("=== 3. Path form exemption (rather leaky residue) ===");
 {
   for (const s of ['C:/Users', 'C:/', 'https://x', 'a\\b']) {
-    eq(t(s), null, `${s} → 不触发（前字符 : / \\）`);
+    eq(t(s), null, `${s}→ Not triggered (preceding character: / \\)`);
   }
-  eq(t('src/util'), { ch: 3, query: 'util', inline: true }, 'src/util 仍触发但查询词匹配不到 → 菜单隐藏（可接受的残留）');
+  eq(t('src/util'), { ch: 3, query: 'util', inline: true }, "src/util still fires but the query term is not matched → menu is hidden (acceptable residue)");
 }
 
-console.log('\n=== 4. 上下文屏蔽：链接 / 行内代码 / 行内数学 ===');
+console.log("=== 4. Contextual masking: links / inline code / inline math ===");
 {
   ok(isBlockedContext('![[assets/p'), true);
-  ok(isBlockedContext('见 [[文件夹/p'), true);
-  ok(isBlockedContext('![[a.png]] 文字/p') === false, '已闭合的 wiki 链接之后 → 不屏蔽');
-  ok(isBlockedContext('[标题](assets/p'), true);
-  ok(isBlockedContext('[标题](a.png) 文字/p') === false, '已闭合的 md 链接之后 → 不屏蔽');
-  ok(isBlockedContext('`代码/p'), true, '行内代码未闭合 → 屏蔽');
-  ok(isBlockedContext('`代码` 后/p') === false, '行内代码已闭合 → 不屏蔽');
-  ok(isBlockedContext('$x/p'), true, '行内数学未闭合 → 屏蔽');
-  ok(isBlockedContext('$x$ 后/p') === false, '行内数学已闭合 → 不屏蔽');
+  ok(isBlockedContext('\u89c1 [[\u6587\u4ef6\u5939/p'), true);
+  ok(isBlockedContext('![[a.png]] \u6587\u5b57/p') === false, "After closed wiki link → not blocked");
+  ok(isBlockedContext('[\u6807\u9898](assets/p'), true);
+  ok(isBlockedContext('[\u6807\u9898](a.png) \u6587\u5b57/p') === false, "After closed md link → not blocked");
+  ok(isBlockedContext('`\u4ee3\u7801/p'), true, '\u884c\u5185\u4ee3\u7801\u672a\u95ed\u5408 → \u5c4f\u853d');
+  ok(isBlockedContext('`\u4ee3\u7801` \u540e/p') === false, "Inline code is closed → not blocked");
+  ok(isBlockedContext('$x/p'), true, '\u884c\u5185\u6570\u5b66\u672a\u95ed\u5408 → \u5c4f\u853d');
+  ok(isBlockedContext('$x$ \u540e/p') === false, "Inline math is closed → not blocked");
 
-  eq(t('![[assets/图'), null, '链接内的 / 不触发');
-  eq(t('[标题](assets/图'), null, 'md 链接目标内的 / 不触发');
-  eq(t('`代码/图'), null, '行内代码内的 / 不触发');
-  eq(t('$x/图'), null, '行内数学内的 / 不触发');
+  eq(t('![[assets/\u56fe'), null, "/ within a link does not trigger");
+  eq(t('[\u6807\u9898](assets/\u56fe'), null, "/ within md link target does not trigger");
+  eq(t('`\u4ee3\u7801/\u56fe'), null, "/ within inline code does not trigger");
+  eq(t('$x/\u56fe'), null, "/ does not trigger within inline math");
 }
 
-console.log('\n=== 5. 查询词形态 ===');
+console.log("=== 5. Query word form ===");
 {
-  eq(t('文字/图 片'), null, '查询词含空格 → 不触发（与旧 \S* 一致）');
-  eq(t('文字/图/表'), { ch: 4, query: '表', inline: true }, '多个 / 取最后一个作命令');
+  eq(t('\u6587\u5b57/\u56fe \u7247'), null, "Query words contain spaces → do not trigger (consistent with old S*)");
+  eq(t('\u6587\u5b57/\u56fe/\u8868'), { ch: 4, query: '\u8868', inline: true }, "Multiple / takes the last one as the command");
 }
 
-console.log('\n=== 6. 行内只保留插入类（附件 4 项）===');
+console.log("=== 6. Only keep the insertion class in the row (Item 4 in the attachment) ===");
 {
   const items = [
     { kind: 'turn', id: 'paragraph' },
@@ -84,57 +83,57 @@ console.log('\n=== 6. 行内只保留插入类（附件 4 项）===');
     { kind: 'insert', id: 'video' },
     { kind: 'insert', id: 'pdf' },
   ];
-  eq(filterSlashItems(items, true).map((i) => i.id), ['image', 'audio', 'video', 'pdf'], 'inline → 只剩附件 4 项');
-  eq(filterSlashItems(items, false).length, 6, 'block → 全量 6 项');
+  eq(filterSlashItems(items, true).map((i) => i.id), ['image', 'audio', 'video', 'pdf'], "inline → Only 4 attachments left");
+  eq(filterSlashItems(items, false).length, 6, "block → total 6 items");
   ok(
     filterSlashItems(items, true).every((i) => i.kind === 'insert'),
-    '行内绝不出现转换类（否则会改写整块）'
+    "Conversion classes must never appear inline (otherwise the entire block will be rewritten)"
   );
 }
 
-console.log('\n=== 7. 源码守卫：onTrigger 已改用 slashTrigger ===');
+console.log("=== 7. Source code guard: onTrigger has been changed to slashTrigger ===");
 {
   const src = readFileSync('src/slash-suggest.ts', 'utf8');
   const onTrigger = src.slice(src.indexOf('onTrigger('), src.indexOf('getSuggestions('));
-  ok(onTrigger.includes('slashTrigger('), 'onTrigger 调用 slashTrigger');
-  ok(!/\(\?:\^|\\s\)\\\/\(\\S\*\)\$/.test(onTrigger), '不再使用旧正则 (?:^|\\s)\\/(\\S*)$');
-  ok(onTrigger.includes('slashInlineCommands'), '行内开关生效');
-  ok(onTrigger.includes('getFrontmatterEnd'), 'frontmatter 区已排除');
-  ok(onTrigger.includes('findContainerAt'), '容器块（代码 / 公式 / 表格）已排除');
+  ok(onTrigger.includes('slashTrigger('), "onTrigger calls slashTrigger");
+  ok(!/\(\?:\^|\\s\)\\\/\(\\S\*\)\$/.test(onTrigger), "The old regular expression (?:^|\\s)\\/(\\S*)$ is no longer used");
+  ok(onTrigger.includes('slashInlineCommands'), "Inline switch takes effect");
+  ok(onTrigger.includes('getFrontmatterEnd'), "frontmatter area excluded");
+  ok(onTrigger.includes('findContainerAt'), "Container blocks (code/formula/table) excluded");
   const sel = src.slice(src.indexOf('selectSuggestion('));
-  ok(sel.includes('isInlineContext(sugg)'), 'selectSuggestion 对行内转换类做了兜底拦截');
+  ok(sel.includes('isInlineContext(sugg)'), "selectSuggestion intercepts inline conversion classes");
 }
 
-console.log('\n=== 7b. 回归：行内判定不得依赖实例字段（真实 bug：行内却给出全部条目）===');
+console.log("=== 7b. Regression: Inline determination must not rely on instance fields (real bug: all entries are given inline) ===");
 {
   const src = readFileSync('src/slash-suggest.ts', 'utf8');
   const getSug = src.slice(src.indexOf('getSuggestions('), src.indexOf('renderSuggestion('));
-  ok(getSug.includes('isInlineContext(context)'), 'getSuggestions 每次从上下文重算 inline');
-  ok(!/this\.inline/.test(getSug), 'getSuggestions 不读实例字段 this.inline（否则会读到上一轮脏值）');
-  ok(!/private inline/.test(src), '已移除 inline 实例字段');
-  ok(src.includes('isInlineContext(sugg:'), 'isInlineContext 接受 {editor,start,end} 上下文');
+  ok(getSug.includes('isInlineContext(context)'), "getSuggestions is recalculated inline each time from the context");
+  ok(!/this\.inline/.test(getSug), "getSuggestions does not read the instance field this.inline (otherwise the previous round of dirty values will be read)");
+  ok(!/private inline/.test(src), "The inline instance field has been removed");
+  ok(src.includes('isInlineContext(sugg:'), "isInlineContext accepts {editor,start,end} context");
 
-  // 行为等价：同一段文本，从上下文重算与触发时判定必须一致
-  const line = '文字/图';
+  // Behavioral equivalence: For the same piece of text, the recalculation from the context and the determination when triggered must be consistent.
+  const line = '\u6587\u5b57/\u56fe';
   const atTrigger = slashTrigger(line);
-  const fromContext = slashTrigger(line.slice(0, line.length)); // end.ch = 光标处
-  eq(fromContext?.inline, atTrigger?.inline, 'getSuggestions 重算结果与 onTrigger 判定一致');
-  eq(fromContext?.query, atTrigger?.query, 'query 也一致');
+  const fromContext = slashTrigger(line.slice(0, line.length)); // end.ch = cursor position
+  eq(fromContext?.inline, atTrigger?.inline, "The recalculation result of getSuggestions is consistent with the onTrigger judgment.");
+  eq(fromContext?.query, atTrigger?.query, "query is also consistent");
 }
 
-console.log('\n=== 8. 主入口导出（parity 复用）+ buildSlashItems 接线 ===');
+console.log("=== 8. Main entrance export (parity reuse) + buildSlashItems wiring ===");
 {
   const main = readFileSync('src/main.ts', 'utf8');
-  ok(main.includes('export { slashTrigger'), 'main.ts 导出 slashTrigger（供 parity 断言）');
+  ok(main.includes('export { slashTrigger'), "main.ts exports slashTrigger (for parity assertion)");
 
-  // buildSlashItems 本身依赖 obsidian（EditorSuggest），离线只能查接线：
-  // 默认参数 false（旧行为）+ 把 inline 交给 filterSlashItems
+  // buildSlashItems itself relies on obsidian (EditorSuggest), and you can only check the connection when offline:
+  // Default parameter false (old behavior) + hand inline to filterSlashItems
   const src = readFileSync('src/slash-suggest.ts', 'utf8');
-  const fn = src.slice(src.indexOf('export function buildSlashItems'), src.indexOf('/** 斜杠「插入类」动作执行器'));
-  ok(fn.includes('inline = false'), 'buildSlashItems 默认非行内（parity 旧断言不受影响）');
-  ok(fn.includes('filterSlashItems(items, inline)'), 'buildSlashItems 把 inline 交给 filterSlashItems');
-  ok(!/if \(!q\) return items;/.test(fn), '不再直接返回未过滤的 items');
+  const fn = src.slice(src.indexOf('export function buildSlashItems'), src.indexOf('/** \u659c\u6760「\u63d2\u5165\u7c7b」\u52a8\u4f5c\u6267\u884c\u5668'));
+  ok(fn.includes('inline = false'), "buildSlashItems is non-inline by default (parity old assertions are not affected)");
+  ok(fn.includes('filterSlashItems(items, inline)'), "buildSlashItems passes inline to filterSlashItems");
+  ok(!/if \(!q\) return items;/.test(fn), "No longer directly returns unfiltered items");
 }
 
-console.log(`\n合计：${pass} 通过 / ${fail} 失败`);
+console.log(`Total:${pass}via /${fail}failed`);
 if (fail) process.exit(1);
